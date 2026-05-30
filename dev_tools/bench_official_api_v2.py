@@ -5,7 +5,7 @@ import json
 import time
 import wave
 from pathlib import Path
-from urllib import request
+from urllib import error, request
 
 
 def wav_duration_s(path: Path) -> float | None:
@@ -25,7 +25,13 @@ def post_json(url: str, payload: dict, out_path: Path) -> tuple[float, float, in
     first_byte_at = None
     total_bytes = 0
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with request.urlopen(req, timeout=600) as resp, out_path.open("wb") as fp:
+    try:
+        resp_ctx = request.urlopen(req, timeout=600)
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code} from {url}: {detail}") from exc
+
+    with resp_ctx as resp, out_path.open("wb") as fp:
         while True:
             chunk = resp.read(65536)
             if not chunk:
