@@ -88,6 +88,16 @@ def get_cached_audio(key: str) -> Optional[str]:
     return wav_path
 
 
+def get_cache_metadata(key: str) -> Optional[dict]:
+    """Return cache metadata without mutating hit counters."""
+    wav_path, json_path = cache_paths(key)
+    if not os.path.isfile(wav_path):
+        return None
+    metadata = _read_metadata(json_path)
+    metadata.setdefault("key", key)
+    return metadata
+
+
 def save_cached_audio(key: str, audio_bytes: bytes, metadata: dict) -> str:
     """Persist cached wav bytes and metadata, returning the wav path."""
     wav_path, json_path = cache_paths(key)
