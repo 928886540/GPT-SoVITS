@@ -39,9 +39,17 @@ DEFAULT_CASES = [
     {"label": "b1_steps16_parallel", "params": {"batch_size": 1, "sample_steps": 16, "parallel_infer": True}},
     {"label": "b1_steps8_parallel", "params": {"batch_size": 1, "sample_steps": 8, "parallel_infer": True}},
     {"label": "b2_steps8_parallel", "params": {"batch_size": 2, "sample_steps": 8, "parallel_infer": True}},
+    {"label": "b2_steps16_parallel", "params": {"batch_size": 2, "sample_steps": 16, "parallel_infer": True}},
+    {"label": "b2_steps24_parallel", "params": {"batch_size": 2, "sample_steps": 24, "parallel_infer": True}},
+    {"label": "b2_steps32_parallel", "params": {"batch_size": 2, "sample_steps": 32, "parallel_infer": True}},
     {"label": "b4_steps8_parallel", "params": {"batch_size": 4, "sample_steps": 8, "parallel_infer": True}},
     {"label": "b8_steps8_parallel", "params": {"batch_size": 8, "sample_steps": 8, "parallel_infer": True}},
     {"label": "b4_steps16_parallel", "params": {"batch_size": 4, "sample_steps": 16, "parallel_infer": True}},
+    {"label": "b4_steps24_parallel", "params": {"batch_size": 4, "sample_steps": 24, "parallel_infer": True}},
+    {"label": "b4_steps32_parallel", "params": {"batch_size": 4, "sample_steps": 32, "parallel_infer": True}},
+    {"label": "b8_steps16_parallel", "params": {"batch_size": 8, "sample_steps": 16, "parallel_infer": True}},
+    {"label": "b8_steps24_parallel", "params": {"batch_size": 8, "sample_steps": 24, "parallel_infer": True}},
+    {"label": "b8_steps32_parallel", "params": {"batch_size": 8, "sample_steps": 32, "parallel_infer": True}},
     {"label": "b4_steps4_parallel", "params": {"batch_size": 4, "sample_steps": 4, "parallel_infer": True}},
     {"label": "b2_steps8_serial", "params": {"batch_size": 2, "sample_steps": 8, "parallel_infer": False}},
 ]
@@ -310,6 +318,7 @@ def main() -> int:
     parser.add_argument("--runs-per-case", type=int, default=1)
     parser.add_argument("--cases", nargs="*", help="Run only selected default case labels")
     parser.add_argument("--text", default=DEFAULT_TEXT)
+    parser.add_argument("--text-file", help="Read test text from a UTF-8 file; overrides --text")
     parser.add_argument("--sleep-between", type=float, default=0.5)
     args = parser.parse_args()
 
@@ -319,6 +328,7 @@ def main() -> int:
     base_payload_path = Path(args.base_payload)
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
     base_payload = json.loads(base_payload_path.read_text(encoding="utf-8"))
+    text = Path(args.text_file).read_text(encoding="utf-8").strip() if args.text_file else args.text
     api_base = args.api_base_url.rstrip("/")
     port = parse.urlparse(api_base).port or 80
 
@@ -330,7 +340,7 @@ def main() -> int:
         case_label = case["label"]
         case_dir = out_dir / case_label
         case_dir.mkdir(parents=True, exist_ok=True)
-        payload = build_payload(base_payload, profile, args.text, case["params"])
+        payload = build_payload(base_payload, profile, text, case["params"])
         payload["version_label"] = "v4"
         payload["case_label"] = case_label
         (case_dir / "payload.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -350,7 +360,7 @@ def main() -> int:
                 "profile_path": str(profile_path.resolve()),
                 "ref_audio_path": profile["ref_audio_path"],
                 "prompt_text": profile.get("prompt_text", ""),
-                "text": args.text,
+                "text": text,
                 "out_wav": str(out_wav.resolve()),
                 "out_json": str(out_json.resolve()),
             }
@@ -397,7 +407,7 @@ def main() -> int:
         "base_payload_path": str(base_payload_path.resolve()),
         "ref_audio_path": profile["ref_audio_path"],
         "prompt_text": profile.get("prompt_text", ""),
-        "text": args.text,
+        "text": text,
         "runs": runs,
         "summary": summarize(runs),
     }
