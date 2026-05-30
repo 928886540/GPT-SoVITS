@@ -34,6 +34,10 @@ __pycache__/
 *.err
 *.out
 
+# Local long-form/private benchmark reports
+reports/v4_mature_sister_balanced_20260531/
+reports/v4_mature_sister_long_*/
+
 # Copied prompt-library sidecar files from local voice collections
 prompts/library/**/*.txt
 prompts/library/**/*.png
