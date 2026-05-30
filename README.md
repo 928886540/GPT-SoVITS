@@ -164,3 +164,36 @@ flowchart LR
 - `handoff_docs/NEXT_SESSION.md`
 - `handoff_docs/EVALUATION_PLAN.md`
 - `handoff_docs/DISTRIBUTION_PLAN.md`
+
+## 2026-05-31 Current Execution Plan
+
+Immediate task: download and validate the next official GPT-SoVITS model sets through proxy `127.0.0.1:7897`.
+
+Download targets:
+
+- v2 baseline resources are already present and runnable.
+- v2ProPlus needs `GPT_SoVITS/pretrained_models/s1v3.ckpt` and `GPT_SoVITS/pretrained_models/v2Pro/s2Gv2ProPlus.pth`.
+- v4 needs `GPT_SoVITS/pretrained_models/s1v3.ckpt` and `GPT_SoVITS/pretrained_models/gsv-v4-pretrained/s2Gv4.pth`.
+- Shared resources remain under `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models`.
+
+After download, run the same zero-shot benchmark matrix for v2, v2ProPlus, and v4:
+
+- Chinese short text.
+- Chinese long text.
+- Japanese short text.
+- Chinese/Japanese mixed text.
+- Multi-role dialogue through the local Tavo adapter.
+
+Every run must record these fields with full absolute paths:
+
+- model version and exact weight paths.
+- prompt audio path and prompt text.
+- inference parameters: `batch_size`, `sample_steps`, `top_k`, `top_p`, `temperature`, `text_split_method`, `streaming_mode`, `parallel_infer`, `speed_factor`, `fragment_interval`, `overlap_length`, `min_chunk_length`.
+- first byte / first chunk time.
+- total generation time.
+- output audio duration and RTF.
+- GPU memory before/after/peak when available.
+- CPU Working Set / Private / Peak Working Set when available.
+- output WAV and JSON metadata full paths.
+
+Do not start few-shot training until v2ProPlus and v4 have both been downloaded and compared on the same zero-shot test set.

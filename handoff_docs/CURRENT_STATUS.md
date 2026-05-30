@@ -39,6 +39,10 @@
   - `prompts/library/女声/温柔御姐.json`
 - 已完成 `女声/高圆圆` 当前卡片流式 + 后台缓存测试：`reports/REAL_VOICE_GPTSOVITS_FIRST.md`
 - 新增本机链路测试 Voice Profile：`prompts/library/local_huihui.json`
+- 已按用户要求通过代理 `127.0.0.1:7897` 下载 v2ProPlus / v4 推理权重到官方目录：
+  - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\s1v3.ckpt`
+  - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\v2Pro\s2Gv2ProPlus.pth`
+  - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\gsv-v4-pretrained\s2Gv4.pth`
 
 ## 当前判断
 
@@ -87,7 +91,7 @@
 5. Tavo adapter 已能通过官方非流式 `/tts` 生成多段 dialogue 缓存。
 6. 下一步试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_cached_13s.wav`，并校对参考音频逐字稿。不要用 `gaoyuanyuan_live.wav` 做人工试听；它是流式抓包，普通播放器会显示 0 秒。
 7. 继续从 `女声/`、`角色扮演/`、`常用配音/`、`逗哥热门音色/` 批量筛 5-10 秒清晰中文样本生成 Profile。
-8. 下载 v2ProPlus / v4 额外模型，用于 ASMR 路线对比。
+8. v2ProPlus / v4 额外模型已下载，下一步用同一套 zero-shot 样本做 v2 / v2ProPlus / v4 横向对比。
 9. 先继续推理和产品链路验证，不要先训练。
 10. 建立统一测试样本：
    - 中文短句
