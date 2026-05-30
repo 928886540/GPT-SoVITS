@@ -176,6 +176,10 @@ Genie 测试脚本：
 - AD学姐 zero-shot profile 已创建：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\AD学姐.json`。
 - AD学姐 V4 3 组参数测试已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`。其中 `batch_size=8` / `sample_steps=8` 三次平均 RTF `0.163`。
 - v2ProPlus 和 V4 都可以继续做：v2ProPlus 做稳定默认，V4 做情绪/抑扬顿挫候选。短期单 API 切权重，产品化可考虑 v2ProPlus/V4 双端口。
+- P2 句级声腔已接入第一版：前端/LLM 每段传 `{role,text,style,style_alpha}`，adapter 保留 `style` 并映射到 `prompts/library/声腔` 下的 aux reference。烟测报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\p2_sentence_style_smoke_20260531\REPORT.md`。
+- 手机/局域网入口：`http://192.168.8.100:9880/static/tavo.js`，P2 直接测试页：`http://192.168.8.100:9880/p2_test`。
+- LAN 启动脚本：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\dev_tools\start_adapter_lan.ps1`。当前 adapter 已加 CORS，Tavo/WebView 跨来源 fetch `/voices`、`/tts_dialogue_stream_job` 应不再被浏览器拦截。
+- 注意：音色模型不负责自动分辨场景；自动分辨来自 LLM 拆句输出的 `style`。训练模型负责角色声线身份和稳定性。
 
 1. 进入官方 GPT-SoVITS 目录：
 
@@ -217,6 +221,9 @@ D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official
   - 首包
   - 输出音频路径
   - 主观音质由用户试听
+- 继续 P2 时优先做两件事：
+  - 用手机打开 `http://192.168.8.100:9880/p2_test` 验证 WebUI 能显示并能请求 `/voices`。
+  - 优化真正逐句 live streaming。当前为保真优先，缓存未完成时 GET `/tts_dialogue_stream_job/{cache_key}` 会同步分句生成完整 WAV 后返回，避免丢多音色和句级声腔。
 
 4. ASMR 训练验证后置。
 

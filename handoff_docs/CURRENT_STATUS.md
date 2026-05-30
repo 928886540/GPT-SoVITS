@@ -63,6 +63,14 @@
   - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\result.json`
   - 关键结果：AD学姐 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 3 次平均首包 `2.480s`，RTF `0.163`，GPU after 约 `4744 MiB`。
   - 注意：AD学姐 `prompt_text` 是 Whisper ASR 初稿后人工规整，后续必须人工试听校对。
+- 已完成 P2 句级声腔接入第一版：
+  - Adapter：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\gsv_tavo_adapter.py`
+  - P2 测试页：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\static\gsv_p2_test.html`
+  - LAN 启动脚本：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\dev_tools\start_adapter_lan.ps1`
+  - LAN 测试地址：`http://192.168.8.100:9880/p2_test`
+  - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\p2_sentence_style_smoke_20260531\REPORT.md`
+  - 已验证 `role` 选择主音色，`style` 逐句映射到 `aux_ref_audio_paths`，例如 `whisper_soft -> 声腔/whisper_soft.wav`、`喘息-AD学姐 -> 声腔/喘息-AD学姐.mp3`。
+  - 已加 CORS 与旧前端兼容接口：`/voice_preview`、`/tts_stream_job`、`/server_log/tail`。
 
 ## 当前判断
 
@@ -93,10 +101,11 @@
 - v2ProPlus 和 V4 可以并行作为产品候选：v2ProPlus 做稳定默认，V4 做情绪/抑扬顿挫候选。短期用单官方 API 切权重验证；产品化如果频繁混用，建议拆成两个本机端口，避免反复切权重。双端口空闲 CPU 应该很低，但显存会常驻，12GB 机器要限制并发生成。
 - 后续测试必须打印参数、内存、显存、RTF、首包和输出文件路径。
 - Tavo 迁移采用“旧前端体验 + 新 GPT-SoVITS adapter”的路线：先保留旧接口契约，再把内部接到官方 GPT-SoVITS。
+- P2 的正确玩法是“多音色 + 句级声腔”：音色模型不自动判断场景，LLM/前端每句输出 `role + style`，adapter 再把 `role` 映射为主音色，把 `style` 映射为声腔 aux。
 
 ## 当前运行状态
 
-- `127.0.0.1:9880`：`Leon_api/gsv_tavo_adapter.py`，已提供 Tavo 前端、voices/profile/cache/parse_text/job，并已接官方 GPT-SoVITS 非流式推理、后台队列、WAV 拼接、本地缓存和当前卡片流式直通。
+- `127.0.0.1:9880` / `192.168.8.100:9880`：`Leon_api/gsv_tavo_adapter.py`，已提供 Tavo 前端、voices/profile/cache/parse_text/job、P2 测试页，并已接官方 GPT-SoVITS 非流式推理、后台队列、WAV 拼接、本地缓存、多音色与句级声腔 aux。
 - `127.0.0.1:9881`：官方 `gpt-sovits-official/api_v2.py`，当前会话最后切到 v4 权重，可进入 Swagger 文档。
 - 运行日志：
   - `outputs/logs/gsv_tavo_adapter.out.log`
@@ -126,6 +135,7 @@
    - 中日混合段
    - 多角色对话段
 11. 建立统一指标记录表。
+12. P2 下一步优化真逐句 live streaming：当前 GET `/tts_dialogue_stream_job/{cache_key}` 为保证多音色/句级声腔正确，会同步生成分句缓存后返回完整 WAV；不是最终低首包流式。
 
 ## 注意事项
 

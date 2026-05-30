@@ -12,6 +12,7 @@ from typing import Any, Optional
 from urllib import error, request as urlrequest
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -19,8 +20,40 @@ from gsv_adapter import llm_proxy, profile_store, snapshot_cache, voice_library
 
 
 APP = FastAPI(title="GPT-SoVITS Tavo Local Adapter")
+APP.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-GPT-SoVITS-Cache-Key"],
+)
 ROOT = Path(__file__).resolve().parent
+STYLE_DIR = ROOT / "prompts" / "library" / "声腔"
 OFFICIAL_TTS_URL = os.getenv("GPT_SOVITS_OFFICIAL_TTS_URL", "http://127.0.0.1:9881/tts")
+
+
+STYLE_ALIASES = {
+    "neutral": "",
+    "breath_soft": "breath_soft",
+    "breath_heavy": "breath_heavy",
+    "intimate_breath": "intimate_breath",
+    "moan_soft": "moan_soft",
+    "low_murmur": "low_murmur",
+    "whisper_soft": "whisper_soft",
+    "shy_whisper": "shy_whisper",
+    "tense_breath": "tense_breath",
+    "sob_soft": "sob_soft",
+    "cry_soft": "cry_soft",
+    "tease_soft": "tease_soft",
+    "laugh_soft": "laugh_soft",
+    "gasp_surprise": "gasp_surprise",
+    "scream_peak": "scream_peak",
+    "stage_warmup": "breath_soft",
+    "stage_rising": "intimate_breath",
+    "stage_peak": "scream_peak",
+    "stage_afterglow": "low_murmur",
+}
 
 
 JOBS: dict[str, dict[str, Any]] = {}
@@ -66,6 +99,22 @@ class DialogueStreamRequest(BaseModel):
     aux_ref_audio_paths: list[str] = Field(default_factory=list)
 
 
+class SingleStreamRequest(BaseModel):
+    text: str = ""
+    ref_audio_path: str = ""
+    top_p: float = 1.0
+    top_k: int = 15
+    temperature: float = 1.0
+    repetition_penalty: float = 1.35
+    speed_factor: float = 1.0
+    diffusion_steps: Optional[int] = None
+    sample_steps: Optional[int] = None
+    batch_size: Optional[int] = None
+    parallel_infer: Optional[bool] = None
+    text_split_method: Optional[str] = None
+    bypass_cache: bool = False
+
+
 @APP.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "engine": "gptsovits-adapter"}
@@ -89,6 +138,16 @@ async def tavo_test() -> HTMLResponse:
     return HTMLResponse('<script src="/static/tavo.js"></script>')
 
 
+@APP.get("/p2_test")
+async def p2_test() -> FileResponse:
+    return FileResponse(ROOT / "static" / "gsv_p2_test.html", media_type="text/html")
+
+
+@APP.head("/p2_test")
+async def p2_test_head() -> HTMLResponse:
+    return HTMLResponse("")
+
+
 @APP.head("/tavo_test")
 async def tavo_test_head() -> HTMLResponse:
     return HTMLResponse("")
@@ -98,6 +157,31 @@ async def tavo_test_head() -> HTMLResponse:
 async def list_voices() -> dict[str, list[dict[str, Any]]]:
     voices = voice_library.list_voices()
     return {"voices": voices, "items": voices}
+
+
+@APP.get("/voice_preview")
+async def voice_preview(name: str) -> FileResponse:
+    return _voice_preview_response(name)
+
+
+@APP.head("/voice_preview")
+async def voice_preview_head(name: str) -> FileResponse:
+    return _voice_preview_response(name)
+
+
+def _voice_preview_response(name: str) -> FileResponse:
+    profile = voice_library.get_voice_profile(name)
+    if not profile:
+        raise HTTPException(status_code=404, detail="voice profile not found")
+    audio_path = profile.get("ref_audio_path") or voice_library.get_voice_path(name)
+    if not audio_path:
+        raise HTTPException(status_code=404, detail="voice audio not found")
+    path = Path(str(audio_path))
+    if not path.is_absolute():
+        path = ROOT / path
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="voice audio file not found")
+    return FileResponse(path)
 
 
 @APP.get("/profiles")
@@ -148,6 +232,11 @@ async def parse_text(request: ParseTextRequest) -> dict[str, Any]:
     )
 
 
+@APP.get("/server_log/tail")
+async def server_log_tail(since: float = 0, n: int = 50, filter: str = "") -> dict[str, Any]:
+    return {"lines": [], "items": [], "since": time.time()}
+
+
 @APP.get("/cache")
 async def list_cache(limit: int = 200) -> list[dict[str, Any]]:
     return snapshot_cache.list_cache(limit=limit)
@@ -172,6 +261,49 @@ async def cache_audio_head(key: str) -> FileResponse:
 @APP.delete("/cache/{key}")
 async def delete_cache(key: str) -> dict[str, bool]:
     return {"deleted": snapshot_cache.delete_cache(key)}
+
+
+@APP.post("/tts_stream_job")
+async def create_single_job(request: SingleStreamRequest) -> dict[str, Any]:
+    voice_name = request.ref_audio_path.strip()
+    profile = voice_library.get_voice_profile(voice_name)
+    if profile is None:
+        raise HTTPException(status_code=400, detail=f"voice profile not found: {voice_name}")
+    payload = _single_request_to_dialogue_payload(request, voice_name)
+    profiles = {"default": profile, "旁白": profile}
+    cache_payload = {"kind": "gptsovits_single_v1", "request": payload, "profiles": profiles}
+    cache_key = snapshot_cache.make_cache_key(cache_payload)
+    cached = False if request.bypass_cache else snapshot_cache.get_cached_audio(cache_key) is not None
+    if cached:
+        return {
+            "cache_key": cache_key,
+            "cacheKey": cache_key,
+            "cached": True,
+            "live": False,
+            "url": f"/cache_audio/{cache_key}",
+            "cache_url": f"/cache_audio/{cache_key}",
+            "state": "done",
+        }
+    try:
+        result = _synthesize_dialogue_to_cache(cache_key, payload, profiles)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {
+        "cache_key": cache_key,
+        "cacheKey": cache_key,
+        "cached": False,
+        "live": False,
+        "url": f"/cache_audio/{cache_key}",
+        "cache_url": f"/cache_audio/{cache_key}",
+        "state": "done",
+        "segments_meta": result.get("segments_meta", []),
+        "metrics": result.get("metrics", {}),
+    }
+
+
+@APP.delete("/cache_tts_single")
+async def delete_single_cache(text: str = "", ref_audio_path: str = "") -> dict[str, bool]:
+    return {"deleted": False}
 
 
 @APP.post("/tts_dialogue_stream_job")
@@ -241,16 +373,23 @@ async def get_dialogue_job_audio(cache_key: str):
     if not isinstance(payload, dict) or not isinstance(profiles, dict):
         raise HTTPException(status_code=404, detail="job not found or stream context expired")
 
-    try:
-        stream_payload = _official_payload_for_live_stream(payload, profiles)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    with JOBS_LOCK:
+        current = JOBS.get(cache_key, {})
+        if current.get("state") not in {"done", "deleted"}:
+            JOBS[cache_key] = {**current, "state": "running", "started_at": time.time(), "queue_position": 0}
 
-    return StreamingResponse(
-        _stream_official_tts(stream_payload, on_done=lambda: _enqueue_cache_job(cache_key)),
-        media_type="audio/wav",
-        headers={"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"},
-    )
+    try:
+        result = _synthesize_dialogue_to_cache(cache_key, payload, profiles)
+    except Exception as exc:
+        with JOBS_LOCK:
+            JOBS[cache_key] = {**job, "state": "failed", "error": str(exc), "finished_at": time.time()}
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    with JOBS_LOCK:
+        JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, **result}
+    path = snapshot_cache.get_cached_audio(cache_key)
+    if path is None:
+        raise HTTPException(status_code=500, detail="cache save failed")
+    return FileResponse(path, media_type="audio/wav", headers={"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"})
 
 
 @APP.get("/tts_dialogue_job_status/{cache_key}")
@@ -364,6 +503,26 @@ def _enqueue_cache_job_locked(cache_key: str) -> int:
     return position
 
 
+def _single_request_to_dialogue_payload(request: SingleStreamRequest, voice_name: str) -> dict[str, Any]:
+    sample_steps = request.sample_steps if request.sample_steps is not None else request.diffusion_steps
+    return {
+        "segments": [{"role": "旁白", "text": request.text, "style": "neutral", "style_alpha": 0.15}],
+        "voices": {"default": voice_name, "旁白": voice_name},
+        "top_p": request.top_p,
+        "top_k": request.top_k,
+        "temperature": request.temperature,
+        "repetition_penalty": request.repetition_penalty,
+        "speed_factor": request.speed_factor,
+        "sample_steps": sample_steps,
+        "batch_size": request.batch_size,
+        "parallel_infer": request.parallel_infer,
+        "text_split_method": request.text_split_method,
+        "streaming_mode": False,
+        "performance_mode": "single",
+        "aux_ref_audio_paths": [],
+    }
+
+
 def _synthesize_dialogue_to_cache(
     cache_key: str,
     payload: dict[str, Any],
@@ -406,6 +565,9 @@ def _synthesize_dialogue_to_cache(
                 "index": index,
                 "role": segment["role"],
                 "text": segment["text"],
+                "style": segment.get("style") or "neutral",
+                "style_alpha": segment.get("style_alpha"),
+                "aux_ref_audio_paths": req_payload.get("aux_ref_audio_paths", []),
                 "start_s": offset_frames / float(sample_rate or 1),
                 "start_offset_bytes": total_bytes,
                 "duration_s": duration_s,
@@ -444,14 +606,26 @@ def _synthesize_dialogue_to_cache(
     }
 
 
-def _normalize_segments(raw_segments: list[dict[str, Any]]) -> list[dict[str, str]]:
+def _normalize_segments(raw_segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = []
     for item in raw_segments:
         text = str(item.get("text") or "").strip()
         if not text:
             continue
         role = str(item.get("role") or "旁白").strip() or "旁白"
-        out.append({"role": role, "text": text})
+        style = str(item.get("style") or item.get("style_ref") or "neutral").strip() or "neutral"
+        try:
+            style_alpha = float(item.get("style_alpha")) if item.get("style_alpha") is not None else None
+        except (TypeError, ValueError):
+            style_alpha = None
+        segment: dict[str, Any] = {"role": role, "text": text, "style": style}
+        if style_alpha is not None:
+            segment["style_alpha"] = style_alpha
+        if item.get("emo_vec") is not None:
+            segment["emo_vec"] = item.get("emo_vec")
+        if item.get("emo_alpha") is not None:
+            segment["emo_alpha"] = item.get("emo_alpha")
+        out.append(segment)
     return out
 
 
@@ -467,11 +641,13 @@ def _pick_default_profile(payload: dict[str, Any], profiles: dict[str, Optional[
     return voice_library.get_voice_profile(default_voice)
 
 
-def _official_payload_for_segment(segment: dict[str, str], profile: dict[str, Any], request_payload: dict[str, Any]) -> dict[str, Any]:
+def _official_payload_for_segment(segment: dict[str, Any], profile: dict[str, Any], request_payload: dict[str, Any]) -> dict[str, Any]:
     defaults = dict(profile.get("default_params") or {})
     parallel_infer = request_payload.get("parallel_infer")
+    segment_aux_paths = _style_aux_ref_audio_paths(segment.get("style"), segment.get("style_alpha"))
     aux_ref_audio_paths = (
-        request_payload.get("aux_ref_audio_paths")
+        segment_aux_paths
+        or request_payload.get("aux_ref_audio_paths")
         or profile.get("aux_ref_audio_paths")
         or defaults.get("aux_ref_audio_paths")
         or []
@@ -508,6 +684,38 @@ def _official_payload_for_segment(segment: dict[str, str], profile: dict[str, An
     if not payload["prompt_text"]:
         raise ValueError(f"voice profile {profile.get('name')!r} has no prompt_text")
     return payload
+
+
+def _style_aux_ref_audio_paths(style: Any, style_alpha: Any = None) -> list[str]:
+    style_id = str(style or "neutral").strip()
+    if not style_id or style_id == "neutral":
+        return []
+
+    mapped = STYLE_ALIASES.get(style_id, style_id)
+    if not mapped:
+        return []
+
+    path = _find_style_audio(mapped)
+    if path is None:
+        return []
+    return [path.as_posix()]
+
+
+def _find_style_audio(style_id: str) -> Optional[Path]:
+    if not STYLE_DIR.is_dir():
+        return None
+    safe_style = style_id.replace("/", "").replace("\\", "").strip()
+    if not safe_style or safe_style in {".", ".."}:
+        return None
+    for ext in (".wav", ".WAV", ".mp3", ".MP3", ".m4a", ".M4A", ".flac", ".FLAC", ".ogg", ".OGG"):
+        candidate = STYLE_DIR / f"{safe_style}{ext}"
+        if candidate.is_file():
+            return candidate
+    target = safe_style.lower()
+    for candidate in STYLE_DIR.iterdir():
+        if candidate.is_file() and candidate.stem.lower() == target and candidate.suffix.lower() in {".wav", ".mp3", ".m4a", ".flac", ".ogg"}:
+            return candidate
+    return None
 
 
 def _official_payload_for_live_stream(payload: dict[str, Any], profiles: dict[str, Optional[dict[str, Any]]]) -> dict[str, Any]:

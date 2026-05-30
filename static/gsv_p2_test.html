@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GPT-SoVITS P2 Test</title>
+  <style>
+    *{box-sizing:border-box;letter-spacing:0}body{margin:0;background:#11151d;color:#e8edf5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}.wrap{max-width:1120px;margin:0 auto;padding:16px;display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px}.panel,.main{border:1px solid rgba(165,185,215,.2);background:#171d27;border-radius:8px;padding:14px}h1{font-size:18px;margin:0 0 10px}.hint{font-size:12px;color:#9aa8ba;line-height:1.55}label{display:block;margin:10px 0 5px;font-size:12px;color:#b4c1d2}select,input,textarea{width:100%;border:1px solid rgba(165,185,215,.24);background:#0c1118;color:#e8edf5;border-radius:7px;padding:8px;font:13px/1.45 inherit}textarea{min-height:160px;resize:vertical}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.seg{display:grid;grid-template-columns:92px 140px 1fr 34px;gap:8px;align-items:start;margin:8px 0}.seg button{height:35px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}button{border:1px solid rgba(165,185,215,.25);background:#26344a;color:#fff;border-radius:7px;padding:8px 11px;font:13px inherit;cursor:pointer}.primary{background:#59c3a6;color:#07130f;border-color:#79e0c2;font-weight:800}.danger{background:#512833;color:#ffd9e0}.log{white-space:pre-wrap;word-break:break-word;background:#0b0f15;border:1px solid rgba(165,185,215,.16);border-radius:7px;padding:10px;min-height:120px;font:12px/1.5 Consolas,monospace;color:#cfe1f6}audio{width:100%;margin-top:12px}@media(max-width:840px){.wrap{grid-template-columns:1fr}.seg{grid-template-columns:1fr 1fr}.seg textarea{grid-column:1/-1}.seg button{grid-column:1/-1}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="panel">
+      <h1>GPT-SoVITS P2 Test</h1>
+      <div class="hint">直接测试 adapter：多角色主音色 + 每句 style 声腔 aux。手机地址用当前页面同源。</div>
+      <label>API Base</label>
+      <input id="apiBase">
+      <div class="grid">
+        <div><label>默认/旁白音色</label><select id="voiceDefault"></select></div>
+        <div><label>角色音色</label><select id="voiceRole"></select></div>
+      </div>
+      <div class="grid">
+        <div><label>batch_size</label><input id="batchSize" type="number" min="1" value="8"></div>
+        <div><label>sample_steps</label><input id="sampleSteps" type="number" min="1" value="8"></div>
+      </div>
+      <div class="grid">
+        <div><label>top_k</label><input id="topK" type="number" min="1" value="15"></div>
+        <div><label>temperature</label><input id="temperature" type="number" step="0.05" value="1.0"></div>
+      </div>
+      <div class="actions">
+        <button id="loadVoices">刷新音色</button>
+        <button id="addSeg">加一句</button>
+        <button class="primary" id="run">生成并播放</button>
+      </div>
+    </section>
+    <section class="main">
+      <div id="segments"></div>
+      <audio id="audio" controls></audio>
+      <h1 style="margin-top:16px">状态</h1>
+      <div class="log" id="log"></div>
+    </section>
+  </main>
+  <script>
+    var STYLES=["neutral","breath_soft","breath_heavy","intimate_breath","moan_soft","low_murmur","whisper_soft","shy_whisper","tense_breath","sob_soft","cry_soft","tease_soft","laugh_soft","gasp_surprise","scream_peak","stage_warmup","stage_rising","stage_peak","stage_afterglow","耳语-AD学姐","低语-AD学姐","喘息-AD学姐","低吟-AD学姐","轻笑-AD学姐","尖叫-AD学姐","余韵-AD学姐"];
+    var $=function(id){return document.getElementById(id)};
+    var segs=[];
+    function log(s){$('log').textContent='['+new Date().toLocaleTimeString()+'] '+s+'\n'+$('log').textContent}
+    function base(){return $('apiBase').value.replace(/\/+$/,'')}
+    function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>'}
+    function renderSegs(){
+      $('segments').innerHTML=segs.map(function(s,i){return '<div class="seg"><input data-i="'+i+'" data-k="role" value="'+s.role+'"><select data-i="'+i+'" data-k="style">'+STYLES.map(function(x){return '<option '+(x===s.style?'selected':'')+' value="'+x+'">'+x+'</option>'}).join('')+'</select><textarea data-i="'+i+'" data-k="text">'+s.text+'</textarea><button class="danger" data-del="'+i+'">删</button></div>'}).join('');
+    }
+    function readSegs(){Array.prototype.forEach.call(document.querySelectorAll('[data-i]'),function(el){var i=Number(el.dataset.i);segs[i][el.dataset.k]=el.value})}
+    async function loadVoices(){
+      var r=await fetch(base()+'/voices',{cache:'no-store'}); var d=await r.json();
+      var names=(d.voices||[]).filter(function(v){return v.kind==='profile'}).map(function(v){return v.name});
+      if(!names.length) names=(d.voices||[]).map(function(v){return v.name});
+      var preferred=function(list,want){return list.indexOf(want)>=0?want:(list.find(function(x){return /AD学姐$/.test(x)})||list[0]||'')};
+      $('voiceDefault').innerHTML=names.map(opt).join(''); $('voiceRole').innerHTML=names.map(opt).join('');
+      $('voiceDefault').value=preferred(names,'女声/AD学姐'); $('voiceRole').value=preferred(names,'女声/成熟姐姐');
+      log('voices='+names.length);
+    }
+    async function run(){
+      readSegs();
+      var body={segments:segs,voices:{default:$('voiceDefault').value,'旁白':$('voiceDefault').value,'她':$('voiceRole').value,'角色':$('voiceRole').value},streaming_mode:false,performance_mode:'p2-test',batch_size:Number($('batchSize').value)||8,sample_steps:Number($('sampleSteps').value)||8,parallel_infer:true,top_k:Number($('topK').value)||15,top_p:1,temperature:Number($('temperature').value)||1,text_split_method:'cut5'};
+      log('POST /tts_dialogue_stream_job '+JSON.stringify(body));
+      var r=await fetch(base()+'/tts_dialogue_stream_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); var j=await r.json();
+      if(!r.ok) throw new Error(JSON.stringify(j));
+      log('cache_key='+j.cache_key+' state='+j.state);
+      var audioUrl=base()+j.url;
+      $('audio').src=audioUrl; $('audio').play().catch(function(e){log('play blocked: '+e.message)});
+      poll(j.cache_key);
+    }
+    async function poll(key){
+      for(var i=0;i<120;i++){
+        var r=await fetch(base()+'/tts_dialogue_job_status/'+encodeURIComponent(key),{cache:'no-store'}); var j=await r.json();
+        log('status='+j.state+' cached='+j.cached+' rtf='+(j.metrics&&j.metrics.rtf));
+        if(j.cached){$('audio').src=base()+j.cache_url; return}
+        if(j.state==='failed') return;
+        await new Promise(function(res){setTimeout(res,1500)});
+      }
+    }
+    document.addEventListener('input',function(e){if(e.target.dataset&&e.target.dataset.i) readSegs()});
+    document.addEventListener('click',function(e){if(e.target.dataset.del!=null){readSegs();segs.splice(Number(e.target.dataset.del),1);renderSegs()}});
+    $('apiBase').value=location.origin; $('loadVoices').onclick=function(){loadVoices().catch(function(e){log('ERR '+e.message)})}; $('addSeg').onclick=function(){readSegs();segs.push({role:'她',style:'whisper_soft',text:'我想轻一点跟你说。'});renderSegs()}; $('run').onclick=function(){run().catch(function(e){log('ERR '+e.message)})};
+    segs=[{role:'旁白',style:'neutral',text:'她靠近了一点，声音压得很低。'},{role:'她',style:'whisper_soft',text:'你听得到我说话吗？'},{role:'她',style:'喘息-AD学姐',text:'嗯……我有点紧张。'},{role:'她',style:'轻笑-AD学姐',text:'别笑我。'}]; renderSegs(); loadVoices().catch(function(e){log('ERR '+e.message)});
+  </script>
+</body>
+</html>
