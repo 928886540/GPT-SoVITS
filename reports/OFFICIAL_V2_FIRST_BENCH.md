@@ -4,7 +4,7 @@
 
 ## 结论
 
-官方 GPT-SoVITS `api_v2.py` 已在本机跑通 `/tts` 推理，使用默认 v2 权重、CUDA、非流式 WAV 输出。
+官方 GPT-SoVITS `api_v2.py` 已在本机跑通 `/tts` 推理，使用默认 v2 权重和 CUDA。非流式可稳定落盘并计算 RTF；流式首包明显更低，适合 Tavo 当前卡片播放路径。
 
 这次只验证链路和性能，不评价最终音色质量。参考音频是 Windows SAPI 本机生成的短中文音频，逐字稿可控，但不是目标 ASMR 素材。
 
@@ -45,6 +45,8 @@ D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official
 
 Payload 文件：`samples/official_v2_tts_payload.local.json`
 
+流式 Payload 文件：`samples/official_v2_tts_payload_streaming.local.json`
+
 关键参数：
 
 | 参数 | 值 |
@@ -69,6 +71,8 @@ Payload 文件：`samples/official_v2_tts_payload.local.json`
 - 该 wav 被 `.gitignore` 排除，不进仓库。
 
 ## 结果
+
+### 非流式
 
 命令：
 
@@ -96,9 +100,31 @@ GPU 观测：
 
 输出音频：`reports/official_v2_first/out.wav`，该 wav 被 `.gitignore` 排除。
 
+### 流式
+
+命令：
+
+```powershell
+. .\dev_tools\env_official.ps1
+python .\dev_tools\bench_official_api_v2.py --payload .\samples\official_v2_tts_payload_streaming.local.json --out .\reports\official_v2_streaming_first\out.wav
+```
+
+结果：
+
+| 指标 | 值 |
+| --- | ---: |
+| first byte | `2.039s` |
+| total | `3.590s` |
+| bytes | `649004` |
+| audio duration | `unknown` |
+| RTF | `unknown` |
+
+流式输出文件头是 RIFF/WAVE，但长度字段是流式占位，标准 `wave` 解析不能直接得到音频时长。后续 adapter 需要把“当前卡片流式播放”和“后台完整缓存落盘”分成两条路径处理。
+
+流式后 GPU 观测：`3767 MiB / 12288 MiB`，GPU 利用率 `3%`。
+
 ## 下一步
 
-1. 跑 `streaming_mode=true`，确认首包是否明显低于完整生成时间。
-2. 用真实人声参考音频和逐字稿重测，开始评价音质。
-3. 下载 v2ProPlus / v4 权重，按同一脚本对比 RTF、显存、首包和听感。
-4. 把 `gsv_tavo_adapter.py` 的 `/tts_dialogue_stream_job` 接到官方 `/tts`，先走非流式生成 + 本地缓存，再加流式播放。
+1. 用真实人声参考音频和逐字稿重测，开始评价音质。
+2. 下载 v2ProPlus / v4 权重，按同一脚本对比 RTF、显存、首包和听感。
+3. 把 `gsv_tavo_adapter.py` 的 `/tts_dialogue_stream_job` 接到官方 `/tts`：当前卡片优先流式，后台任务用非流式生成完整 WAV 并缓存。
