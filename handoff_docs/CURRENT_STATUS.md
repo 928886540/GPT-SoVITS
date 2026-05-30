@@ -32,7 +32,7 @@
 - 官方 `api_v2.py` 已成功加载 v2 模型并启动：`http://127.0.0.1:9881/docs`
 - 本机 Tavo adapter 已成功启动并通过烟测：`http://127.0.0.1:9880/health`
 - 官方 v2 `/tts` 已完成非流式和流式基准验证：`reports/OFFICIAL_V2_FIRST_BENCH.md`
-- 本机 Tavo adapter 已接到官方 GPT-SoVITS 非流式 `/tts`：`reports/TAVO_ADAPTER_OFFICIAL_BINDING.md`
+- 本机 Tavo adapter 已接到官方 GPT-SoVITS 非流式 `/tts`，并完成后台单 worker FIFO job 队列：`reports/TAVO_ADAPTER_OFFICIAL_BINDING.md`
 - 新增本机链路测试 Voice Profile：`prompts/library/local_huihui.json`
 
 ## 当前判断
@@ -65,7 +65,7 @@
 
 ## 当前运行状态
 
-- `127.0.0.1:9880`：`Leon_api/gsv_tavo_adapter.py`，已提供 Tavo 前端、voices/profile/cache/parse_text/job，并已接官方 GPT-SoVITS 非流式推理、WAV 拼接和本地缓存。
+- `127.0.0.1:9880`：`Leon_api/gsv_tavo_adapter.py`，已提供 Tavo 前端、voices/profile/cache/parse_text/job，并已接官方 GPT-SoVITS 非流式推理、后台队列、WAV 拼接和本地缓存。
 - `127.0.0.1:9881`：官方 `gpt-sovits-official/api_v2.py`，已加载 v2 默认权重，可进入 Swagger 文档。
 - 运行日志：
   - `outputs/logs/gsv_tavo_adapter.out.log`
@@ -80,7 +80,7 @@
 3. 加载 `..\Leon_api\dev_tools\env_official.ps1`。
 4. 官方 GPT-SoVITS 的最小 v2 服务已能启动并完成推理基准。
 5. Tavo adapter 已能通过官方非流式 `/tts` 生成多段 dialogue 缓存。
-6. 下一步把 adapter 同步生成改成后台 job，并接当前卡片真流式播放。
+6. 下一步接当前卡片真流式播放。
 7. 下载 v2ProPlus / v4 额外模型，用于 ASMR 路线对比。
 8. 先继续推理和产品链路验证，不要先训练。
 7. 建立统一测试样本：

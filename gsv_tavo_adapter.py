@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import json
 import os
+import queue
+import threading
 import time
 import wave
 from pathlib import Path
@@ -22,6 +24,9 @@ OFFICIAL_TTS_URL = os.getenv("GPT_SOVITS_OFFICIAL_TTS_URL", "http://127.0.0.1:98
 
 
 JOBS: dict[str, dict[str, Any]] = {}
+JOBS_LOCK = threading.Lock()
+JOB_QUEUE: queue.Queue[tuple[str, dict[str, Any], dict[str, Optional[dict[str, Any]]]]] = queue.Queue()
+WORKER_STARTED = False
 
 
 class ProfileSaveRequest(BaseModel):
@@ -166,13 +171,15 @@ async def delete_cache(key: str) -> dict[str, bool]:
 
 @APP.post("/tts_dialogue_stream_job")
 async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
+    _ensure_worker_started()
     payload = request.model_dump()
     profiles = {role: voice_library.get_voice_profile(name) for role, name in payload.get("voices", {}).items()}
     cache_payload = {"kind": "gptsovits_dialogue_v1", "request": payload, "profiles": profiles}
     cache_key = snapshot_cache.make_cache_key(cache_payload)
     cached = snapshot_cache.get_cached_audio(cache_key) is not None
     if cached:
-        JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, "segments_meta": []}
+        with JOBS_LOCK:
+            JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, "segments_meta": []}
         return {
             "cache_key": cache_key,
             "cacheKey": cache_key,
@@ -183,20 +190,23 @@ async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
             "state": "done",
         }
 
-    JOBS[cache_key] = {"state": "running", "cached": False, "cache_key": cache_key, "started_at": time.time()}
-    try:
-        result = _synthesize_dialogue_to_cache(cache_key, payload, profiles)
-    except Exception as exc:
-        JOBS[cache_key] = {
-            "state": "failed",
-            "cached": False,
-            "cache_key": cache_key,
-            "error": str(exc),
-            "finished_at": time.time(),
-        }
-        raise HTTPException(status_code=502, detail=f"GPT-SoVITS synthesis failed: {exc}") from exc
+    with JOBS_LOCK:
+        existing = JOBS.get(cache_key)
+        if existing and existing.get("state") in {"queued", "running"}:
+            state = str(existing.get("state"))
+            position = _queue_position(cache_key) if state == "queued" else 0
+        else:
+            state = "queued"
+            position = JOB_QUEUE.qsize() + 1
+            JOBS[cache_key] = {
+                "state": state,
+                "cached": False,
+                "cache_key": cache_key,
+                "queued_at": time.time(),
+                "queue_position": position,
+            }
+            JOB_QUEUE.put((cache_key, payload, profiles))
 
-    JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, **result}
     return {
         "cache_key": cache_key,
         "cacheKey": cache_key,
@@ -204,8 +214,8 @@ async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
         "live": False,
         "url": f"/tts_dialogue_stream_job/{cache_key}",
         "cache_url": f"/cache_audio/{cache_key}",
-        "state": "done",
-        "metrics": result.get("metrics", {}),
+        "state": state,
+        "queue_position": position,
     }
 
 
@@ -217,7 +227,10 @@ async def get_dialogue_job_audio(cache_key: str) -> FileResponse:
 @APP.get("/tts_dialogue_job_status/{cache_key}")
 async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
     path = snapshot_cache.get_cached_audio(cache_key)
-    job = JOBS.get(cache_key, {})
+    with JOBS_LOCK:
+        job = dict(JOBS.get(cache_key, {}))
+        if job.get("state") == "queued":
+            job["queue_position"] = _queue_position(cache_key)
     metadata = snapshot_cache.get_cache_metadata(cache_key) if path else None
     state = "done" if path else job.get("state", "pending")
     return {
@@ -231,13 +244,71 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
         "duration_s": job.get("duration_s") or (metadata or {}).get("duration_s"),
         "metrics": job.get("metrics") or (metadata or {}).get("metrics", {}),
         "error": job.get("error", ""),
+        "queue_position": job.get("queue_position", 0),
     }
 
 
 @APP.delete("/tts_dialogue_stream_job/{cache_key}")
 async def delete_dialogue_job(cache_key: str) -> dict[str, bool]:
-    JOBS.pop(cache_key, None)
+    with JOBS_LOCK:
+        JOBS[cache_key] = {"state": "deleted", "cached": False, "cache_key": cache_key, "deleted_at": time.time()}
     return {"deleted": snapshot_cache.delete_cache(cache_key)}
+
+
+def _ensure_worker_started() -> None:
+    global WORKER_STARTED
+    if WORKER_STARTED:
+        return
+    with JOBS_LOCK:
+        if WORKER_STARTED:
+            return
+        thread = threading.Thread(target=_job_worker_loop, name="gsv-tts-worker", daemon=True)
+        thread.start()
+        WORKER_STARTED = True
+
+
+def _job_worker_loop() -> None:
+    while True:
+        cache_key, payload, profiles = JOB_QUEUE.get()
+        try:
+            with JOBS_LOCK:
+                if JOBS.get(cache_key, {}).get("state") == "deleted":
+                    continue
+                JOBS[cache_key] = {
+                    **JOBS.get(cache_key, {}),
+                    "state": "running",
+                    "cached": False,
+                    "cache_key": cache_key,
+                    "started_at": time.time(),
+                    "queue_position": 0,
+                }
+            result = _synthesize_dialogue_to_cache(cache_key, payload, profiles)
+        except Exception as exc:
+            with JOBS_LOCK:
+                JOBS[cache_key] = {
+                    "state": "failed",
+                    "cached": False,
+                    "cache_key": cache_key,
+                    "error": str(exc),
+                    "finished_at": time.time(),
+                }
+        else:
+            with JOBS_LOCK:
+                if JOBS.get(cache_key, {}).get("state") != "deleted":
+                    JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, **result}
+        finally:
+            JOB_QUEUE.task_done()
+
+
+def _queue_position(cache_key: str) -> int:
+    try:
+        queued = list(JOB_QUEUE.queue)
+    except Exception:
+        return 0
+    for index, item in enumerate(queued, start=1):
+        if item and item[0] == cache_key:
+            return index
+    return 0
 
 
 def _synthesize_dialogue_to_cache(
