@@ -85,7 +85,7 @@
 3. 加载 `..\Leon_api\dev_tools\env_official.ps1`。
 4. 官方 GPT-SoVITS 的最小 v2 服务已能启动并完成推理基准。
 5. Tavo adapter 已能通过官方非流式 `/tts` 生成多段 dialogue 缓存。
-6. 下一步试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_live.wav`，并校对参考音频逐字稿。
+6. 下一步试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_cached_13s.wav`，并校对参考音频逐字稿。不要用 `gaoyuanyuan_live.wav` 做人工试听；它是流式抓包，普通播放器会显示 0 秒。
 7. 继续从 `女声/`、`角色扮演/`、`常用配音/`、`逗哥热门音色/` 批量筛 5-10 秒清晰中文样本生成 Profile。
 8. 下载 v2ProPlus / v4 额外模型，用于 ASMR 路线对比。
 9. 先继续推理和产品链路验证，不要先训练。

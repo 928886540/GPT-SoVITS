@@ -54,6 +54,7 @@ live 输出：
 - first byte: `1.128s`
 - total: `3.705s`
 - bytes: `806444`
+- 注意：这是官方流式 WAV 抓包文件，RIFF 头长度字段是占位，普通播放器可能显示 `0s`，不适合作为人工试听文件。
 
 后台缓存：
 
@@ -64,6 +65,12 @@ live 输出：
 | total_s | `4.18730270001106s` |
 | RTF | `0.30081197557550715` |
 | content-length | `890924` |
+
+人工试听文件：
+
+- Path: `reports/real_voice_gpt_sovits_first/gaoyuanyuan_cached_13s.wav`
+- WAV duration: `13.920s`
+- 这份来自 `outputs/cache/fa1e3818157173352faf99fdc20cc66fac5c6df1.wav`，是完整标准 WAV。
 
 segments_meta：
 
@@ -80,6 +87,6 @@ segments_meta：
 
 ## 下一步
 
-1. 试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_live.wav`。
+1. 试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_cached_13s.wav`。
 2. 如果可接受，继续批量为候选真实音色生成 profile。
 3. 如果不满意，优先换 `女声/温柔御姐`、`女声/AD学姐`、`角色扮演/*` 这类更贴近目标的样本。
