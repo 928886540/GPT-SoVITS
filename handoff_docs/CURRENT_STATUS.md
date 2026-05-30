@@ -34,6 +34,10 @@
 - 官方 v2 `/tts` 已完成非流式和流式基准验证：`reports/OFFICIAL_V2_FIRST_BENCH.md`
 - 本机 Tavo adapter 已接到官方 GPT-SoVITS 非流式 `/tts`、后台单 worker FIFO job 队列，并完成当前卡片官方流式直通：`reports/TAVO_ADAPTER_OFFICIAL_BINDING.md`
 - 已从旧 IndexTTS2 项目复制本地音色库到 `prompts/library`：1115 个文件，约 710.64MB，其中 1109 个音频文件。
+- 已创建第一批真实人声 GPT-SoVITS Voice Profile：
+  - `prompts/library/女声/高圆圆.json`
+  - `prompts/library/女声/温柔御姐.json`
+- 已完成 `女声/高圆圆` 当前卡片流式 + 后台缓存测试：`reports/REAL_VOICE_GPTSOVITS_FIRST.md`
 - 新增本机链路测试 Voice Profile：`prompts/library/local_huihui.json`
 
 ## 当前判断
@@ -81,16 +85,17 @@
 3. 加载 `..\Leon_api\dev_tools\env_official.ps1`。
 4. 官方 GPT-SoVITS 的最小 v2 服务已能启动并完成推理基准。
 5. Tavo adapter 已能通过官方非流式 `/tts` 生成多段 dialogue 缓存。
-6. 下一步基于旧音色库挑可用真实人声音色，补 Voice Profile 的 `prompt_text` 后重测。
-7. 下载 v2ProPlus / v4 额外模型，用于 ASMR 路线对比。
-8. 先继续推理和产品链路验证，不要先训练。
-7. 建立统一测试样本：
+6. 下一步试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_live.wav`，并校对参考音频逐字稿。
+7. 继续从 `女声/`、`角色扮演/`、`常用配音/`、`逗哥热门音色/` 批量筛 5-10 秒清晰中文样本生成 Profile。
+8. 下载 v2ProPlus / v4 额外模型，用于 ASMR 路线对比。
+9. 先继续推理和产品链路验证，不要先训练。
+10. 建立统一测试样本：
    - 中文短句
    - 中文长段
    - 日语短句
    - 中日混合段
    - 多角色对话段
-8. 建立统一指标记录表。
+11. 建立统一指标记录表。
 
 ## 注意事项
 
