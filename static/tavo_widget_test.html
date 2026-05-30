@@ -163,6 +163,35 @@
       function saveBucket(bucket) {
         localStorage.setItem(STORE_KEY, JSON.stringify(bucket || {}));
       }
+      function seedP2Config() {
+        var bucket = storageBucket();
+        var globalKey = "global:indextts_tavo_config_v10";
+        var charKey = "character:indextts_tavo_config_v10:34";
+        bucket[globalKey] = Object.assign({
+          mode: "ai8",
+          apiBase: location.origin,
+          qualityMode: "fast",
+          topP: 1,
+          topK: 15,
+          temperature: 1,
+          repetitionPenalty: 1.2,
+          emoAlpha: 0.38,
+          speedFactor: 1,
+          offlineAudioEnabled: false
+        }, bucket[globalKey] || {});
+        bucket[globalKey].mode = "ai8";
+        bucket[globalKey].apiBase = location.origin;
+        bucket[charKey] = Object.assign({
+          defaultVoice: "女声/AD学姐",
+          roleVoiceList: [
+            { role: "旁白", voice: "女声/AD学姐" },
+            { role: "用户", voice: "女声/AD学姐" },
+            { role: els.characterName.value || "潘金莲", voice: "女声/AD学姐" },
+            { role: "她", voice: "女声/AD学姐" }
+          ]
+        }, bucket[charKey] || {});
+        saveBucket(bucket);
+      }
       window.tavo = {
         get: async function (name, scope) {
           var bucket = storageBucket();
@@ -220,6 +249,7 @@
       };
       function mountWidget() {
         saveState();
+        seedP2Config();
         window.__idxTest.clearFetchLog();
         document.querySelectorAll(".idx-tts,.idx-card,.idx-panel,.idx-picker,[data-indextts-host]").forEach(function (node) {
           if (node.parentNode) node.parentNode.removeChild(node);
