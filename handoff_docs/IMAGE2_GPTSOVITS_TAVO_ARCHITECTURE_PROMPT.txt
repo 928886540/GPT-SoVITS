@@ -1,0 +1,119 @@
+# image2 生图提示词：GPT-SoVITS x Tavo 本机交付架构图
+
+用途：把之前 `Leon / IndexTTS2 x Tavo 本机交付架构图` 重画成 GPT-SoVITS 版本，用于 README / handoff 文档 / 产品路线说明。
+
+建议尺寸：16:9 横版，至少 1792x1024 或 2048x1152。
+风格：深色专业技术架构图，精致但不要花哨；类似 SaaS/工程系统蓝图，不要卡通，不要营销海报。
+文字：必须使用简体中文。请尽量保证文字清晰可读。如果模型文字不稳定，优先保留模块布局和视觉层级。
+
+核心标题：
+Leon / GPT-SoVITS × Tavo 本机交付架构图
+
+副标题：
+定位：项目发给用户自己安装启动；不提供云服务。重点是本机多消息排队、稳定落盘、Tavo 播放闭环、离线音频、ASMR 音色训练与本地分发。
+
+顶部标签：
+- 多角色多音色
+- 真流式/准流式播放
+- 本地快照缓存
+- Tavo 持久化配置
+- 0 云运行费用
+- ASMR 训练主线
+- 多消息排队
+
+画面布局要求：
+整体从左到右分为 5 列，下方有本地存储和 SQLite 配置库。使用连线区分：
+- 实线蓝色箭头：同步 HTTP / 点击播放
+- 虚线橙色箭头：异步任务 / 轮询状态
+- 虚线绿色箭头：文件缓存 / 元数据
+- 虚线紫色箭头：可选 LLM 拆段
+- 虚线浅蓝箭头：浏览器离线 / Tavo 变量
+
+模块 1：左侧上方，客户端 / Tavo 层
+标题：客户端 / Tavo 层
+内部卡片：
+- Tavo 正则注入 static/tavo.js
+- 播放器卡片、歌词、音色选择
+- Tavo get/set 保存配置和历史卡片
+旁边小注释：点击消息才生成 / 加载
+
+模块 2：左侧下方，浏览器本地层
+标题：浏览器本地层
+内部卡片：
+- IndexedDB 离线音频 Blob
+- localStorage 兜底配置
+箭头从 Tavo 层向下：配置 / 历史卡片
+箭头从本地文件缓存回到浏览器层：离线缺失补偿
+
+模块 3：中间偏左，FastAPI Adapter 服务层
+标题：FastAPI Adapter 服务层（gsv_tavo_adapter.py / 9880）
+内部卡片：
+- Tavo API：/voices /profiles /parse_text
+- 流式任务 API：POST/GET /tts_dialogue_stream_job
+- 状态与缓存 API：/tts_dialogue_job_status /cache_audio
+- 诊断与日志：/diagnostics/* /server_log/tail
+- Voice Profile 解析：ref_audio + prompt + weights + params
+- 本地交付边界：不做云端多用户 / 计费 / 公网后台
+从 Tavo 层到 Adapter：点击生成
+从 Adapter 到 Tavo：缓存命中直接接 /cache_audio
+
+模块 4：中间偏右，本机任务调度
+标题：本机任务调度
+内部卡片：
+- LIVE JOBS：cache_key → header + PCM buffer
+- TTS 生成受控排队
+- 当前卡片流式播放
+- 非当前卡片只落盘不抢播
+底部提示条：建议补齐：本机 FIFO 队列 / 忙碌提示 / 取消任务
+从 Adapter 到任务调度：排队 / 复用
+
+模块 5：最右侧，GPT-SoVITS 引擎层
+标题：GPT-SoVITS 引擎层
+内部卡片：
+- 官方 api_v2.py / TTS pipeline
+- v4 / v2ProPlus 重点验证
+- ASMR 训练：切片、标注、微调、推理
+- 参数必须打印：top_k/top_p/temperature/sample_steps/streaming_mode/min_chunk_length
+从任务调度到引擎：受控推理
+
+模块 6：下方中间，本地文件存储层
+标题：本地文件存储层
+内部卡片：
+- 音色库 / Voice Profiles：prompts/library/**/*.json + *.wav
+- 快照缓存：outputs/cache/{sha1}.wav + {sha1}.json
+- 运行输出：outputs/... / reports/...
+- 参考说明：prompt_text / prompt_lang / text_lang
+从任务调度到文件存储：完成后保存 WAV + JSON
+从文件存储到 Adapter：缓存命中直接读 /cache_audio
+
+模块 7：下方右中，SQLite 轻量配置库
+标题：SQLite 轻量配置库
+内部卡片：
+- outputs/gptsovits_profiles.sqlite3
+- profiles：Tavo 配置快照
+- usage_logs：轻量使用事件
+底部提示：可选本机任务历史表，不需要 users 表
+从 Adapter 到 SQLite：Profile / usage
+
+模块 8：右下，可选外部 LLM
+标题：可选外部 LLM
+内部卡片：
+- 只做文本拆段 / 情绪提示
+- 可直连，也可经 /parse_text 代理
+- 不等待 GPT 必需
+紫色虚线从 Adapter 到 LLM：可选拆段
+
+底部横条：和最初设计图的主要出入
+左侧文字：已继承：Tavo 前端、流式播放、文件快照缓存、SQLite Profile、诊断日志、音色库管理、IndexedDB 离线音频。
+右侧文字：需要补齐：GPT-SoVITS adapter、Voice Profile、任务队列、忙碌提示、训练/推理参数记录、v4/v2ProPlus ASMR 实测。
+
+视觉要求：
+- 深色背景，蓝紫为主，但不要单一紫色；加入青色、绿色、橙色连线区分数据类型。
+- 所有模块是清晰矩形卡片，圆角 8px 左右，不要过度圆润。
+- 不要使用动物、人物、机器人、3D 角色。
+- 不要使用大面积渐变球或装饰光斑。
+- 文字尽量工整，模块边界清楚，连线不要互相遮挡。
+- 画面风格接近工程架构白板 + 高质量深色 UI 图，不是宣传海报。
+
+英文辅助描述，可一起贴给模型：
+Create a polished dark technical architecture diagram, landscape 16:9, for a local distributable GPT-SoVITS and Tavo integration. The diagram should show a local-only desktop product architecture: Tavo injected frontend, browser local storage and IndexedDB, FastAPI local adapter, local task queue, official GPT-SoVITS engine, file snapshot cache, SQLite profile database, and optional external LLM only for text segmentation. Use clean rectangular modules, readable Simplified Chinese labels, blue/orange/green/purple directional arrows, restrained professional UI style, no characters, no mascots, no marketing hero composition.

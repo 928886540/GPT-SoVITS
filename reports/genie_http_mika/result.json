@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "engine": "genie-tts-http",
+  "ready_s": 1.225,
+  "load_character_s": 6.11,
+  "first_chunk_s": 4.97,
+  "total_s": 7.556,
+  "chunk_count": 13,
+  "stream_bytes": 296960,
+  "content_type": "audio/wav",
+  "raw_starts_with_riff": false,
+  "raw_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_http_mika\\mika_http.raw",
+  "wrapped_wav_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_http_mika\\mika_http_wrapped.wav",
+  "wrapped_wav_bytes": 297004,
+  "memory_after_spawn": {
+    "working_set_mib": 1.7,
+    "peak_working_set_mib": 1.7,
+    "private_mib": 0.4,
+    "pagefile_mib": 0.4
+  },
+  "memory_after_ready": {
+    "working_set_mib": 80.4,
+    "peak_working_set_mib": 80.4,
+    "private_mib": 416.5,
+    "pagefile_mib": 416.5
+  },
+  "memory_after_load_character": {
+    "working_set_mib": 2711.9,
+    "peak_working_set_mib": 4153.5,
+    "private_mib": 3917.5,
+    "pagefile_mib": 3917.5
+  },
+  "memory_peak_during_stream": {
+    "working_set_mib": 4374.5,
+    "peak_working_set_mib": 5358.1,
+    "private_mib": 5693.8,
+    "pagefile_mib": 5693.8
+  },
+  "memory_after_tts": {
+    "working_set_mib": 4389.7,
+    "peak_working_set_mib": 5358.1,
+    "private_mib": 5694.5,
+    "pagefile_mib": 5694.5
+  }
+}

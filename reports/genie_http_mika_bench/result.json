@@ -1,0 +1,140 @@
+{
+  "ok": true,
+  "ready_s": 1.834,
+  "load_character_s": 6.293,
+  "memory_after_ready": {
+    "working_set_mib": 80.6,
+    "peak_working_set_mib": 80.6,
+    "private_mib": 416.8,
+    "pagefile_mib": 416.8
+  },
+  "memory_after_load_character": {
+    "working_set_mib": 2709.0,
+    "peak_working_set_mib": 4151.3,
+    "private_mib": 3786.4,
+    "pagefile_mib": 3786.4
+  },
+  "params": {
+    "engine": "genie-tts-http",
+    "providers": [
+      "AzureExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "active_provider_expected": "CPUExecutionProvider",
+    "model_type": "v2ProPlus",
+    "character": "mika",
+    "language": "Japanese",
+    "text": "どうしようかな……やっぱりやりたいかも……！",
+    "split_sentence": true,
+    "sample_rate": 32000,
+    "channels": 1,
+    "sample_width_bytes": 2,
+    "runs": 5,
+    "genie_exposed_generation_params": [
+      "character_name",
+      "text",
+      "split_sentence",
+      "save_path"
+    ],
+    "not_exposed_in_genie_http": [
+      "batch_size",
+      "sample_steps",
+      "top_k",
+      "top_p",
+      "temperature",
+      "streaming_mode"
+    ]
+  },
+  "runs": [
+    {
+      "run": 1,
+      "first_chunk_s": 5.241,
+      "total_s": 6.778,
+      "audio_duration_s": 3.8,
+      "rtf_total": 1.784,
+      "chunk_count": 11,
+      "stream_bytes": 243200,
+      "content_type": "audio/wav",
+      "raw_starts_with_riff": false,
+      "memory_after_run": {
+        "working_set_mib": 4324.6,
+        "peak_working_set_mib": 5355.4,
+        "private_mib": 5631.8,
+        "pagefile_mib": 5631.8
+      },
+      "wav_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_http_mika_bench\\run_1.wav"
+    },
+    {
+      "run": 2,
+      "first_chunk_s": 2.067,
+      "total_s": 3.736,
+      "audio_duration_s": 4.0,
+      "rtf_total": 0.934,
+      "chunk_count": 11,
+      "stream_bytes": 256000,
+      "content_type": "audio/wav",
+      "raw_starts_with_riff": false,
+      "memory_after_run": {
+        "working_set_mib": 4328.6,
+        "peak_working_set_mib": 5355.4,
+        "private_mib": 5631.9,
+        "pagefile_mib": 5631.9
+      },
+      "wav_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_http_mika_bench\\run_2.wav"
+    },
+    {
+      "run": 3,
+      "first_chunk_s": 2.212,
+      "total_s": 4.839,
+      "audio_duration_s": 5.4,
+      "rtf_total": 0.896,
+      "chunk_count": 14,
+      "stream_bytes": 345600,
+      "content_type": "audio/wav",
+      "raw_starts_with_riff": false,
+      "memory_after_run": {
+        "working_set_mib": 4337.0,
+        "peak_working_set_mib": 5355.4,
+        "private_mib": 5632.4,
+        "pagefile_mib": 5632.4
+      },
+      "wav_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_http_mika_bench\\run_3.wav"
+    },
+    {
+      "run": 4,
+      "first_chunk_s": 2.08,
+      "total_s": 4.836,
+      "audio_duration_s": 5.52,
+      "rtf_total": 0.876,
+      "chunk_count": 14,
+      "stream_bytes": 353280,
+      "content_type": "audio/wav",
+      "raw_starts_with_riff": false,
+      "memory_after_run": {
+        "working_set_mib": 4340.5,
+        "peak_working_set_mib": 5355.4,
+        "private_mib": 5632.9,
+        "pagefile_mib": 5632.9
+      },
+      "wav_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_http_mika_bench\\run_4.wav"
+    },
+    {
+      "run": 5,
+      "first_chunk_s": 2.501,
+      "total_s": 5.759,
+      "audio_duration_s": 6.52,
+      "rtf_total": 0.883,
+      "chunk_count": 19,
+      "stream_bytes": 417280,
+      "content_type": "audio/wav",
+      "raw_starts_with_riff": false,
+      "memory_after_run": {
+        "working_set_mib": 4346.7,
+        "peak_working_set_mib": 5355.4,
+        "private_mib": 5632.9,
+        "pagefile_mib": 5632.9
+      },
+      "wav_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_http_mika_bench\\run_5.wav"
+    }
+  ]
+}

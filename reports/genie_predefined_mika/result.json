@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "engine": "genie-tts",
+  "character": "mika",
+  "text": "どうしようかな……やっぱりやりたいかも……！",
+  "load_s": 8.134,
+  "first_chunk_s": 3.501,
+  "total_s": 5.785,
+  "chunk_count": 2,
+  "stream_bytes": 317440,
+  "wav_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_predefined_mika\\mika_ja_short.wav",
+  "wav_bytes": 317484,
+  "raw_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\genie_predefined_mika\\mika_ja_short.raw",
+  "raw_bytes": 317440,
+  "genie_data_dir": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\models\\GenieData",
+  "hf_home": "D:\\apiWorkSpace\\GPT-SoVITS\\.cache\\hf"
+}
