@@ -169,6 +169,8 @@ flowchart LR
 
 Immediate task: download and validate the next official GPT-SoVITS model sets through proxy `127.0.0.1:7897`.
 
+Status: completed. The 3-run-per-version zero-shot comparison is recorded at `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\REPORT.md`, with notes at `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\NOTES.md`.
+
 Download targets:
 
 - v2 baseline resources are already present and runnable.

@@ -43,6 +43,13 @@
   - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\s1v3.ckpt`
   - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\v2Pro\s2Gv2ProPlus.pth`
   - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\gsv-v4-pretrained\s2Gv4.pth`
+  - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\sv\pretrained_eres2netv2w24s4ep4.ckpt`
+  - `D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official\GPT_SoVITS\pretrained_models\gsv-v4-pretrained\vocoder.pth`
+- 已完成 v2 / v2ProPlus / v4 各 3 次同文本 zero-shot 对比：
+  - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\REPORT.md`
+  - 说明：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\NOTES.md`
+  - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\result.json`
+  - 结论：v2ProPlus 当前是下一步最值得试听的候选；v4 已能生成有效音频，但本轮首包/RTF 明显慢。
 
 ## 当前判断
 
@@ -91,7 +98,7 @@
 5. Tavo adapter 已能通过官方非流式 `/tts` 生成多段 dialogue 缓存。
 6. 下一步试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_cached_13s.wav`，并校对参考音频逐字稿。不要用 `gaoyuanyuan_live.wav` 做人工试听；它是流式抓包，普通播放器会显示 0 秒。
 7. 继续从 `女声/`、`角色扮演/`、`常用配音/`、`逗哥热门音色/` 批量筛 5-10 秒清晰中文样本生成 Profile。
-8. v2ProPlus / v4 额外模型已下载，下一步用同一套 zero-shot 样本做 v2 / v2ProPlus / v4 横向对比。
+8. v2 / v2ProPlus / v4 横向对比已完成；下一步先人工试听 `reports/version_compare_20260531/**/run_*.wav`，优先判断 v2ProPlus 是否值得作为 ASMR 主线。
 9. 先继续推理和产品链路验证，不要先训练。
 10. 建立统一测试样本：
    - 中文短句

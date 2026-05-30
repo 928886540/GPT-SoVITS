@@ -1,0 +1,73 @@
+{
+  "version": "v4",
+  "run_index": 3,
+  "api_base_url": "http://127.0.0.1:9881",
+  "weights": {
+    "gpt": "GPT_SoVITS/pretrained_models/s1v3.ckpt",
+    "sovits": "GPT_SoVITS/pretrained_models/gsv-v4-pretrained/s2Gv4.pth"
+  },
+  "switch_info": {
+    "set_gpt_weights": {
+      "seconds": 0.33342529999208637,
+      "response": {
+        "message": "success"
+      }
+    },
+    "set_sovits_weights": {
+      "seconds": 2.3488393000152428,
+      "response": {
+        "message": "success"
+      }
+    }
+  },
+  "parameters": {
+    "batch_size": 1,
+    "sample_steps": 32,
+    "top_k": 15,
+    "top_p": 1.0,
+    "temperature": 1.0,
+    "text_split_method": "cut5",
+    "streaming_mode": false,
+    "parallel_infer": true,
+    "speed_factor": 1.0,
+    "fragment_interval": 0.3,
+    "overlap_length": 2,
+    "min_chunk_length": 16,
+    "repetition_penalty": 1.35
+  },
+  "profile_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\prompts\\library\\女声\\高圆圆.json",
+  "ref_audio_path": "D:/apiWorkSpace/GPT-SoVITS/Leon_api/prompts/library/女声/高圆圆.mp3",
+  "prompt_text": "这个地方有关的历史和故事，以及在这条线路上你还能看到什么更多的风景。",
+  "text": "这是 GPT SoVITS 三个模型版本的同条件测试。请保持声音稳定，自然，清晰，我们会比较首包、速度、显存和最终听感。",
+  "out_wav": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\version_compare_20260531\\v4\\run_3.wav",
+  "out_json": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\version_compare_20260531\\v4\\run_3.json",
+  "first_byte_s": 10.616670999996131,
+  "total_s": 10.618950200005202,
+  "bytes": 1186604,
+  "audio_duration_s": 12.36,
+  "rtf": 0.8591383656962137,
+  "gpu_before": {
+    "memory_used_mib": 4683,
+    "memory_total_mib": 12288,
+    "utilization_gpu_percent": 4
+  },
+  "gpu_after": {
+    "memory_used_mib": 4683,
+    "memory_total_mib": 12288,
+    "utilization_gpu_percent": 94
+  },
+  "process_before": {
+    "pid": 16356,
+    "process_name": "python",
+    "working_set_mib": 3231.5,
+    "private_mib": 7970,
+    "peak_working_set_mib": 5692.6
+  },
+  "process_after": {
+    "pid": 16356,
+    "process_name": "python",
+    "working_set_mib": 3232.2,
+    "private_mib": 7906.9,
+    "peak_working_set_mib": 5692.6
+  }
+}
