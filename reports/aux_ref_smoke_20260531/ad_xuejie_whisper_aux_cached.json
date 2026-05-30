@@ -1,0 +1,72 @@
+{
+  "request": {
+    "segments": [
+      {
+        "role": "narrator",
+        "text": "学姐，贴近一点，用轻一点的耳语感觉，说完这段声腔测试。"
+      }
+    ],
+    "voices": {
+      "narrator": "女声/AD学姐_耳语_aux"
+    },
+    "streaming_mode": false,
+    "performance_mode": "balanced",
+    "sample_steps": 16,
+    "batch_size": 8,
+    "parallel_infer": true,
+    "top_p": 1.0,
+    "top_k": 15,
+    "temperature": 1.0,
+    "speed_factor": 1.0
+  },
+  "job": {
+    "cache_key": "63c15300e94a949ad1b934171e1870763fb2389d",
+    "cacheKey": "63c15300e94a949ad1b934171e1870763fb2389d",
+    "cached": false,
+    "live": false,
+    "url": "/tts_dialogue_stream_job/63c15300e94a949ad1b934171e1870763fb2389d",
+    "cache_url": "/cache_audio/63c15300e94a949ad1b934171e1870763fb2389d",
+    "state": "queued",
+    "queue_position": 1
+  },
+  "status": {
+    "cache_key": "63c15300e94a949ad1b934171e1870763fb2389d",
+    "state": "done",
+    "status": "cached",
+    "cached": true,
+    "cache_url": "/cache_audio/63c15300e94a949ad1b934171e1870763fb2389d",
+    "segments_meta": [
+      {
+        "index": 0,
+        "role": "narrator",
+        "text": "学姐，贴近一点，用轻一点的耳语感觉，说完这段声腔测试。",
+        "start_s": 0.0,
+        "start_offset_bytes": 0,
+        "duration_s": 6.116333333333333,
+        "voice": "女声/AD学姐_耳语_aux",
+        "metrics": {
+          "first_byte_s": 2.541719600005308,
+          "total_s": 2.542357800004538,
+          "bytes": 587212
+        }
+      }
+    ],
+    "sample_rate": 48000,
+    "duration_s": 6.116333333333333,
+    "metrics": {
+      "total_s": 2.5432575000158977,
+      "audio_duration_s": 6.116333333333333,
+      "rtf": 0.41581407706401946
+    },
+    "error": "",
+    "queue_position": 0
+  },
+  "wav": {
+    "path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\aux_ref_smoke_20260531\\ad_xuejie_whisper_aux_cached.wav",
+    "sample_rate": 48000,
+    "channels": 1,
+    "sample_width": 2,
+    "frames": 293584,
+    "duration_s": 6.116333333333333
+  }
+}

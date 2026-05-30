@@ -59,6 +59,11 @@ class DialogueStreamRequest(BaseModel):
     speed_factor: float = 1.0
     streaming_mode: int | bool = 2
     performance_mode: str = "balanced"
+    sample_steps: Optional[int] = None
+    batch_size: Optional[int] = None
+    parallel_infer: Optional[bool] = None
+    text_split_method: Optional[str] = None
+    aux_ref_audio_paths: list[str] = Field(default_factory=list)
 
 
 @APP.get("/health")
@@ -464,6 +469,13 @@ def _pick_default_profile(payload: dict[str, Any], profiles: dict[str, Optional[
 
 def _official_payload_for_segment(segment: dict[str, str], profile: dict[str, Any], request_payload: dict[str, Any]) -> dict[str, Any]:
     defaults = dict(profile.get("default_params") or {})
+    parallel_infer = request_payload.get("parallel_infer")
+    aux_ref_audio_paths = (
+        request_payload.get("aux_ref_audio_paths")
+        or profile.get("aux_ref_audio_paths")
+        or defaults.get("aux_ref_audio_paths")
+        or []
+    )
     payload = {
         "text": segment["text"],
         "text_lang": profile.get("text_lang") or "zh",
@@ -473,8 +485,8 @@ def _official_payload_for_segment(segment: dict[str, str], profile: dict[str, An
         "top_k": request_payload.get("top_k", defaults.get("top_k", 15)),
         "top_p": request_payload.get("top_p", defaults.get("top_p", 1.0)),
         "temperature": request_payload.get("temperature", defaults.get("temperature", 1.0)),
-        "text_split_method": defaults.get("text_split_method", "cut5"),
-        "batch_size": defaults.get("batch_size", 1),
+        "text_split_method": request_payload.get("text_split_method") or defaults.get("text_split_method", "cut5"),
+        "batch_size": request_payload.get("batch_size") or defaults.get("batch_size", 1),
         "batch_threshold": defaults.get("batch_threshold", 0.75),
         "split_bucket": defaults.get("split_bucket", True),
         "speed_factor": request_payload.get("speed_factor", defaults.get("speed_factor", 1.0)),
@@ -482,13 +494,15 @@ def _official_payload_for_segment(segment: dict[str, str], profile: dict[str, An
         "seed": defaults.get("seed", -1),
         "media_type": "wav",
         "streaming_mode": False,
-        "parallel_infer": defaults.get("parallel_infer", True),
+        "parallel_infer": defaults.get("parallel_infer", True) if parallel_infer is None else parallel_infer,
         "repetition_penalty": request_payload.get("repetition_penalty", defaults.get("repetition_penalty", 1.35)),
         "sample_steps": request_payload.get("sample_steps", defaults.get("sample_steps", 32)),
         "super_sampling": defaults.get("super_sampling", False),
         "overlap_length": defaults.get("overlap_length", 2),
         "min_chunk_length": defaults.get("min_chunk_length", 16),
     }
+    if aux_ref_audio_paths:
+        payload["aux_ref_audio_paths"] = list(aux_ref_audio_paths)
     if not payload["ref_audio_path"]:
         raise ValueError(f"voice profile {profile.get('name')!r} has no ref_audio_path")
     if not payload["prompt_text"]:
