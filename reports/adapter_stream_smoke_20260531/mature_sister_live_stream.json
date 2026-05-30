@@ -1,0 +1,55 @@
+{
+  "request": {
+    "segments": [
+      {
+        "role": "narrator",
+        "text": "这是 GPT SoVITS 本机 adapter 的流式播放测试。先听第一句，再继续播放第二句。"
+      }
+    ],
+    "voices": {
+      "narrator": "女声/成熟姐姐"
+    },
+    "streaming_mode": true,
+    "performance_mode": "balanced",
+    "top_p": 1.0,
+    "top_k": 15,
+    "temperature": 1.0,
+    "speed_factor": 1.0
+  },
+  "job": {
+    "cache_key": "edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+    "cacheKey": "edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+    "cached": false,
+    "live": false,
+    "url": "/tts_dialogue_stream_job/edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+    "cache_url": "/cache_audio/edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+    "state": "deferred_stream",
+    "queue_position": 0
+  },
+  "stream_url": "http://127.0.0.1:9880/tts_dialogue_stream_job/edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+  "cache_key": "edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+  "out_wav": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\adapter_stream_smoke_20260531\\mature_sister_live_stream.wav",
+  "first_byte_s": 2.9603206000174396,
+  "total_s": 7.273509199992986,
+  "bytes": 771884,
+  "wav_info": {
+    "sample_rate": 48000,
+    "channels": 1,
+    "sample_width": 2,
+    "frames": 0,
+    "duration_s": 0.0
+  },
+  "status_after_stream": {
+    "cache_key": "edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+    "state": "running",
+    "status": "running",
+    "cached": false,
+    "cache_url": "",
+    "segments_meta": [],
+    "sample_rate": null,
+    "duration_s": null,
+    "metrics": {},
+    "error": "",
+    "queue_position": 0
+  }
+}

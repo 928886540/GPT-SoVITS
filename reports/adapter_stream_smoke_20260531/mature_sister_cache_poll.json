@@ -1,0 +1,42 @@
+{
+  "poll_status": {
+    "cache_key": "edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+    "state": "done",
+    "status": "cached",
+    "cached": true,
+    "cache_url": "/cache_audio/edd0aa88158668e4d24cd21c525d3c8c15e75e84",
+    "segments_meta": [
+      {
+        "index": 0,
+        "role": "narrator",
+        "text": "这是 GPT SoVITS 本机 adapter 的流式播放测试。先听第一句，再继续播放第二句。",
+        "start_s": 0.0,
+        "start_offset_bytes": 0,
+        "duration_s": 8.113833333333334,
+        "voice": "女声/成熟姐姐",
+        "metrics": {
+          "first_byte_s": 8.294838200003142,
+          "total_s": 8.295708500023466,
+          "bytes": 778972
+        }
+      }
+    ],
+    "sample_rate": 48000,
+    "duration_s": 8.113833333333334,
+    "metrics": {
+      "total_s": 8.296587099990575,
+      "audio_duration_s": 8.113833333333334,
+      "rtf": 1.0225237269671845
+    },
+    "error": "",
+    "queue_position": 0
+  },
+  "cached_wav": {
+    "path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\adapter_stream_smoke_20260531\\mature_sister_cached_after_stream.wav",
+    "sample_rate": 48000,
+    "channels": 1,
+    "sample_width": 2,
+    "frames": 389464,
+    "duration_s": 8.113833333333334
+  }
+}
