@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "version": "v4",
+  "case_label": "b4_steps16_parallel",
+  "run_index": 2,
+  "api_base_url": "http://127.0.0.1:9881",
+  "weights": {
+    "gpt": "GPT_SoVITS/pretrained_models/s1v3.ckpt",
+    "sovits": "GPT_SoVITS/pretrained_models/gsv-v4-pretrained/s2Gv4.pth"
+  },
+  "switch_info": {
+    "set_gpt_weights": {
+      "seconds": 0.3510105999885127,
+      "response": {
+        "message": "success"
+      }
+    },
+    "set_sovits_weights": {
+      "seconds": 2.376159600011306,
+      "response": {
+        "message": "success"
+      }
+    }
+  },
+  "parameters": {
+    "batch_size": 4,
+    "batch_threshold": 0.75,
+    "split_bucket": true,
+    "sample_steps": 16,
+    "top_k": 15,
+    "top_p": 1.0,
+    "temperature": 1.0,
+    "text_split_method": "cut5",
+    "streaming_mode": false,
+    "parallel_infer": true,
+    "speed_factor": 1.0,
+    "fragment_interval": 0.3,
+    "overlap_length": 2,
+    "min_chunk_length": 16,
+    "repetition_penalty": 1.35,
+    "super_sampling": false
+  },
+  "profile_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\prompts\\library\\女声\\AD学姐.json",
+  "ref_audio_path": "D:/apiWorkSpace/GPT-SoVITS/Leon_api/prompts/library/女声/AD学姐.wav",
+  "prompt_text": "是我，我是AD学姐。今天有什么想聊的，慢慢说，我陪着你。",
+  "text": "学姐，今天我们试试这条热门音色。第一句请温柔一点，不要太用力。第二句请自然地带一点停顿，让听的人感觉是在聊天。第三句请把情绪收住，清晰地读完这段测试。",
+  "out_wav": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\v4_ad_xuejie_20260531\\b4_steps16_parallel\\run_2.wav",
+  "out_json": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\v4_ad_xuejie_20260531\\b4_steps16_parallel\\run_2.json",
+  "gpu_before": {
+    "memory_used_mib": 4745,
+    "memory_total_mib": 12288,
+    "utilization_gpu_percent": 6
+  },
+  "process_before": {
+    "pid": 16356,
+    "process_name": "python",
+    "working_set_mib": 3273.4,
+    "private_mib": 8133.9,
+    "peak_working_set_mib": 5742.9
+  },
+  "first_byte_s": 4.788081900012912,
+  "total_s": 4.790502399991965,
+  "bytes": 1466228,
+  "audio_duration_s": 15.27275,
+  "rtf": 0.3136633808575381,
+  "wav_info": {
+    "duration_s": 15.27275,
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "sample_width_bytes": 2,
+    "bitrate_kbps_pcm": 768.0
+  },
+  "gpu_after": {
+    "memory_used_mib": 4745,
+    "memory_total_mib": 12288,
+    "utilization_gpu_percent": 99
+  },
+  "process_after": {
+    "pid": 16356,
+    "process_name": "python",
+    "working_set_mib": 3273.5,
+    "private_mib": 8135.7,
+    "peak_working_set_mib": 5742.9
+  }
+}

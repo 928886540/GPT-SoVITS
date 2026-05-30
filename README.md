@@ -199,3 +199,80 @@ Every run must record these fields with full absolute paths:
 - output WAV and JSON metadata full paths.
 
 Do not start few-shot training until v2ProPlus and v4 have both been downloaded and compared on the same zero-shot test set.
+
+## 2026-05-31 V4 Parameter Retest
+
+V4 is not deprecated. The earlier slow result was from `batch_size=1` and `sample_steps=32`, which is a conservative API default but not the best V4 product setting.
+
+New V4 parameter sweep:
+
+- Report: `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\REPORT.md`
+- Raw data: `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\result.json`
+- Script: `D:\apiWorkSpace\GPT-SoVITS\Leon_api\dev_tools\bench_gptsovits_v4_params.py`
+
+Key results on the long multi-sentence test:
+
+| Case | batch_size | sample_steps | parallel_infer | First byte | RTF | GPU after |
+| --- | ---: | ---: | --- | ---: | ---: | ---: |
+| old baseline | 1 | 32 | true | 26.407s | 0.951 | 4607 MiB |
+| balanced fast | 8 | 8 | true | 5.287s | 0.191 | 4598 MiB |
+| quality-safer | 4 | 16 | true | 8.368s | 0.292 | 4596 MiB |
+| fastest measured | 4 | 4 | true | 5.096s | 0.186 | 4596 MiB |
+
+Current recommendation:
+
+- Keep V4 as a real candidate, especially when the user prefers its stronger cadence and emotional contour.
+- Use `batch_size=8`, `sample_steps=8`, `parallel_infer=true` as the first V4 speed/quality candidate for multi-sentence non-streaming generation.
+- Keep `batch_size=4`, `sample_steps=16`, `parallel_infer=true` as the safer quality comparison candidate.
+- Treat `sample_steps=4` as an extreme speed candidate that needs human listening before product default use.
+- `batch_size` only helps when text is split into multiple fragments; it will not meaningfully speed up a single short sentence.
+
+V4 output remains 48 kHz mono 16-bit PCM WAV, about 768 kbps. This is why V4 WAV files show higher Hz/kbps than v2/v2ProPlus; it is output format, not a separate step parameter.
+
+## v2ProPlus + V4 Dual-Track Strategy
+
+v2ProPlus and V4 can both be supported. This should be treated as a profile/runtime preset problem, not as two separate products.
+
+Recommended split:
+
+- v2ProPlus: stable default candidate for general dialogue, ASMR baseline, and community package first-run experience.
+- V4: emotional/cadence candidate when the target voice benefits from stronger prosody, especially after the `batch_size=8` / `sample_steps=8` retest.
+
+Implementation requirements:
+
+- Every Voice Profile must record model version or exact weight paths.
+- Cache keys must include model version, GPT weights, SoVITS weights, reference audio hash, prompt text, text, and inference parameters.
+- Tavo/front-end UI should expose this as a model preset per voice, not as a global hidden switch.
+- Short-term validation can use one official API process and call `/set_gpt_weights` + `/set_sovits_weights`.
+- Product packaging should consider two local engine processes if users frequently mix v2ProPlus and V4 in one session, for example:
+  - `127.0.0.1:9881`: v2ProPlus
+  - `127.0.0.1:9882`: V4
+
+Tradeoff:
+
+- Single process is simpler and uses less idle VRAM, but model switching adds latency.
+- Dual process is smoother for mixed-role playback, but uses more VRAM/RAM and needs clearer startup scripts.
+- Dual process should not mean unlimited concurrent generation on a 12GB GPU. Idle CPU should be low, but VRAM is resident; queueing should limit active generation to avoid v2ProPlus and V4 peaking at the same time.
+
+## 2026-05-31 AD学姐 V4 Voice Test
+
+Created AD学姐 zero-shot Voice Profile:
+
+- Profile: `D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\AD学姐.json`
+- Reference audio: `D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\AD学姐.wav`
+- Reference duration: about 6.74s, mono, 22050 Hz source WAV.
+- Prompt text is an ASR-assisted first pass and still needs human correction.
+
+AD学姐 V4 report:
+
+- Report: `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`
+- Raw data: `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\result.json`
+- Local WAV outputs are in `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\**\run_*.wav` and are ignored by git.
+
+AD学姐 3-run averages:
+
+| Case | batch_size | sample_steps | First byte | RTF | GPU after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| recommended fast | 8 | 8 | 2.480s | 0.163 | 4744 MiB |
+| fastest-step candidate | 4 | 4 | 2.992s | 0.198 | 4745 MiB |
+| quality-safer candidate | 4 | 16 | 4.882s | 0.311 | 4745 MiB |

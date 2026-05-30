@@ -169,6 +169,14 @@ Genie 测试脚本：
 
 ## 下一步建议
 
+最新进展：
+
+- v2 / v2ProPlus / v4 三版本同文本对比已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\REPORT.md`。
+- V4 参数扫描已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\REPORT.md`。旧慢结果来自 `batch_size=1` / `sample_steps=32`；长文本下 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 的 RTF 已降到 `0.191`。
+- AD学姐 zero-shot profile 已创建：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\AD学姐.json`。
+- AD学姐 V4 3 组参数测试已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`。其中 `batch_size=8` / `sample_steps=8` 三次平均 RTF `0.163`。
+- v2ProPlus 和 V4 都可以继续做：v2ProPlus 做稳定默认，V4 做情绪/抑扬顿挫候选。短期单 API 切权重，产品化可考虑 v2ProPlus/V4 双端口。
+
 1. 进入官方 GPT-SoVITS 目录：
 
 ```powershell
@@ -193,14 +201,14 @@ D:\apiWorkSpace\GPT-SoVITS\Leon_api\.venvs\official\Scripts\python.exe api_v2.py
 D:\apiWorkSpace\GPT-SoVITS\gpt-sovits-official
 ```
 
-4. 先跑官方 v2 推理请求，记录参数、显存、首包、RTF 和输出路径。
+4. 如果继续对比 v2ProPlus 与 V4，优先复用 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\dev_tools\bench_gptsovits_v4_params.py` 或扩展成双版本参数脚本，记录参数、显存、首包、RTF 和输出路径。
 
 优先任务：
 
 - 不要先训练。
-- 先用官方 v2 API 跑通推理。
-- 再下载 v2ProPlus / v4 额外模型到 D 盘。
-- 确认 v4 与 v2ProPlus 哪个更适合作为 ASMR 主线。
+- 优先人工试听 V4 `steps=8` 与 `steps=16` 是否保留用户想要的抑扬顿挫。
+- 同步保留 v2ProPlus，不要把 v4 和 v2ProPlus 做成互斥路线。
+- 确认哪些音色默认走 v2ProPlus，哪些音色适合走 V4。
 - 每次测试都记录：
   - 参数
   - 显存

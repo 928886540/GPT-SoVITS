@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "version": "v4",
+  "case_label": "b4_steps4_parallel",
+  "run_index": 1,
+  "api_base_url": "http://127.0.0.1:9881",
+  "weights": {
+    "gpt": "GPT_SoVITS/pretrained_models/s1v3.ckpt",
+    "sovits": "GPT_SoVITS/pretrained_models/gsv-v4-pretrained/s2Gv4.pth"
+  },
+  "switch_info": {
+    "set_gpt_weights": {
+      "seconds": 0.345986999978777,
+      "response": {
+        "message": "success"
+      }
+    },
+    "set_sovits_weights": {
+      "seconds": 2.4026578000048175,
+      "response": {
+        "message": "success"
+      }
+    }
+  },
+  "parameters": {
+    "batch_size": 4,
+    "batch_threshold": 0.75,
+    "split_bucket": true,
+    "sample_steps": 4,
+    "top_k": 15,
+    "top_p": 1.0,
+    "temperature": 1.0,
+    "text_split_method": "cut5",
+    "streaming_mode": false,
+    "parallel_infer": true,
+    "speed_factor": 1.0,
+    "fragment_interval": 0.3,
+    "overlap_length": 2,
+    "min_chunk_length": 16,
+    "repetition_penalty": 1.35,
+    "super_sampling": false
+  },
+  "profile_path": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\prompts\\library\\女声\\高圆圆.json",
+  "ref_audio_path": "D:/apiWorkSpace/GPT-SoVITS/Leon_api/prompts/library/女声/高圆圆.mp3",
+  "prompt_text": "这个地方有关的历史和故事，以及在这条线路上你还能看到什么更多的风景。",
+  "text": "今晚我们继续做 GPT SoVITS V4 的本地测试。第一段请保持声音稳定，不要突然提高音量。第二段请稍微放慢一点，把语气读得自然，有一点亲近感。第三段我们会比较不同 batch size 和采样步数，对首包、总耗时、显存和最终听感的影响。最后一段请保持清晰，不要吞字，也不要把停顿拉得太长。",
+  "out_wav": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\v4_param_sweep_20260531\\b4_steps4_parallel\\run_1.wav",
+  "out_json": "D:\\apiWorkSpace\\GPT-SoVITS\\Leon_api\\reports\\v4_param_sweep_20260531\\b4_steps4_parallel\\run_1.json",
+  "gpu_before": {
+    "memory_used_mib": 4596,
+    "memory_total_mib": 12288,
+    "utilization_gpu_percent": 6
+  },
+  "process_before": {
+    "pid": 16356,
+    "process_name": "python",
+    "working_set_mib": 3250.7,
+    "private_mib": 8092.6,
+    "peak_working_set_mib": 5707
+  },
+  "first_byte_s": 5.096334500005469,
+  "total_s": 5.099365000001853,
+  "bytes": 2632204,
+  "audio_duration_s": 27.418333333333333,
+  "rtf": 0.18598376998365523,
+  "wav_info": {
+    "duration_s": 27.418333333333333,
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "sample_width_bytes": 2,
+    "bitrate_kbps_pcm": 768.0
+  },
+  "gpu_after": {
+    "memory_used_mib": 4596,
+    "memory_total_mib": 12288,
+    "utilization_gpu_percent": 90
+  },
+  "process_after": {
+    "pid": 16356,
+    "process_name": "python",
+    "working_set_mib": 3253.3,
+    "private_mib": 8097.5,
+    "peak_working_set_mib": 5707
+  }
+}

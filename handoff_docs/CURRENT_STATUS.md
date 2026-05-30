@@ -49,7 +49,20 @@
   - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\REPORT.md`
   - 说明：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\NOTES.md`
   - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\result.json`
-  - 结论：v2ProPlus 当前是下一步最值得试听的候选；v4 已能生成有效音频，但本轮首包/RTF 明显慢。
+  - 结论：v2ProPlus 是稳态候选；v4 在默认 `batch_size=1` / `sample_steps=32` 下慢，但不能按这组参数直接弃用。
+- 已完成 V4 参数扫描：
+  - 脚本：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\dev_tools\bench_gptsovits_v4_params.py`
+  - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\REPORT.md`
+  - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\result.json`
+  - 关键结果：长文本 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 的 RTF 为 `0.191`，明显快于旧基线 `batch_size=1` / `sample_steps=32` 的 `0.951`。
+  - 判断：V4 应保留为候选，尤其适合用户偏好的抑扬顿挫和情绪轮廓；`sample_steps=4` 最快但需要人工试听确认质量。
+- 已创建并测试热门音色 AD学姐：
+  - Profile：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\AD学姐.json`
+  - 参考音频：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\AD学姐.wav`
+  - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`
+  - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\result.json`
+  - 关键结果：AD学姐 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 3 次平均首包 `2.480s`，RTF `0.163`，GPU after 约 `4744 MiB`。
+  - 注意：AD学姐 `prompt_text` 是 Whisper ASR 初稿后人工规整，后续必须人工试听校对。
 
 ## 当前判断
 
@@ -76,13 +89,15 @@
 - 主线切回官方 GPT-SoVITS。
 - Genie 已验证为可用的 CPU ONNX 本地推理候选，但不适合作为当前训练主线。
 - 用户当前更需要训练和打磨 ASMR 音色，所以先测官方 GPT-SoVITS v4 / v2ProPlus。
+- V4 不再按旧默认参数判死刑。当前建议并行非流式先试 `batch_size=8` / `sample_steps=8`，同时保留 `batch_size=4` / `sample_steps=16` 做质量对照。
+- v2ProPlus 和 V4 可以并行作为产品候选：v2ProPlus 做稳定默认，V4 做情绪/抑扬顿挫候选。短期用单官方 API 切权重验证；产品化如果频繁混用，建议拆成两个本机端口，避免反复切权重。双端口空闲 CPU 应该很低，但显存会常驻，12GB 机器要限制并发生成。
 - 后续测试必须打印参数、内存、显存、RTF、首包和输出文件路径。
 - Tavo 迁移采用“旧前端体验 + 新 GPT-SoVITS adapter”的路线：先保留旧接口契约，再把内部接到官方 GPT-SoVITS。
 
 ## 当前运行状态
 
 - `127.0.0.1:9880`：`Leon_api/gsv_tavo_adapter.py`，已提供 Tavo 前端、voices/profile/cache/parse_text/job，并已接官方 GPT-SoVITS 非流式推理、后台队列、WAV 拼接、本地缓存和当前卡片流式直通。
-- `127.0.0.1:9881`：官方 `gpt-sovits-official/api_v2.py`，已加载 v2 默认权重，可进入 Swagger 文档。
+- `127.0.0.1:9881`：官方 `gpt-sovits-official/api_v2.py`，当前会话最后切到 v4 权重，可进入 Swagger 文档。
 - 运行日志：
   - `outputs/logs/gsv_tavo_adapter.out.log`
   - `outputs/logs/gsv_tavo_adapter.err.log`
@@ -98,7 +113,11 @@
 5. Tavo adapter 已能通过官方非流式 `/tts` 生成多段 dialogue 缓存。
 6. 下一步试听 `reports/real_voice_gpt_sovits_first/gaoyuanyuan_cached_13s.wav`，并校对参考音频逐字稿。不要用 `gaoyuanyuan_live.wav` 做人工试听；它是流式抓包，普通播放器会显示 0 秒。
 7. 继续从 `女声/`、`角色扮演/`、`常用配音/`、`逗哥热门音色/` 批量筛 5-10 秒清晰中文样本生成 Profile。
-8. v2 / v2ProPlus / v4 横向对比已完成；下一步先人工试听 `reports/version_compare_20260531/**/run_*.wav`，优先判断 v2ProPlus 是否值得作为 ASMR 主线。
+8. v2 / v2ProPlus / v4 横向对比已完成；下一步人工试听：
+   - `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\**\run_*.wav`
+   - `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\**\run_*.wav`
+   - `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\**\run_*.wav`
+   优先判断 V4 `steps=8` 是否保留了用户想要的抑扬顿挫，以及 `steps=4` 是否有质量损失。
 9. 先继续推理和产品链路验证，不要先训练。
 10. 建立统一测试样本：
    - 中文短句
