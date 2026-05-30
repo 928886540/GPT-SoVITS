@@ -17,7 +17,7 @@
 - `GET/HEAD /cache_audio/{cache_key}` 返回可播放 WAV。
 - `/voices` 返回 `{ voices, items }`，兼容旧 Tavo 前端读取方式。
 
-这一步仍不是最终流式播放实现。当前卡片“真流式首包”后续要单独接官方 `streaming_mode=true`；后台缓存和历史播放先走非流式完整 WAV。
+当前卡片已接官方 `streaming_mode=true` 直通播放；后台缓存和历史播放仍走非流式完整 WAV。
 
 ## 后台队列验证
 
@@ -67,6 +67,46 @@ HEAD /cache_audio/fd2c0f6cdfa00bb81c07531514d4c3a742b556b3 -> 200 OK, content-ty
 - 相同 `cache_key` 的 queued/running job 不重复入队。
 - 删除 job 会删除缓存，并把内存状态标为 `deleted`。
 - 生成失败时 status 返回 `state=failed` 和 `error`。
+
+## 当前卡片流式验证
+
+`streaming_mode=true` 的 dialogue job 现在采用当前播放优先策略：
+
+1. `POST /tts_dialogue_stream_job` 返回 `state=deferred_stream`，不立刻占用后台 worker。
+2. `GET /tts_dialogue_stream_job/{cache_key}` 直通官方 `streaming_mode=true`。
+3. live 流结束后再把同一个 `cache_key` 放入后台队列，生成完整缓存 WAV。
+4. 如果用户没有播放 live 而先轮询 status，status 会触发后台缓存入队。
+
+验证返回：
+
+```json
+{
+  "cache_key": "e347058c4dc65e3c3967c3ac383e25df0fc595f4",
+  "cached": false,
+  "live": false,
+  "state": "deferred_stream",
+  "queue_position": 0
+}
+```
+
+live GET 指标：
+
+| 指标 | 值 |
+| --- | ---: |
+| first byte | `1.198s` |
+| total | `4.058s` |
+| bytes | `633644` |
+
+live 结束后的后台缓存：
+
+| 指标 | 值 |
+| --- | ---: |
+| cache total | `3.8088145999936387s` |
+| audio duration | `9.54s` |
+| RTF | `0.399246813416524` |
+| content-length | `610604` |
+
+这次修正前，live GET 和后台 worker 会同时抢官方 GPT-SoVITS，首包约 `4.673s`；修正后首包降到 `1.198s`。
 
 ## 测试音色
 
@@ -141,12 +181,13 @@ HEAD /cache_audio/81c0026493712656f53c64cb758e7a846b2a1f76 -> 200 OK, content-ty
 
 ## 限制
 
-- 现在多角色能映射不同 Voice Profile，但没有做 GPT/SoVITS 权重热切换。
-- 当前播放卡片的真流式路径还没接入；已确认官方流式首包约 `2.039s`，但流式 WAV 长度字段是占位，不能直接用于缓存时长。
+- 现在多角色能映射不同 Voice Profile，但 live 流式先使用默认 profile 合成整段文本；后台缓存仍按角色逐段生成。
+- 还没有做 GPT/SoVITS 权重热切换。
+- 官方流式 WAV 长度字段是占位，不能直接用于缓存时长。
 - 测试参考音频是 SAPI 生成音，不代表目标 ASMR 音质。
 
 ## 下一步
 
-1. 为当前卡片增加官方 `streaming_mode=true` 直通播放路径。
-2. 添加真实人声音色 profile 后重测音质和角色映射。
-3. 再下载 v2ProPlus / v4 权重，测权重切换成本和 ASMR 听感。
+1. 添加真实人声音色 profile 后重测音质和角色映射。
+2. 把 live 流式从默认 profile 整段合成升级为按段/按角色流式。
+3. 下载 v2ProPlus / v4 权重，测权重切换成本和 ASMR 听感。

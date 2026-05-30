@@ -12,7 +12,7 @@ from typing import Any, Optional
 from urllib import error, request as urlrequest
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from gsv_adapter import llm_proxy, profile_store, snapshot_cache, voice_library
@@ -192,20 +192,24 @@ async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
 
     with JOBS_LOCK:
         existing = JOBS.get(cache_key)
-        if existing and existing.get("state") in {"queued", "running"}:
+        if existing and existing.get("state") in {"deferred_stream", "queued", "running"}:
             state = str(existing.get("state"))
             position = _queue_position(cache_key) if state == "queued" else 0
         else:
-            state = "queued"
-            position = JOB_QUEUE.qsize() + 1
+            prefer_live = bool(payload.get("streaming_mode"))
+            state = "deferred_stream" if prefer_live else "queued"
+            position = 0 if prefer_live else JOB_QUEUE.qsize() + 1
             JOBS[cache_key] = {
                 "state": state,
                 "cached": False,
                 "cache_key": cache_key,
+                "payload": payload,
+                "profiles": profiles,
                 "queued_at": time.time(),
                 "queue_position": position,
             }
-            JOB_QUEUE.put((cache_key, payload, profiles))
+            if not prefer_live:
+                JOB_QUEUE.put((cache_key, payload, profiles))
 
     return {
         "cache_key": cache_key,
@@ -220,8 +224,28 @@ async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
 
 
 @APP.get("/tts_dialogue_stream_job/{cache_key}")
-async def get_dialogue_job_audio(cache_key: str) -> FileResponse:
-    return await cache_audio(cache_key)
+async def get_dialogue_job_audio(cache_key: str):
+    path = snapshot_cache.get_cached_audio(cache_key)
+    if path is not None:
+        return FileResponse(path, media_type="audio/wav")
+
+    with JOBS_LOCK:
+        job = dict(JOBS.get(cache_key, {}))
+    payload = job.get("payload")
+    profiles = job.get("profiles")
+    if not isinstance(payload, dict) or not isinstance(profiles, dict):
+        raise HTTPException(status_code=404, detail="job not found or stream context expired")
+
+    try:
+        stream_payload = _official_payload_for_live_stream(payload, profiles)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return StreamingResponse(
+        _stream_official_tts(stream_payload, on_done=lambda: _enqueue_cache_job(cache_key)),
+        media_type="audio/wav",
+        headers={"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"},
+    )
 
 
 @APP.get("/tts_dialogue_job_status/{cache_key}")
@@ -231,6 +255,9 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
         job = dict(JOBS.get(cache_key, {}))
         if job.get("state") == "queued":
             job["queue_position"] = _queue_position(cache_key)
+        elif job.get("state") == "deferred_stream":
+            job["queue_position"] = _enqueue_cache_job_locked(cache_key)
+            job["state"] = "queued"
     metadata = snapshot_cache.get_cache_metadata(cache_key) if path else None
     state = "done" if path else job.get("state", "pending")
     return {
@@ -289,6 +316,8 @@ def _job_worker_loop() -> None:
                     "state": "failed",
                     "cached": False,
                     "cache_key": cache_key,
+                    "payload": payload,
+                    "profiles": profiles,
                     "error": str(exc),
                     "finished_at": time.time(),
                 }
@@ -309,6 +338,25 @@ def _queue_position(cache_key: str) -> int:
         if item and item[0] == cache_key:
             return index
     return 0
+
+
+def _enqueue_cache_job(cache_key: str) -> int:
+    with JOBS_LOCK:
+        return _enqueue_cache_job_locked(cache_key)
+
+
+def _enqueue_cache_job_locked(cache_key: str) -> int:
+    job = JOBS.get(cache_key)
+    if not job or job.get("state") in {"queued", "running", "done", "deleted"}:
+        return _queue_position(cache_key)
+    payload = job.get("payload")
+    profiles = job.get("profiles")
+    if not isinstance(payload, dict) or not isinstance(profiles, dict):
+        return 0
+    position = JOB_QUEUE.qsize() + 1
+    JOBS[cache_key] = {**job, "state": "queued", "queue_position": position, "queued_at": time.time()}
+    JOB_QUEUE.put((cache_key, payload, profiles))
+    return position
 
 
 def _synthesize_dialogue_to_cache(
@@ -448,6 +496,20 @@ def _official_payload_for_segment(segment: dict[str, str], profile: dict[str, An
     return payload
 
 
+def _official_payload_for_live_stream(payload: dict[str, Any], profiles: dict[str, Optional[dict[str, Any]]]) -> dict[str, Any]:
+    segments = _normalize_segments(payload.get("segments") or [])
+    if not segments:
+        raise ValueError("segments is empty")
+    default_profile = _pick_default_profile(payload, profiles)
+    if not default_profile:
+        raise ValueError("no default voice profile for live stream")
+    text = "\n".join(segment["text"] for segment in segments)
+    stream_payload = _official_payload_for_segment({"role": "live", "text": text}, default_profile, payload)
+    stream_payload["streaming_mode"] = True
+    stream_payload["media_type"] = "wav"
+    return stream_payload
+
+
 def _post_official_tts(payload: dict[str, Any]) -> tuple[bytes, float, float]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urlrequest.Request(
@@ -474,6 +536,31 @@ def _post_official_tts(payload: dict[str, Any]) -> tuple[bytes, float, float]:
             chunks.append(chunk)
     ended = time.perf_counter()
     return b"".join(chunks), (first_at or ended) - started, ended - started
+
+
+def _stream_official_tts(payload: dict[str, Any], on_done=None):
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urlrequest.Request(
+        OFFICIAL_TTS_URL,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        resp_ctx = urlrequest.urlopen(req, timeout=600)
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"official API HTTP {exc.code}: {detail}") from exc
+    try:
+        with resp_ctx as resp:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                yield chunk
+    finally:
+        if on_done is not None:
+            on_done()
 
 
 def _read_wav(audio_bytes: bytes) -> dict[str, Any]:

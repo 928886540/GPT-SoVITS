@@ -34,3 +34,10 @@ __pycache__/
 *.err
 *.out
 
+# Copied prompt-library sidecar files from local voice collections
+prompts/library/**/*.txt
+prompts/library/**/*.png
+prompts/library/**/*.jpg
+prompts/library/**/*.jpeg
+prompts/library/**/*.url
+prompts/library/**/声腔切片报告.json
