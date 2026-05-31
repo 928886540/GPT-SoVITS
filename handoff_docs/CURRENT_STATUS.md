@@ -63,7 +63,7 @@
   - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`
   - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\result.json`
   - 关键结果：AD学姐 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 3 次平均首包 `2.480s`，RTF `0.163`，GPU after 约 `4744 MiB`。
-  - 注意：不要再恢复或新增 `女声\AD学姐*.json` 重复别名；后续等 `whisper-cli` 可用后复核逐字稿。
+  - 注意：不要再恢复或新增 `女声\AD学姐*.json` 重复别名；后续用已安装的 Whisper CLI 复核逐字稿。
 - 已完成 P2 句级声腔接入第一版：
   - Adapter：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\gsv_tavo_adapter.py`
   - P2 测试页：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\static\gsv_p2_test.html`
@@ -144,6 +144,12 @@
 12. P2 下一步优化真逐句 live streaming：当前 GET `/tts_dialogue_stream_job/{cache_key}` 为保证多音色/句级声腔正确，会同步生成分句缓存后返回完整 WAV；不是最终低首包流式。
 13. Tavo UI 待修：真实 Tavo 里当前播放器/面板页面底部没有保持圆角，属于视觉 bug。先记录，后续处理，不阻塞当前流式与音色配置验证。
 14. Tavo 单音色真实模拟器报错：手动选择 `女声/风韵少妇` 后，真实 Tavo 发起 `/tts_stream_job`，缓存生成到 `1/1`，但前端自动播放失败，界面报 `play() can only be initiated by a user gesture.` JavaScript 控制台已确认：`select snapshot 单音色缓存已保存`、`selectTrack idx=0 state=saved urlSource=url` 后，`element audio.play() reject: NotAllowedError`，同时 `audio metadata loaded: duration=112.41s seekable=112.41`。这不是音色缺失，属于 WebView 播放手势/懒加载播放链路问题；后续修复时不能用静默兜底掩盖。
+15. Whisper ASR CLI 已可供 Codex 自动调用：
+   - GUI：`D:\software\WhisperDesktop\WhisperDesktop.exe`
+   - CLI：`D:\software\whisper-codex\transcribe.cmd`
+   - 模型：`D:\software\WhisperDesktop\models\ggml-medium.bin`
+   - 示例：`D:\software\whisper-codex\transcribe.cmd "D:\path\audio.mp3" "D:\path\out"`
+   - 直接支持 `wav` / `mp3` / `flac` / `ogg`，已验证 RTX 3060 CUDA 正常启用并输出 txt。来源是官方 whisper.cpp v1.8.5：`https://github.com/ggml-org/whisper.cpp/releases/tag/v1.8.5`。Codex 本机记忆：`C:\Users\Administrator\.codex\memories\whisper-codex.md`。后续修 Voice Profile 时先用 CLI 转写，再人工校对后写入 `prompt_text`。
 
 ## 注意事项
 

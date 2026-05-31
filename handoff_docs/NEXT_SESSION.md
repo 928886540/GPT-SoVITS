@@ -173,8 +173,17 @@ Genie 测试脚本：
 
 - v2 / v2ProPlus / v4 三版本同文本对比已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\version_compare_20260531\REPORT.md`。
 - V4 参数扫描已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\REPORT.md`。旧慢结果来自 `batch_size=1` / `sample_steps=32`；长文本下 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 的 RTF 已降到 `0.191`。
-- AD学姐 zero-shot profile 已创建：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\AD学姐.json`。
+- AD学姐 canonical zero-shot profile 是：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\400个火爆音色\AD学姐.json`。不要恢复或新增 `女声\AD学姐*.json` 重复别名。
+- AD学姐当前用户听写 `prompt_text` 是：`刀不锋利马太瘦，你拿什么跟我斗？`。之前的“你好，我是AD学姐...”是介绍文案/错逐字稿，会导致 GPT-SoVITS 参考音频对齐错误和复读污染。
 - AD学姐 V4 3 组参数测试已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`。其中 `batch_size=8` / `sample_steps=8` 三次平均 RTF `0.163`。
+- Whisper ASR 两套入口已可用：
+  - 用户手动 GUI：`D:\software\WhisperDesktop\WhisperDesktop.exe`
+  - Codex 自动 CLI：`D:\software\whisper-codex\transcribe.cmd`
+  - 共用模型：`D:\software\WhisperDesktop\models\ggml-medium.bin`
+  - 示例：`D:\software\whisper-codex\transcribe.cmd "D:\path\audio.wav"`，或指定输出目录 `D:\software\whisper-codex\transcribe.cmd "D:\path\audio.mp3" "D:\path\out"`
+  - 直接支持 `wav` / `mp3` / `flac` / `ogg`，已验证 RTX 3060 CUDA 正常启用并输出 txt。
+  - 来源：官方 whisper.cpp v1.8.5：`https://github.com/ggml-org/whisper.cpp/releases/tag/v1.8.5`
+  - Codex 本机记忆：`C:\Users\Administrator\.codex\memories\whisper-codex.md`
 - v2ProPlus 和 V4 都可以继续做：v2ProPlus 做稳定默认，V4 做情绪/抑扬顿挫候选。短期单 API 切权重，产品化可考虑 v2ProPlus/V4 双端口。
 - P2 句级声腔已接入第一版：前端/LLM 每段传 `{role,text,style,style_alpha}`，adapter 保留 `style` 并映射到 `prompts/library/声腔` 下的 aux reference。烟测报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\p2_sentence_style_smoke_20260531\REPORT.md`。
 - 手机/局域网入口：`http://192.168.8.100:9880/static/tavo.js`，P2 直接测试页：`http://192.168.8.100:9880/p2_test`。
