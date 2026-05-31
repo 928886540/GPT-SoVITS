@@ -4,7 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260531-restore-snapshot-card-v5";
+  var LOADER_VERSION = "20260531-restore-snapshot-card-v6";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -215,8 +215,8 @@
     on($(root, '[data-role="lazy-play"]'), "touchstart", function () { armTapGuard(1600); });
     on($(root, '[data-role="lazy-open"]'), "pointerdown", function () { armTapGuard(1600); });
     on($(root, '[data-role="lazy-open"]'), "touchstart", function () { armTapGuard(1600); });
-    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); mountRuntime(""); });
-    on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); mountRuntime(""); });
+    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); armTapGuard(1800); mountRuntime(""); });
+    on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); armTapGuard(1800); mountRuntime(""); });
     on($(root, '[data-role="lazy-open"]'), "keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); mountRuntime(""); } });
   } catch (e) {
     try { console.error("[GPT-SoVITS TAVO loader]", e && e.stack ? e.stack : e); } catch (_) {}

@@ -6,6 +6,7 @@
   var CONFIG_KEY = "gptsovits_tavo_config_v1";
   var CONFIG_VERSION = 10;
   var CHAR_SCOPE_CONFIG_KEY = "gptsovits_tavo_character_config_v1";
+  var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   // 角色级配置: defaultVoice + roleVoiceList。LLM/api/mode 参数走全局。
   var CHAR_KEY_PREFIX = "gptsovits_tavo_character_v1:";
   var GLOBAL_CONFIG_FIELDS = [
@@ -16,6 +17,12 @@
     "offlineAudioEnabled"
   ];
   var RESERVED_ROLES = ["旁白", "用户"];  // 这两个常驻不可删；具体人物用原名或 defaultVoice
+  function isLoaderTapGuardActive() {
+    try {
+      var until = Number(window[TAP_GUARD_KEY] || 0) || 0;
+      return !!until && Date.now() <= until;
+    } catch (_) { return false; }
+  }
   function normalizeCharacterRoleName(name) {
     return String(name || "").trim();
   }
@@ -3523,6 +3530,7 @@
 
     async function openVoicePicker(rowIdx) {
       if (!pickerEl) return;
+      if (isLoaderTapGuardActive()) return;
       pickerState.rowIdx = rowIdx;
       pickerState.tab = "";
       pickerState.search = "";
