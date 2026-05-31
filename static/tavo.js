@@ -626,7 +626,19 @@
   function gearIcon() { return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.2"/><circle cx="15" cy="17" r="2.2"/></svg>'; }
   function formatTime(sec) { sec = Math.max(0, Number(sec || 0)); if (!isFinite(sec)) return "--:--"; return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(Math.floor(sec % 60)).padStart(2, "0"); }
   function parseRoleVoices(text, voice) { var out = { default: voice }; String(text || "").split(/[\r\n,，;；]+/).forEach(function (line) { var m = line.trim().match(/^(.+?)[=:：]\s*(.+)$/); if (m) out[m[1].trim()] = m[2].trim(); }); return out; }
-  async function listVoices(base) { try { var r = await fetch(cleanBase(base) + "/voices", { cache: "no-store" }); if (!r.ok) return []; var d = await r.json(); return Array.isArray(d.voices) ? d.voices : []; } catch (_) { return []; } }
+  async function listVoices(base) {
+    try {
+      var r = await fetch(cleanBase(base) + "/voices", { cache: "no-store" });
+      if (!r.ok) return [];
+      var d = await r.json();
+      var list = Array.isArray(d.voices) ? d.voices : [];
+      return list.filter(function (v) {
+        if (!v) return false;
+        if (v.kind === "profile") return true;
+        return v.usable_for_gptsovits === true;
+      });
+    } catch (_) { return []; }
+  }
   function generationQualityOverrides(mode) {
     mode = String(mode || "balanced").trim();
     if (mode === "fast") return { diffusion_steps: 8, prompt_audio_seconds: 6, segment_tokens: 40, first_tokens: 10 };

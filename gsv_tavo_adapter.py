@@ -682,7 +682,10 @@ def _official_payload_for_segment(segment: dict[str, Any], profile: dict[str, An
     if not payload["ref_audio_path"]:
         raise ValueError(f"voice profile {profile.get('name')!r} has no ref_audio_path")
     if not payload["prompt_text"]:
-        raise ValueError(f"voice profile {profile.get('name')!r} has no prompt_text")
+        raise ValueError(
+            f"voice profile {profile.get('name')!r} has no prompt_text; "
+            "GPT-SoVITS voices must be JSON profiles with ref_audio_path and exact transcript"
+        )
     return payload
 
 

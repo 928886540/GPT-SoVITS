@@ -128,6 +128,14 @@ Adapter 当前会监听 `0.0.0.0:9880`，并给 Tavo/WebView 请求加 CORS：`a
 - `GET /cache_audio/{cache_key}`
 - `GET /server_log/tail`
 
+音色库注意事项：GPT-SoVITS 可生成音色必须是 JSON Voice Profile，至少包含 `ref_audio_path` 和 `prompt_text`。裸音频文件只算素材，不能直接作为稳定生成音色。`/voices` 会返回 `usable_for_gptsovits` 标记；Tavo 前端会过滤掉不可生成的裸音频，避免出现 `voice profile ... has no prompt_text`。
+
+已补 Profile：
+
+- `D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\风韵少妇.json`
+- 参考文本：`你好啊，我是风韵少妇。过来，陪我聊一会儿，别走那么快。`
+- 烟测缓存：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\outputs\cache\03df8e9ec11a06a76e2f60bb23825a12c13dab4b.wav`
+
 P2 烟测报告：
 
 - `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\p2_sentence_style_smoke_20260531\REPORT.md`

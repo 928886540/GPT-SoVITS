@@ -66,6 +66,10 @@ def list_voices() -> list[dict]:
             profile = _read_profile(path)
             item.update({k: v for k, v in profile.items() if k not in {"name", "path"}})
             item["name"] = str(profile.get("name") or name)
+            item["usable_for_gptsovits"] = bool(profile.get("ref_audio_path") and profile.get("prompt_text"))
+        else:
+            profile_path = library_dir / f"{name}{VOICE_PROFILE_EXT}"
+            item["usable_for_gptsovits"] = profile_path.is_file()
         items.append(item)
 
     items.sort(key=lambda item: (item.get("subdir", ""), item["name"].lower(), item["name"], item["ext"]))

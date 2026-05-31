@@ -71,6 +71,11 @@
   - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\p2_sentence_style_smoke_20260531\REPORT.md`
   - 已验证 `role` 选择主音色，`style` 逐句映射到 `aux_ref_audio_paths`，例如 `whisper_soft -> 声腔/whisper_soft.wav`、`喘息-AD学姐 -> 声腔/喘息-AD学姐.mp3`。
   - 已加 CORS 与旧前端兼容接口：`/voice_preview`、`/tts_stream_job`、`/server_log/tail`。
+- 已修复 Tavo 选到 `女声/风韵少妇` 后生成失败的问题：
+  - 新增 Profile：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\风韵少妇.json`
+  - 后端 `/voices` 增加 `usable_for_gptsovits` 标记。
+  - Tavo 前端过滤不可生成的裸音频素材，避免 audio fallback 缺 `prompt_text`。
+  - 烟测：`女声/风韵少妇` + `whisper_soft` 已生成缓存 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\outputs\cache\03df8e9ec11a06a76e2f60bb23825a12c13dab4b.wav`。
 
 ## 当前判断
 

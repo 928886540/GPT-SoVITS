@@ -180,6 +180,7 @@ Genie 测试脚本：
 - 手机/局域网入口：`http://192.168.8.100:9880/static/tavo.js`，P2 直接测试页：`http://192.168.8.100:9880/p2_test`。
 - LAN 启动脚本：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\dev_tools\start_adapter_lan.ps1`。当前 adapter 已加 CORS，Tavo/WebView 跨来源 fetch `/voices`、`/tts_dialogue_stream_job` 应不再被浏览器拦截。
 - 注意：音色模型不负责自动分辨场景；自动分辨来自 LLM 拆句输出的 `style`。训练模型负责角色声线身份和稳定性。
+- `女声/风韵少妇` 已补 GPT-SoVITS JSON Profile。后续如果 Tavo 选中其他只有音频、没有 JSON 的声音，必须先补 `prompt_text`，不能直接作为 GPT-SoVITS 生成音色。
 
 1. 进入官方 GPT-SoVITS 目录：
 
