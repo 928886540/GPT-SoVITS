@@ -137,6 +137,7 @@ def _static_file_response(name: str) -> FileResponse:
         ".js": "application/javascript",
         ".css": "text/css",
         ".html": "text/html",
+        ".json": "application/json",
     }
     suffix = Path(name).suffix.lower()
     media_type = media_types.get(suffix)
@@ -146,7 +147,7 @@ def _static_file_response(name: str) -> FileResponse:
     path = (static_root / name).resolve()
     if static_root not in path.parents or not path.is_file():
         raise HTTPException(status_code=404, detail="Not Found")
-    headers = {"Cache-Control": "no-store, max-age=0"} if suffix in {".js", ".css", ".html"} else None
+    headers = {"Cache-Control": "no-store, max-age=0"} if suffix in {".js", ".css", ".html", ".json"} else None
     return FileResponse(path, media_type=media_type, headers=headers)
 
 
@@ -557,7 +558,6 @@ def _single_request_to_dialogue_payload(request: SingleStreamRequest, voice_name
         "performance_mode": "single",
         "aux_ref_audio_paths": [],
     }
-
 
 def _synthesize_dialogue_to_cache(
     cache_key: str,

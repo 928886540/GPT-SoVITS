@@ -8,4 +8,4 @@ Codex handoff rules for this workspace:
 - Keep third-party repos in `..\gpt-sovits-official` and `..\genie-tts` clean unless the user explicitly asks to patch them.
 - Put local scripts, reports, samples, and handoff notes under this `Leon_api` directory.
 - Avoid C drive caches. Use `dev_tools\env_official.ps1` and `dev_tools\env_genie.ps1` before running Python tests.
-
+- Do not add silent fallback behavior for Tavo/TTS configuration. Missing voice mappings, missing prompt text, unavailable services, or invalid parameters must fail visibly with a specific error and logs. Do not swallow errors, auto-select voices, reuse random defaults, or mask bad configuration with "best effort" behavior. Only add automatic fallback/auto-selection when the user explicitly asks for it or an existing documented product rule requires it.

@@ -67,8 +67,13 @@ def list_voices() -> list[dict]:
             item.update({k: v for k, v in profile.items() if k not in {"name", "path"}})
             item["name"] = str(profile.get("name") or name)
             is_aux_profile = name.endswith("_aux") or bool(profile.get("aux_ref_audio_paths"))
-            item["hidden_from_picker"] = is_aux_profile
-            item["usable_for_gptsovits"] = bool(profile.get("ref_audio_path") and profile.get("prompt_text") and not is_aux_profile)
+            item["hidden_from_picker"] = bool(is_aux_profile or profile.get("hidden_from_picker"))
+            item["usable_for_gptsovits"] = bool(
+                profile.get("ref_audio_path")
+                and profile.get("prompt_text")
+                and not is_aux_profile
+                and profile.get("usable_for_gptsovits", True) is not False
+            )
         else:
             profile_path = library_dir / f"{name}{VOICE_PROFILE_EXT}"
             item["has_profile"] = profile_path.is_file(); item["usable_for_gptsovits"] = False
@@ -104,7 +109,6 @@ def get_voice_profile(name: str) -> Optional[dict]:
         "default_params": {},
         "kind": "audio_fallback",
     }
-
 
 def get_voice_path(name: str) -> Optional[str]:
     """Return a saved voice path by name (with or without subdir prefix), or None.

@@ -4,7 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260531-restore-snapshot-card-v6";
+  var LOADER_VERSION = "20260531-lan-webview-layer-v8";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -42,6 +42,15 @@
     if (!isFinite(sec)) return "--:--";
     return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(Math.floor(sec % 60)).padStart(2, "0");
   }
+  function stableHash(text) {
+    text = String(text || "");
+    var h = 2166136261;
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
   function playIcon() { return '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'; }
   function $(root, sel) { return root && root.querySelector ? root.querySelector(sel) : null; }
   function $all(root, sel) { return root && root.querySelectorAll ? Array.prototype.slice.call(root.querySelectorAll(sel)) : []; }
@@ -51,6 +60,10 @@
     try {
       if (window.__gptsovits_tavo_tap_guard_installed) return;
       window.__gptsovits_tavo_tap_guard_installed = true;
+      function settingsPanelOpen() {
+        try { return !!document.querySelector(".idx-panel[open],.idx-panel[data-open='1']"); }
+        catch (_) { return false; }
+      }
       ["click", "touchend", "pointerup", "mouseup"].forEach(function (type) {
         document.addEventListener(type, function (ev) {
           var until = Number(window[TAP_GUARD_KEY] || 0) || 0;
@@ -58,6 +71,7 @@
           var target = ev.target;
           if (target && target.closest && target.closest('[data-role="lazy-card"]')) return;
           if (!target || !target.closest || !target.closest(PICKER_TRIGGER_SELECTOR)) return;
+          if (settingsPanelOpen()) return;
           ev.preventDefault();
           ev.stopPropagation();
           if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
@@ -76,6 +90,9 @@
       $all(document, ".idx-picker[open]").forEach(function (picker) {
         try { if (typeof picker.close === "function") picker.close(); else picker.removeAttribute("open"); }
         catch (_) { try { picker.removeAttribute("open"); } catch (__) {} }
+        try { picker.removeAttribute("open"); } catch (_) {}
+        try { picker.removeAttribute("data-open"); } catch (_) {}
+        try { picker.setAttribute("aria-hidden", "true"); } catch (_) {}
       });
     } catch (_) {}
   }
@@ -106,12 +123,27 @@
     return scriptEl && scriptEl.parentElement;
   }
   function pickMessageId(scriptEl) {
+    var id = "";
     try {
       var msgEl = messageElement(scriptEl);
-      if (msgEl && msgEl.dataset) return String(msgEl.dataset.messageId || msgEl.dataset.id || msgEl.dataset.mid || "").trim();
+      if (msgEl && msgEl.dataset) id = String(msgEl.dataset.messageId || msgEl.dataset.id || msgEl.dataset.mid || "").trim();
+      if (!id && msgEl && msgEl.getAttribute) id = String(msgEl.getAttribute("mesid") || msgEl.getAttribute("data-message-id") || msgEl.id || "").trim();
     } catch (_) {}
-    try { return String((scriptEl && scriptEl.parentElement && (scriptEl.parentElement.id || scriptEl.parentElement.dataset.id)) || "").trim(); } catch (_) {}
-    return "";
+    try { if (!id) id = String((scriptEl && scriptEl.parentElement && (scriptEl.parentElement.id || scriptEl.parentElement.dataset.id)) || "").trim(); } catch (_) {}
+    if (!id) {
+      var text = messageTextForHash(scriptEl);
+      if (text) id = "message-" + stableHash(text);
+    }
+    return id;
+  }
+  function messageTextForHash(scriptEl) {
+    try {
+      var msgEl = messageElement(scriptEl);
+      if (!msgEl) return "";
+      var clone = msgEl.cloneNode(true);
+      $all(clone, ".idx-tts,.idx-card,.idx-panel,.idx-picker,script").forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+      return String(clone.innerText || clone.textContent || "").replace(/\s+/g, " ").trim();
+    } catch (_) { return ""; }
   }
   function localTracksForMessage(messageId) {
     if (!messageId) return [];
@@ -151,15 +183,24 @@
   }
 
   try {
+    try { console.log("[GPT-SoVITS TAVO loader] loaded", LOADER_VERSION, (loaderScript && loaderScript.src) || "inline"); } catch (_) {}
     ensureStyle();
     if (loaderScript && loaderScript.dataset.gptsovitsLoaderMounted === "1") return;
     if (loaderScript) loaderScript.dataset.gptsovitsLoaderMounted = "1";
     var msgEl = messageElement(loaderScript);
     if (msgEl && msgEl !== document.body && msgEl !== document.documentElement) {
+      var existingFull = $all(msgEl, ".idx-tts").filter(function (node) { return !!$(node, ".idx-card"); })[0];
+      if (existingFull) {
+        $all(msgEl, ".idx-tts").forEach(function (node) {
+          if (node !== existingFull && $(node, ".idx-lazy-card") && node.parentNode) node.parentNode.removeChild(node);
+        });
+        return;
+      }
       $all(msgEl, ".idx-tts").forEach(function (node) { if (node.parentNode) node.parentNode.removeChild(node); });
     }
     var root = document.createElement("div");
     root.className = "idx-tts";
+    root.setAttribute("data-lazy-placeholder", "1");
     if (loaderScript && loaderScript.parentNode) loaderScript.parentNode.insertBefore(root, loaderScript.nextSibling); else document.body.appendChild(root);
 
     var info = deriveBaseUrl(loaderScript && loaderScript.src);
@@ -190,6 +231,7 @@
         try { window.__gptsovits_tavo_runtime_script_override = loaderScript; } catch (_) {}
       }).then(function () {
         root.setAttribute("data-runtime-loaded", "1");
+        root.style.display = "none";
         root.setAttribute("data-touch-guard", "1");
         armTapGuard(1600);
         [0, 80, 220, 520].forEach(function (delay) { setTimeout(closeAccidentalPicker, delay); });

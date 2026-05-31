@@ -256,7 +256,14 @@ try {
       quality.value = "expressive";
       quality.dispatchEvent(new Event("input", { bubbles: true }));
       quality.dispatchEvent(new Event("change", { bubbles: true }));
-      const firstVoiceBtn = document.querySelector('.idx-role-row .idx-voice-btn');
+      function isVisible(el) {
+        if (!el) return false;
+        const box = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return style.display !== "none" && style.visibility !== "hidden" && box.width > 0 && box.height > 0;
+      }
+      const firstVoiceBtn = Array.from(document.querySelectorAll('[data-role="default-voice-btn"], .idx-role-row .idx-voice-btn')).find(isVisible);
+      if (!firstVoiceBtn) throw new Error("visible voice button not found");
       firstVoiceBtn.click();
       const picker = await waitFor(() => document.querySelector('.idx-picker[open]'), 10000);
       const item = await waitFor(() => document.querySelector('.idx-picker[open] .idx-picker-item'), 30000);

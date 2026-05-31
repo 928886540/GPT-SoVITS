@@ -1,7 +1,7 @@
 {
   "name": "400个火爆音色/AD学姐",
   "ref_audio_path": "D:/apiWorkSpace/GPT-SoVITS/Leon_api/prompts/library/400个火爆音色/AD学姐.mp3",
-  "prompt_text": "你好,我是AD学姐。今天有什么想聊的,慢慢说,我陪着你。",
+  "prompt_text": "刀不锋利马太瘦，你拿什么跟我斗？",
   "prompt_lang": "zh",
   "text_lang": "zh",
   "default_params": {
@@ -18,5 +18,5 @@
     "overlap_length": 2,
     "min_chunk_length": 16
   },
-  "notes": "Volink fire-hot voice source. Prompt text from old IndexTTS2 dev_tools/volink_replace.py; needs later word-for-word check against current mp3."
+  "notes": "Volink fire-hot voice source. Prompt text corrected from user listening on 2026-05-31; verify again with whisper-cli when available. Keep only this canonical AD学姐 profile; do not add a duplicate 女声/AD学姐 alias."
 }

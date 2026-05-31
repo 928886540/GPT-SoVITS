@@ -111,6 +111,10 @@ Tavo 原文
 - Tavo mock 测试页: `http://192.168.8.100:9880/tavo_test?ttsDebug=1`
 - P2 直接测试页: `http://192.168.8.100:9880/p2_test`
 
+Tavo 前端调试以真实 Tavo 手机/模拟器为准，WebUI mock 只做语法和基础烟测。刷新注入脚本时，在聊天页右滑或点右上角打开设置，进入 `正则`，点开 GPT-SoVITS 那条正则的编辑按钮，把替换内容里的 `v=` 数字加一，保存后点 `应用`，再回聊天页用改写/保存触发消息重渲染。
+
+Codex 本机已有 `tavo-emulator-test` skill，触发关键词是“模拟器测试”。这个 skill 必须持续更新：每次摸清 Tavo 真实 app 的菜单路径、正则刷新、按钮坐标、截图、日志、缓存坑位或更快自动化办法，都要同步写回 skill，直到真实 Tavo 测试流程稳定可复用。目标是第二次同类测试明显更快，不能每轮都重新摸软件流程。只改注入脚本 `v=` 版本号时，不要重新导入正则组；在聊天界面右滑进入正则，编辑现有局域网/GPT-SoVITS 规则，改数字、保存、应用即可。
+
 LAN 启动脚本：
 
 ```powershell
@@ -129,6 +133,8 @@ Adapter 当前会监听 `0.0.0.0:9880`，并给 Tavo/WebView 请求加 CORS：`a
 - `GET /server_log/tail`
 
 音色库注意事项：GPT-SoVITS 可生成音色必须是 JSON Voice Profile，至少包含 `ref_audio_path` 和 `prompt_text`。裸音频文件只算素材，不能直接作为稳定生成音色。`/voices` 会返回 `usable_for_gptsovits` 标记；Tavo 前端会过滤掉不可生成的裸音频，避免出现 `voice profile ... has no prompt_text`。
+
+`prompt_text` 必须是参考音频逐字稿，不能用音色介绍文案代替。2026-05-31 实测 `400个火爆音色/AD学姐.mp3` 原先误写成“你好，我是AD学姐...”介绍词，实际用户听到的是“刀不锋利马太瘦，你拿什么跟我斗？”，这类错逐字稿会让 GPT-SoVITS 对齐条件错误并放大参考词泄漏/复读问题。AD学姐只保留 `400个火爆音色/AD学姐` 一个 canonical profile，不再创建 `女声/AD学姐` 重复别名；等 `whisper-cli` 可用后再复核逐字稿。
 
 已补 Profile：
 

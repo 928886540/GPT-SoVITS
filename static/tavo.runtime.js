@@ -202,7 +202,7 @@
       { role: "角色",   voice: "" },
     ],
     roleVoicesText: "旁白=\n用户=\n角色=",
-    llmEndpoint: "http://127.0.0.1:8317/v1",
+    llmEndpoint: "http://192.168.8.100:8317/v1",
     llmModel: "渡鸦/grok-4.20-fast",
     llmApiKey: "",
     reuseLlmParse: true,
@@ -276,6 +276,15 @@
   }
   function escapeHtml(v) { return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
   function shortName(v) { return String(v || "自动").split(/[\\/]/).pop().replace(/\.[a-z0-9]+$/i, "") || "自动"; }
+  function stableHash(text) {
+    text = String(text || "");
+    var h = 2166136261;
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
 
   function inlineHost(scriptEl) {
     var parent = scriptEl && scriptEl.parentElement;
@@ -286,6 +295,14 @@
     var host = inlineHost(scriptEl);
     if (!host || !host.closest) return host;
     return host.closest('.mes, [mesid], [data-message-id], .message, .tavo-message, article, li') || host;
+  }
+  function domMessageId(el) {
+    if (!el) return "";
+    try {
+      var msg = (el.closest && el.closest('.mes, [mesid], [data-message-id], .message, .tavo-message, article, li')) || el;
+      var ds = msg && msg.dataset ? msg.dataset : {};
+      return String((ds && (ds.messageId || ds.id || ds.mid)) || (msg && msg.getAttribute && (msg.getAttribute("mesid") || msg.getAttribute("data-message-id"))) || (msg && msg.id) || "").trim();
+    } catch (_) { return ""; }
   }
   function domAvatarUrl(el) {
     if (!el || !el.querySelector) return "";
@@ -322,7 +339,7 @@
       ".idx-subtitle{display:flex;flex-direction:column;gap:3px;margin:12px 0 0;padding:12px 10px;background:linear-gradient(180deg,rgba(60,36,84,.30) 0%,rgba(40,24,56,.48) 50%,rgba(60,36,84,.30) 100%);border:1px solid rgba(206,170,230,.18);border-radius:14px;height:136px;min-height:136px;max-height:136px;overflow-y:auto;scroll-behavior:auto;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(to bottom,transparent 0,#000 14%,#000 86%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 14%,#000 86%,transparent 100%)}.idx-subtitle.idx-hidden{display:none}.idx-sub-row{display:flex;align-items:center;justify-content:center;min-height:34px;padding:6px 8px;border-radius:10px;flex-shrink:0;text-align:center;cursor:pointer;color:rgba(244,231,255,.42);font-size:13px;line-height:1.32;font-weight:500;transition:color .18s,background .18s,box-shadow .18s}.idx-sub-row:hover{background:rgba(255,255,255,.04)}.idx-sub-row.is-current{color:#fff;font-size:13px;font-weight:800;background:rgba(216,167,255,.10);box-shadow:inset 3px 0 0 rgba(216,167,255,.75)}.idx-sub-row.is-past{color:rgba(244,231,255,.30)}.idx-sub-notice{margin:auto;text-align:center;color:rgba(244,231,255,.78);font-size:13px;line-height:1.45;max-width:92%;padding:10px 8px}.idx-sub-notice strong{display:block;color:#fff;font-size:15px;margin-bottom:4px}.idx-sub-notice span{display:block;color:rgba(244,231,255,.56);font-size:12px}.idx-sub-avatar{width:24px;height:24px;border-radius:50%;background:#241a2c;object-fit:cover;border:1.5px solid rgba(206,170,230,.40);opacity:.85}.idx-sub-avatar.idx-hidden{display:none}.idx-sub-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;max-width:100%}",
       ".idx-controls{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;flex-wrap:wrap}.idx-ctrl{border:1px solid rgba(206,170,230,.16);border-radius:50%;background:rgba(206,170,230,.08);color:#eee7f4;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-tap-highlight-color:transparent;transition:background-color .12s ease}@media(hover:hover){.idx-ctrl:hover{background:rgba(206,170,230,.16)}}.idx-ctrl:focus{outline:none}.idx-ctrl svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}.idx-ctrl-sm{width:42px;height:42px}.idx-ctrl-skip{width:42px;height:42px;background:rgba(130,190,255,.10);color:#cfe6ff}.idx-ctrl-skip svg{width:22px;height:22px}.idx-ctrl-main{width:66px;height:66px;background:#c890e8;color:#170e20;border-color:rgba(255,255,255,.18);box-shadow:0 10px 24px rgba(200,144,232,.25)}.idx-ctrl-main[data-state='playing']{background:#e1b0f5}.idx-ctrl-main svg{width:28px;height:28px;fill:currentColor;stroke:none}.idx-ctrl-main[data-state='loading'] svg{animation:idx-spin .9s linear infinite}@keyframes idx-spin{to{transform:rotate(360deg)}}.idx-ctrl-add{width:48px;height:48px;background:rgba(154,94,182,.42);color:#f4e7ff}.idx-ctrl-add svg,.idx-ctrl-delete svg{fill:currentColor;stroke:none}.idx-ctrl-delete{width:48px;height:48px;background:rgba(120,38,52,.46);color:#ffd5dd}.idx-ctrl:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.25)}",
       ".idx-meta{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}.idx-pill{font-size:11px;color:rgba(238,231,244,.75);background:rgba(255,255,255,.06);border:1px solid rgba(206,170,230,.14);border-radius:999px;padding:4px 9px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      ".idx-panel,.idx-panel *{box-sizing:border-box}.idx-panel{margin:auto auto 8px auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:auto;max-height:min(88dvh,calc(100dvh - 12px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-shadow:0 -8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);padding:14px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}.idx-panel::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-14px -14px 10px;padding:12px 14px 10px;position:sticky;top:-14px;background:linear-gradient(180deg,#120e18 0%,rgba(18,14,24,.94) 100%);z-index:2}.idx-panel-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-close{border:0;background:transparent;color:rgba(238,231,244,.70);font-size:22px;line-height:1;cursor:pointer;padding:0 6px}",
+      ".idx-panel,.idx-panel *{box-sizing:border-box}.idx-panel:not([open]),.idx-picker:not([open]),.idx-panel[aria-hidden='true'],.idx-picker[aria-hidden='true']{display:none!important;pointer-events:none!important}.idx-panel{margin:auto auto 8px auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:auto;max-height:min(88dvh,calc(100dvh - 12px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-shadow:0 -8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);padding:14px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2147483400}.idx-panel::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-14px -14px 10px;padding:12px 14px 10px;position:sticky;top:-14px;background:linear-gradient(180deg,#120e18 0%,rgba(18,14,24,.94) 100%);z-index:2}.idx-panel-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-close{border:0;background:transparent;color:rgba(238,231,244,.70);font-size:22px;line-height:1;cursor:pointer;padding:0 6px}",
       ".idx-section-title{font-size:12px;font-weight:700;color:#d9b7f0;margin:10px 0 5px}.idx-voices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.idx-voice{min-height:58px;border:1px solid rgba(206,170,230,.16);border-radius:8px;background:rgba(255,255,255,.06);color:#eee7f4;text-align:left;padding:9px;cursor:pointer;font-family:inherit;position:relative;overflow:hidden}.idx-voice:before{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;background:linear-gradient(90deg,#c890e8,#d8a7ff);opacity:.30}.idx-voice strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-voice span{display:block;margin-top:4px;font-size:11px;color:rgba(238,231,244,.56)}.idx-voice.is-active{border-color:#c890e8;background:rgba(200,144,232,.16);box-shadow:0 0 0 2px rgba(200,144,232,.12)}",
       ".idx-modes{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.idx-mode{border:1px solid rgba(206,170,230,.16);border-radius:8px;background:rgba(255,255,255,.06);color:#eee7f4;text-align:left;padding:9px;cursor:pointer;font-family:inherit}.idx-mode strong{display:block;font-size:12px}.idx-mode span{display:block;margin-top:3px;font-size:11px;color:rgba(238,231,244,.56)}.idx-mode.is-active{border-color:#c890e8;background:rgba(200,144,232,.16);box-shadow:0 0 0 2px rgba(200,144,232,.10)}",
       ".idx-check{display:flex;align-items:flex-start;gap:8px;margin:10px 0 4px;padding:9px;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:rgba(255,255,255,.04);cursor:pointer}.idx-check input{margin:2px 0 0;accent-color:#c890e8}.idx-check strong{display:block;font-size:12px;color:#eee7f4}.idx-check span{display:block;margin-top:3px;font-size:11px;color:rgba(238,231,244,.56);line-height:1.35}",
@@ -330,7 +347,7 @@
       // 结构化角色映射 UI
       ".idx-roles{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}.idx-role-row{display:grid;grid-template-columns:96px 1fr 28px;gap:6px;align-items:center}.idx-role-name{min-width:0;border:1px solid rgba(206,170,230,.16);background:#0b0810;color:#eee7f4;border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;outline:none}.idx-voice-btn{min-width:0;border:1px solid rgba(206,170,230,.20);background:rgba(206,170,230,.08);color:#eee7f4;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit}.idx-voice-btn:hover{background:rgba(206,170,230,.16)}.idx-role-del{width:28px;height:28px;border:1px solid rgba(255,120,145,.28);background:rgba(120,38,52,.22);color:#ffd5dd;border-radius:8px;cursor:pointer;font-size:14px;line-height:1;font-family:inherit}.idx-role-lock{width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:rgba(238,231,244,.45);font-size:13px;user-select:none;cursor:default}.idx-add-role{margin-top:4px;width:100%;border:1px dashed rgba(206,170,230,.30);background:transparent;color:#d9b7f0;padding:8px;border-radius:9px;cursor:pointer;font-size:12px;font-family:inherit}.idx-add-role:hover{background:rgba(206,170,230,.06)}.idx-llm-details{margin-top:10px;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:rgba(255,255,255,.03);overflow:hidden}.idx-llm-details>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:#d9b7f0;display:flex;align-items:center;justify-content:space-between;user-select:none}.idx-llm-details>summary::-webkit-details-marker{display:none}.idx-llm-details>summary::after{content:'▾';font-size:10px;color:rgba(238,231,244,.55);transition:transform .2s}.idx-llm-details[open]>summary::after{transform:rotate(180deg)}.idx-llm-details>.idx-grid{padding:8px 12px 12px;border-top:1px solid rgba(206,170,230,.12)}",
       // 音色选择器弹窗
-      ".idx-picker{margin:auto auto 0 auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:fit-content;max-height:min(72dvh,640px);box-shadow:0 -8px 32px rgba(0,0,0,.45);padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;min-height:0}.idx-picker::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-picker-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(206,170,230,.18);margin-bottom:8px}.idx-picker-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-picker-close{border:0;background:transparent;color:#eee7f4;font-size:22px;cursor:pointer;padding:0 6px;line-height:1}.idx-picker-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;flex-wrap:wrap}.idx-picker-tab{flex:0 0 auto;border:1px solid rgba(206,170,230,.16);background:rgba(255,255,255,.04);color:#eee7f4;border-radius:999px;padding:5px 11px;cursor:pointer;font-size:11px;font-family:inherit;white-space:nowrap}.idx-picker-tab.is-active{border-color:#c890e8;background:rgba(200,144,232,.20);color:#fff}.idx-picker-search{margin-bottom:8px}.idx-picker-grid{flex:1 1 auto;min-height:0;max-height:44dvh;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-content:start;padding:2px;width:100%}.idx-picker-item{min-width:0;overflow:hidden;min-height:54px;border:1px solid rgba(206,170,230,.16);border-radius:10px;background:rgba(255,255,255,.05);color:#eee7f4;text-align:left;padding:8px 8px 8px 12px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.35;display:flex;align-items:center;gap:6px;justify-content:space-between;transition:background .15s,border-color .15s}.idx-picker-item:hover{background:rgba(206,170,230,.14);border-color:rgba(206,170,230,.34)}.idx-picker-item.is-playing{border-color:#c890e8;background:rgba(200,144,232,.18);box-shadow:0 0 0 1px rgba(200,144,232,.22) inset}.idx-picker-item-info{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center}.idx-picker-item-name{font-size:13px;font-weight:600;white-space:nowrap;overflow-x:auto;overflow-y:hidden;text-overflow:clip;display:block;scrollbar-width:none}.idx-picker-item-name::-webkit-scrollbar{display:none}.idx-picker-item-sub{font-size:10px;color:rgba(238,231,244,.55);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-picker-apply{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(200,144,232,.45);background:rgba(200,144,232,.18);color:#fff;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:0;line-height:1}.idx-picker-apply:hover{background:#c890e8;color:#170e20;border-color:#c890e8;transform:scale(1.05)}.idx-picker-apply:active{transform:scale(.95)}.idx-picker-pager{display:flex;align-items:center;justify-content:center;gap:12px;padding-top:8px;border-top:1px solid rgba(206,170,230,.14);color:rgba(238,231,244,.72);font-size:11px}.idx-picker-pager button{border:1px solid rgba(206,170,230,.20);background:rgba(255,255,255,.06);color:#eee7f4;border-radius:7px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:11px}.idx-picker-pager button:disabled{opacity:.4;cursor:not-allowed}",
+      ".idx-picker{margin:auto auto 0 auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:fit-content;max-height:min(72dvh,640px);box-shadow:0 -8px 32px rgba(0,0,0,.45);padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;min-height:0;z-index:2147483500}.idx-picker::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-picker-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(206,170,230,.18);margin-bottom:8px}.idx-picker-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-picker-close{border:0;background:transparent;color:#eee7f4;font-size:22px;cursor:pointer;padding:0 6px;line-height:1}.idx-picker-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;flex-wrap:wrap}.idx-picker-tab{flex:0 0 auto;border:1px solid rgba(206,170,230,.16);background:rgba(255,255,255,.04);color:#eee7f4;border-radius:999px;padding:5px 11px;cursor:pointer;font-size:11px;font-family:inherit;white-space:nowrap}.idx-picker-tab.is-active{border-color:#c890e8;background:rgba(200,144,232,.20);color:#fff}.idx-picker-search{margin-bottom:8px}.idx-picker-grid{flex:1 1 auto;min-height:0;max-height:44dvh;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-content:start;padding:2px;width:100%}.idx-picker-item{min-width:0;overflow:hidden;min-height:54px;border:1px solid rgba(206,170,230,.16);border-radius:10px;background:rgba(255,255,255,.05);color:#eee7f4;text-align:left;padding:8px 8px 8px 12px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.35;display:flex;align-items:center;gap:6px;justify-content:space-between;transition:background .15s,border-color .15s}.idx-picker-item:hover{background:rgba(206,170,230,.14);border-color:rgba(206,170,230,.34)}.idx-picker-item.is-playing{border-color:#c890e8;background:rgba(200,144,232,.18);box-shadow:0 0 0 1px rgba(200,144,232,.22) inset}.idx-picker-item-info{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center}.idx-picker-item-name{font-size:13px;font-weight:600;white-space:nowrap;overflow-x:auto;overflow-y:hidden;text-overflow:clip;display:block;scrollbar-width:none}.idx-picker-item-name::-webkit-scrollbar{display:none}.idx-picker-item-sub{font-size:10px;color:rgba(238,231,244,.55);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-picker-apply{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(200,144,232,.45);background:rgba(200,144,232,.18);color:#fff;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:0;line-height:1}.idx-picker-apply:hover{background:#c890e8;color:#170e20;border-color:#c890e8;transform:scale(1.05)}.idx-picker-apply:active{transform:scale(.95)}.idx-picker-pager{display:flex;align-items:center;justify-content:center;gap:12px;padding-top:8px;border-top:1px solid rgba(206,170,230,.14);color:rgba(238,231,244,.72);font-size:11px}.idx-picker-pager button{border:1px solid rgba(206,170,230,.20);background:rgba(255,255,255,.06);color:#eee7f4;border-radius:7px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:11px}.idx-picker-pager button:disabled{opacity:.4;cursor:not-allowed}",
       ".idx-card audio{display:none!important}.idx-info{padding-right:104px}.idx-card-counter{position:absolute;right:58px;top:16px;min-width:48px;height:32px;padding:0 10px;border:1px solid rgba(206,170,230,.22);border-radius:999px;background:rgba(20,14,28,.46);color:rgba(238,231,244,.78);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;z-index:2}.idx-gear svg{width:19px;height:19px;fill:none!important;stroke:currentColor}",
       ".idx-lazy-card{position:relative;display:flex;align-items:center;gap:12px;border-radius:16px;background:radial-gradient(circle at 88% 8%,rgba(216,167,255,.18),transparent 40%),linear-gradient(160deg,rgba(27,21,34,.55),rgba(12,9,16,.55));border:1px solid rgba(206,170,230,.22);padding:14px;backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%)}.idx-lazy-play,.idx-lazy-gear{border:1px solid rgba(206,170,230,.30);background:rgba(20,14,28,.58);color:#eee7f4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:0 0 auto}.idx-lazy-play{width:58px;height:58px;border-radius:50%}.idx-lazy-play svg{width:26px;height:26px;fill:currentColor}.idx-lazy-gear{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:50%}.idx-lazy-gear svg{width:18px;height:18px;fill:none!important;stroke:currentColor}.idx-lazy-main{min-width:0;flex:1;padding-right:44px;cursor:pointer}.idx-lazy-title{font-size:17px;font-weight:800;color:#e9c8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-lazy-status{margin-top:4px;font-size:12px;color:rgba(238,231,244,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-lazy-progress{height:4px;margin-top:8px;background:rgba(206,170,230,.13);border-radius:999px;overflow:hidden}.idx-lazy-progress span{display:block;height:100%;background:linear-gradient(90deg,#c890e8,#8ecbff);border-radius:inherit}",
       ".idx-seek{-webkit-appearance:none;appearance:none;height:36px;background:transparent;accent-color:auto}.idx-seek::-webkit-slider-runnable-track{height:9px;border-radius:999px;background:linear-gradient(90deg,rgba(216,167,255,.85),rgba(130,190,255,.72));box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)}.idx-seek::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;margin-top:-9.5px;border-radius:50%;border:3px solid #fff;background:#c890e8;box-shadow:0 0 0 6px rgba(200,144,232,.20),0 5px 16px rgba(0,0,0,.42)}.idx-seek::-moz-range-track{height:9px;border-radius:999px;background:linear-gradient(90deg,rgba(216,167,255,.85),rgba(130,190,255,.72))}.idx-seek::-moz-range-thumb{width:26px;height:26px;border-radius:50%;border:3px solid #fff;background:#c890e8;box-shadow:0 0 0 6px rgba(200,144,232,.20)}",
@@ -537,7 +554,10 @@
         text = clone.innerText || clone.textContent || "";
       } catch (_) { text = msgEl.innerText || msgEl.textContent || ""; }
     }
-    return { text: text.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\[IndexTTS_TAVO_SCRIPT\]/g, "").trim(), avatarUrl: avatarUrl, characterName: characterName, characterId: characterId, messageId: messageId, userName: userName, userAvatarUrl: userAvatarUrl };
+    var cleanText = text.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\[IndexTTS_TAVO_SCRIPT\]/g, "").trim();
+    if (!messageId) messageId = domMessageId(msgEl);
+    if (!messageId && cleanText) messageId = "message-" + stableHash(cleanText);
+    return { text: cleanText, avatarUrl: avatarUrl, characterName: characterName, characterId: characterId, messageId: messageId, userName: userName, userAvatarUrl: userAvatarUrl };
   }
   // 每条消息的播放历史持久化：key = "indextts_tracks_<messageId>"。
   // 只存可重建的元信息（cacheKey + voice + mode + offlineKey），不存 blob。
@@ -644,7 +664,7 @@
       var list = Array.isArray(d.voices) ? d.voices : [];
       return list.filter(function (v) {
         if (!v) return false;
-        if (v.kind === "profile") return true;
+        if (v.hidden_from_picker || v.disabled_for_gptsovits || v.usable_for_gptsovits === false) return false;
         return v.usable_for_gptsovits === true;
       });
     } catch (_) { return []; }
@@ -852,7 +872,7 @@
       cacheUrl: data.cache_url ? new URL(data.cache_url, cleanBase(base) + "/").href : "",
       cacheKey: data.cache_key || "",
       cached: !!data.cached,
-      live: false
+      live: !!data.live
     };
   }
 
@@ -1425,6 +1445,20 @@
     var btn = document.getElementById("indextts-tavo-global-gear");
     if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
   }
+  function removeSiblingLazyPlaceholders(activeRoot) {
+    try {
+      var roots = [];
+      var msg = messageElement(script);
+      if (msg && msg.querySelectorAll) roots = roots.concat($all(msg, ".idx-tts"));
+      if (activeRoot && activeRoot.parentNode && activeRoot.parentNode.querySelectorAll) roots = roots.concat($all(activeRoot.parentNode, ".idx-tts"));
+      var seen = [];
+      roots.forEach(function (node) {
+        if (!node || node === activeRoot || seen.indexOf(node) >= 0) return;
+        seen.push(node);
+        if (first(node, ".idx-lazy-card") && !first(node, ".idx-card") && node.parentNode) node.parentNode.removeChild(node);
+      });
+    } catch (_) {}
+  }
 
   function mountFull(root, cfg, context) {
     var characterId = (context && context.characterId) ? String(context.characterId) : "";
@@ -1432,13 +1466,23 @@
     var avatarUrl = context && context.avatarUrl ? context.avatarUrl : "";
     var userAvatarUrl = context && context.userAvatarUrl ? context.userAvatarUrl : "";
     var messageId = context && context.messageId ? context.messageId : "";
+    try {
+      $all(document, '.idx-picker').forEach(function (d) {
+        try { if (typeof d.close === 'function') d.close(); else d.removeAttribute('open'); }
+        catch (_) { try { d.removeAttribute('open'); } catch (__) {} }
+        try { d.setAttribute('aria-hidden', 'true'); } catch (_) {}
+        try { if (d.parentNode) d.parentNode.removeChild(d); } catch (_) {}
+      });
+    } catch (_) {}
+    root.setAttribute("data-player-mounted", "1");
+    removeSiblingLazyPlaceholders(root);
     root.innerHTML = [
       '<div class="idx-card">',
       '  <button class="idx-gear" type="button" data-role="gear" aria-label="设置">' + gearIcon() + '</button>',
       '  <div class="idx-card-counter" data-role="counter">0/0</div>',
       '  <div class="idx-top"><div class="idx-cover" data-role="cover"></div><div class="idx-info"><div class="idx-title-row"><div class="idx-name" data-role="title"></div></div><div class="idx-status" data-role="status">选择音色后点播放</div></div></div>',
       '  <div class="idx-seek-wrap"><input class="idx-seek" data-role="seek" type="range" min="0" max="1000" value="0" disabled><div class="idx-time"><span data-role="current">00:00</span><span data-role="total">--:--</span></div></div>',
-      '  <div class="idx-subtitle" data-role="subtitle"><div class="idx-sub-notice"><strong>历史音频 0 条</strong><span>点播放开始生成音频</span></div></div>',
+      '  <div class="idx-subtitle" data-role="subtitle"><div class="idx-sub-notice"><strong>准备生成语音</strong><span>点播放开始生成音频</span></div></div>',
       '  <div class="idx-controls"><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="prev" aria-label="上一首" title="上一首"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><button class="idx-ctrl idx-ctrl-skip" type="button" data-role="rewind10" aria-label="后退 10 秒" title="后退 10 秒"><svg viewBox="0 0 24 24"><path d="M9 8H4V3"/><path d="M5 8a8 8 0 1 1-1 6"/><path d="M10 12v5"/><path d="M14 12v5"/><path d="M10 12h1.5"/><path d="M14 12h1.5"/></svg></button><button class="idx-ctrl idx-ctrl-main" type="button" data-role="play" data-state="idle" aria-label="播放">' + playIcon("idle") + '</button><button class="idx-ctrl idx-ctrl-skip" type="button" data-role="forward10" aria-label="快进 10 秒" title="快进 10 秒"><svg viewBox="0 0 24 24"><path d="M15 8h5V3"/><path d="M19 8a8 8 0 1 0 1 6"/><path d="M8 12v5"/><path d="M12 12v5"/><path d="M8 12h1.5"/><path d="M12 12h1.5"/></svg></button><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="next" aria-label="下一首" title="下一首"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-10.5 0v12l8.5-6z"/></svg></button><button class="idx-ctrl idx-ctrl-add" type="button" data-role="add" aria-label="生成音频" title="生成音频"><svg viewBox="0 0 24 24"><path d="M12 3v9.55A4 4 0 1 0 14 16V7h4V3z"/></svg></button><button class="idx-ctrl idx-ctrl-delete" type="button" data-role="delete" aria-label="删除当前音频" title="删除当前音频"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9zm1 11c-1.1 0-2-.9-2-2V8h12v10c0 1.1-.9 2-2 2H8z"/></svg></button></div>',
       '  <dialog class="idx-panel" data-role="panel">'
         + '<div class="idx-panel-head"><div class="idx-panel-title">语音设置</div><button class="idx-close" type="button" data-role="close">×</button></div>'
@@ -1478,6 +1522,8 @@
       '  <audio data-role="audio" preload="none"></audio><div class="idx-error idx-hidden" data-role="error"></div>',
       '</div>'
     ].join("");
+    setTimeout(function () { removeSiblingLazyPlaceholders(root); }, 0);
+    setTimeout(function () { removeSiblingLazyPlaceholders(root); }, 240);
 
     var audio = first(root, '[data-role="audio"]', 'audio');
     var play = first(root, '[data-role="play"]', '.idx-ctrl-main');
@@ -1572,6 +1618,18 @@
       var idx = currentTrackIndex >= 0 ? currentTrackIndex + 1 : total;
       return "历史音频 " + total + " 条 · 当前 " + idx + "/" + total;
     }
+    function messagePreviewText() {
+      var t = String(messageText || "").replace(/\s+/g, " ").trim();
+      return t.length > 52 ? t.slice(0, 52) + "…" : t;
+    }
+    function noTrackStatusText() {
+      return knownHistoryCount > 0 ? "可恢复上次音频" : "准备生成语音";
+    }
+    function showNoTrackNotice(detailText) {
+      var titleText = knownHistoryCount > 0 ? "上次音频可恢复" : "准备生成语音";
+      var detail = detailText || (knownHistoryCount > 0 ? "点播放读取快照并继续" : (messagePreviewText() || "点播放开始生成音频"));
+      showTrackNotice(null, titleText, detail);
+    }
     function updateTrackCounter() {
       var total = generatedTracks.length || (!tracksLoaded ? knownHistoryCount : 0);
       var idx = total && currentTrackIndex >= 0 ? currentTrackIndex + 1 : 0;
@@ -1596,13 +1654,7 @@
       return role || "旁白";
     }
     function parseReuseHash(text) {
-      text = String(text || "");
-      var h = 2166136261;
-      for (var i = 0; i < text.length; i++) {
-        h ^= text.charCodeAt(i);
-        h = Math.imul(h, 16777619);
-      }
-      return (h >>> 0).toString(16);
+      return stableHash(text);
     }
     function cloneSegments(segments) {
       try { return JSON.parse(JSON.stringify(segments || [])); } catch (_) { return []; }
@@ -2843,8 +2895,8 @@
         tracksLoaded = true;
         if (!saved || !saved.length) {
           updateTrackButtons();
-          setStatus(historyStatusText());
-          showTrackNotice(null, "历史音频 0 条", "点播放开始生成音频");
+          setStatus(noTrackStatusText());
+          showNoTrackNotice();
           return generatedTracks;
         }
         var base = cleanBase(cfg.apiBase);
@@ -2869,8 +2921,8 @@
       if (!messageId || tracksLoaded) return;
       knownHistoryCount = localHistoryCountForMessage(messageId);
       updateTrackButtons();
-      setStatus(historyStatusText());
-      showTrackNotice(null, historyStatusText(), knownHistoryCount ? "点播放再读取历史音频" : "点播放开始生成音频");
+      setStatus(noTrackStatusText());
+      showNoTrackNotice();
       // 兜底：若本版 tavo.get 是异步实现，上面的同步读会落空，这里异步从 tavo 持久层
       // 再确认一次条数（只读变量，不请求 /voices、不生成）。
       try {
@@ -2880,8 +2932,8 @@
         if (n !== knownHistoryCount) {
           knownHistoryCount = n;
           updateTrackButtons();
-          setStatus(historyStatusText());
-          showTrackNotice(null, historyStatusText(), knownHistoryCount ? "点播放再读取历史音频" : "点播放开始生成音频");
+          setStatus(noTrackStatusText());
+          showNoTrackNotice();
         }
       } catch (_) {}
     }
@@ -2944,8 +2996,8 @@
         if (cur) cur.textContent = "00:00";
         if (total) total.textContent = "--:--";
         setPlayState("idle");
-        setStatus("历史音频 0 条");
-        showTrackNotice(null, "历史音频 0 条", "点播放开始生成音频");
+        setStatus(noTrackStatusText());
+        showNoTrackNotice();
         updateTrackButtons();
       }
     }
@@ -2994,7 +3046,7 @@
       cfg.reuseLlmParse = getCheckedField("reuseLlmParse", cfg.reuseLlmParse !== false);
     }
     function isDialogOpen(d) {
-      return !!(d && (d.open || d.hasAttribute && d.hasAttribute("open")));
+      return !!(d && (d.open || (d.hasAttribute && d.hasAttribute("open")) || (d.getAttribute && d.getAttribute("data-open") === "1")));
     }
     async function refreshCharacterConfig(opts) {
       opts = opts || {};
@@ -3116,8 +3168,8 @@
       var defBtn = first(panel, '[data-role="default-voice-btn"]');
       if (defBtn) defBtn.textContent = cfg.defaultVoice ? cfg.defaultVoice : "选择默认音色…";
       syncUI();
-      setStatus(historyStatusText());
-      if (!generatedTracks.length) showTrackNotice(null, historyStatusText(), voices.length ? "点播放开始生成音频" : "没有找到可用音色");
+      setStatus(generatedTracks.length ? historyStatusText() : noTrackStatusText());
+      if (!generatedTracks.length) showNoTrackNotice(voices.length ? "" : "没有找到可用音色");
       return availableVoices;
     }
     async function ensureVoicesLoaded() {
@@ -3439,6 +3491,40 @@
     var pickerPrevEl   = first(pickerEl, '[data-role="picker-prev"]');
     var pickerNextEl   = first(pickerEl, '[data-role="picker-next"]');
     var pickerState = { rowIdx: -1, tab: "", search: "", page: 1, pageSize: 12, returnPanel: false, panelScrollTop: 0 };
+    function setLayerHidden(el, hidden) {
+      if (!el) return;
+      try {
+        if (hidden) {
+          el.setAttribute('aria-hidden', 'true');
+          el.removeAttribute('data-open');
+          el.removeAttribute('open');
+        } else {
+          el.removeAttribute('aria-hidden');
+          el.setAttribute('data-open', '1');
+          el.setAttribute('open', '');
+        }
+      } catch (_) {}
+    }
+    function setPickerHidden(hidden) { setLayerHidden(pickerEl, hidden); }
+    function closeVoicePickerForPlayback() {
+      if (pickerEl) {
+        closeDialog(pickerEl);
+        setPickerHidden(true);
+      }
+      pickerState.rowIdx = -1;
+      pickerState.returnPanel = false;
+    }
+    function closeIllegalVoicePicker() {
+      if (!pickerEl || !isDialogOpen(pickerEl)) return;
+      if (pickerState.returnPanel) return;
+      if (isDialogOpen(panel)) return;
+      closeVoicePickerForPlayback();
+    }
+    setPickerHidden(true);
+    closeIllegalVoicePicker();
+    [0, 80, 240, 700].forEach(function (delay) {
+      setTimeout(closeIllegalVoicePicker, delay);
+    });
 
     function renderRoleList() {
       if (!rolesListEl) return;
@@ -3530,7 +3616,11 @@
 
     async function openVoicePicker(rowIdx) {
       if (!pickerEl) return;
-      if (isLoaderTapGuardActive()) return;
+      if (!isDialogOpen(panel)) {
+        closeVoicePickerForPlayback();
+        try { console.warn("[GPT-SoVITS TAVO] blocked voice picker because settings panel is closed"); } catch (_) {}
+        return;
+      }
       pickerState.rowIdx = rowIdx;
       pickerState.tab = "";
       pickerState.search = "";
@@ -3543,6 +3633,7 @@
       if (pickerGridEl) pickerGridEl.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:rgba(238,231,244,.58);font-size:12px">正在读取音色…</div>';
       if (pickerPageEl) pickerPageEl.textContent = "读取中";
       if (pickerState.returnPanel) closeDialog(panel);
+      setPickerHidden(false);
       openDialog(pickerEl);
       try {
         await ensureVoicesLoaded();
@@ -3556,7 +3647,10 @@
       renderPickerGrid();
     }
     function closeVoicePicker() {
-      if (pickerEl) closeDialog(pickerEl);
+      if (pickerEl) {
+        closeDialog(pickerEl);
+        setPickerHidden(true);
+      }
       if (pickerState.returnPanel) {
         openDialog(panel);
         setTimeout(function () {
@@ -3668,6 +3762,55 @@
     ['pointerup', 'touchend', 'mouseup', 'click'].forEach(function (type) {
       if (pickerCloseBtn) pickerCloseBtn.addEventListener(type, handlePickerClose, true);
     });
+    function pickerEventPoint(e) {
+      var p = e;
+      try {
+        if (e && e.touches && e.touches.length) p = e.touches[0];
+        else if (e && e.changedTouches && e.changedTouches.length) p = e.changedTouches[0];
+      } catch (_) {}
+      return { x: Number((p && p.clientX) || 0), y: Number((p && p.clientY) || 0) };
+    }
+    function stopPickerEvent(e) {
+      if (!e) return;
+      try { e.preventDefault(); } catch (_) {}
+      try { e.stopPropagation(); } catch (_) {}
+      try { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); } catch (_) {}
+    }
+    function pointInPickerCloseHotspot(e) {
+      if (!pickerEl || !isDialogOpen(pickerEl)) return false;
+      try {
+        var r = pickerEl.getBoundingClientRect();
+        var p = pickerEventPoint(e);
+        return p.x >= r.right - 84 && p.x <= r.right + 16 && p.y >= r.top - 16 && p.y <= r.top + 86;
+      } catch (_) { return false; }
+    }
+    function installPickerDocumentGuard() {
+      if (!pickerEl || pickerEl.__idxPickerDocumentGuardInstalled) return;
+      pickerEl.__idxPickerDocumentGuardInstalled = true;
+      ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(function (type) {
+        document.addEventListener(type, function (e) {
+          if (!pickerEl || !isDialogOpen(pickerEl)) return;
+          var target = e && e.target;
+          var insidePicker = !!(target && target.closest && target.closest('.idx-picker') === pickerEl);
+          if (!pickerState.returnPanel && !isDialogOpen(panel)) {
+            stopPickerEvent(e);
+            closeVoicePickerForPlayback();
+            try { console.warn('[GPT-SoVITS TAVO] closed illegal voice picker before event passthrough'); } catch (_) {}
+            return;
+          }
+          if (pointInPickerCloseHotspot(e)) {
+            stopPickerEvent(e);
+            closeVoicePicker();
+            return;
+          }
+          if (!insidePicker && pickerState.returnPanel) {
+            stopPickerEvent(e);
+            closeVoicePicker();
+          }
+        }, true);
+      });
+    }
+    installPickerDocumentGuard();
     on(pickerSearchEl, 'input', function () { pickerState.search = pickerSearchEl.value || ""; pickerState.page = 1; renderPickerGrid(); });
     on(pickerPrevEl, 'click', function () { if (pickerState.page > 1) { pickerState.page--; renderPickerGrid(); } });
     on(pickerNextEl, 'click', function () { pickerState.page++; renderPickerGrid(); });
@@ -3699,6 +3842,7 @@
     }
 
     async function generate(force) {
+      closeVoicePickerForPlayback();
       await refreshCharacterConfig({ skipIfEditing: true });
       readFields(); await saveConfig(cfg, characterId); setError("");
       if (!messageText) { setError("当前消息没有可朗读正文。"); return; }
@@ -3952,7 +4096,7 @@
         } else {
           var singleJob = await createSingleStreamJob(base, cfg, messageText, force);
           var singleTrack = {
-            url: singleJob.cached && singleJob.cacheUrl ? singleJob.cacheUrl : singleJob.streamUrl,
+            url: singleJob.cacheUrl || singleJob.streamUrl,
             streamUrl: singleJob.streamUrl,
             cacheUrl: singleJob.cacheUrl,
             cacheKey: singleJob.cacheKey,
@@ -3960,31 +4104,35 @@
             createdAt: Date.now(),
             voice: cfg.defaultVoice,
             mode: cfg.mode,
-            state: singleJob.cached ? "saved" : "live",
-            status: singleJob.cached ? "ready" : "running",
-            pendingBlob: !singleJob.cached,
-            streaming: !singleJob.cached,
+            state: singleJob.cacheUrl ? "saved" : "live",
+            status: singleJob.cacheUrl ? "ready" : "running",
+            pendingBlob: !singleJob.cacheUrl,
+            streaming: !singleJob.cacheUrl,
             streamInterrupted: false,
             streamStalled: false,
             stalledCount: 0,
             streamHealth: "ok",
             savePromptAsked: false,
-            allowStreamPlay: !singleJob.cached
+            allowStreamPlay: false
           };
-          setTrackState(singleTrack, singleJob.cached ? "saved" : "live");
-          if (singleJob.cached) await prepareOfflineAudio(singleTrack, "single cached hit", { saveMissing: true });
+          setTrackState(singleTrack, singleJob.cacheUrl ? "saved" : "live");
+          if (singleJob.cacheUrl) await prepareOfflineAudio(singleTrack, singleJob.cached ? "single cached hit" : "single generated", { saveMissing: true });
           generatedTracks.push(singleTrack);
           await selectTrack(generatedTracks.length - 1, false);
           if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
-          setStatus(singleJob.cached ? "已有单音色音频" : "正在生成单音色音频...");
-          showTrackNotice(currentTrack(), singleJob.cached ? (singleTrack.offlineUrl ? "本地离线音频" : "已有单音色音频") : "正在生成单音色音频…", singleJob.cached ? "马上开始播放" : "声音出来后会自动播放");
+          if (singleJob.cacheUrl) {
+            setStatus(singleJob.cached ? "已有单音色音频" : "单音色音频已保存");
+            showTrackNotice(
+              currentTrack(),
+              singleJob.cached ? (singleTrack.offlineUrl ? "本地离线音频" : "已有单音色音频") : "单音色音频已保存",
+              "点播放开始，可拖动进度条"
+            );
+            setPlayState("idle");
+            return;
+          }
+          setStatus("正在生成单音色音频...");
+          showTrackNotice(currentTrack(), "正在生成单音色音频…", "生成完成后点播放开始");
         }
-        setAudioPlaybackRate();
-        await audio.play().catch(function (e) {
-          if (e && e.name === 'AbortError') return;
-          handleAudioPlayReject("element", e, "请点播放继续");
-          if (!isUnsupportedPlayError(e)) throw e;
-        });
       } catch (e) {
         var msg = String((e && e.message) || e || "");
         var isAbort = (e && e.name === 'AbortError') || /aborted/i.test(msg);
@@ -4012,11 +4160,51 @@
       }
     }
 
-    function openDialog(d) { if (!d) return; try { if (typeof d.showModal === 'function') d.showModal(); else if (typeof d.show === 'function') d.show(); else d.setAttribute('open', ''); } catch (_) { try { d.setAttribute('open', ''); } catch (__) {} } }
-    function closeDialog(d) { if (!d) return; try { if (typeof d.close === 'function') d.close(); else d.removeAttribute('open'); } catch (_) { try { d.removeAttribute('open'); } catch (__) {} } }
+    function openDialog(d) {
+      if (!d) return;
+      // 通用 WebView 路径:不用 showModal()/top-layer，避免 Android/iOS WebView 在
+      // dialog 事件、遮罩和穿透上的差异。只把它当 fixed layer 显示。
+      try {
+        d.removeAttribute('aria-hidden');
+        d.setAttribute('data-open', '1');
+        d.setAttribute('open', '');
+        d.open = true;
+      } catch (_) {}
+    }
+    function closeDialog(d) {
+      if (!d) return;
+      try {
+        d.setAttribute('aria-hidden', 'true');
+        d.removeAttribute('data-open');
+        d.removeAttribute('open');
+        d.open = false;
+      } catch (_) {}
+    }
+    function stopLayerEvent(e) {
+      if (!e) return;
+      try { e.preventDefault(); } catch (_) {}
+      try { e.stopPropagation(); } catch (_) {}
+      try { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); } catch (_) {}
+    }
+    function installLayerDocumentGuard() {
+      if (root.__idxLayerDocumentGuardInstalled) return;
+      root.__idxLayerDocumentGuardInstalled = true;
+      ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(function (type) {
+        document.addEventListener(type, function (e) {
+          var target = e && e.target;
+          if (!target || !target.closest) return;
+          if (pickerEl && isDialogOpen(pickerEl)) return;
+          if (!panel || !isDialogOpen(panel)) return;
+          if (target.closest('.idx-panel') === panel) return;
+          stopLayerEvent(e);
+          closeDialog(panel);
+        }, true);
+      });
+    }
+    installLayerDocumentGuard();
     on(gear, 'click', async function (ev) {
       ev.preventDefault(); ev.stopPropagation();
-      if (panel.open) closeDialog(panel);
+      if (isDialogOpen(panel)) closeDialog(panel);
       else {
         await refreshCharacterConfig({ forceSync: true });
         openDialog(panel);
@@ -4227,9 +4415,10 @@
     updateTrackButtons();
     syncUI();
     knownHistoryCount = messageId ? localHistoryCountForMessage(messageId) : 0;
-    setStatus(historyStatusText());
-    showTrackNotice(null, historyStatusText(), knownHistoryCount ? "点播放再读取历史音频" : "点播放开始生成音频");
-    initializeHistoryCount().catch(function () {});
+    setStatus(noTrackStatusText());
+    showNoTrackNotice();
+    if (knownHistoryCount > 0) ensureTracksLoaded().catch(function () { initializeHistoryCount().catch(function () {}); });
+    else initializeHistoryCount().catch(function () {});
   }
 
   function mount(root, cfg, context) {
