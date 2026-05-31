@@ -39,10 +39,12 @@
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = [
-      ".idx-tts{margin:6px 0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#eee7f4}",
-      ".idx-lazy-card{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}",
-      ".idx-lazy-play{width:42px;height:42px;border-radius:50%;border:1px solid rgba(206,170,230,.35);background:rgba(20,14,28,.62);color:#eee7f4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.26)}",
-      ".idx-lazy-play svg{width:20px;height:20px;fill:currentColor}.idx-lazy-play[data-loading='1']{opacity:.65;cursor:progress}"
+      ".idx-tts{margin:10px 0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#eee7f4}",
+      ".idx-lazy-card{position:relative;display:flex;align-items:center;gap:12px;border-radius:16px;background:radial-gradient(circle at 88% 8%,rgba(216,167,255,.18),transparent 40%),linear-gradient(160deg,rgba(27,21,34,.55),rgba(12,9,16,.55));border:1px solid rgba(206,170,230,.22);padding:14px;backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%)}",
+      ".idx-lazy-play{width:58px;height:58px;border-radius:50%;border:1px solid rgba(206,170,230,.30);background:rgba(20,14,28,.58);color:#eee7f4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:0 0 auto}",
+      ".idx-lazy-play svg{width:26px;height:26px;fill:currentColor}.idx-lazy-play[data-loading='1']{opacity:.65;cursor:progress}",
+      ".idx-lazy-main{min-width:0;flex:1;cursor:pointer}.idx-lazy-title{font-size:17px;font-weight:800;color:#e9c8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-lazy-status{margin-top:4px;font-size:12px;color:rgba(238,231,244,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      ".idx-lazy-progress{height:4px;margin-top:8px;background:rgba(206,170,230,.13);border-radius:999px;overflow:hidden}.idx-lazy-progress span{display:block;height:100%;background:linear-gradient(90deg,#c890e8,#8ecbff);border-radius:inherit}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -117,10 +119,17 @@
     var runtimeSrc = joinUrl(info.baseUrl || "", "tavo.runtime.js", info.query || "");
     var messageId = pickMessageId(loaderScript);
     var latest = latestTrack(messageId);
+    var historyCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
     var resumeSec = latest ? Math.max(0, Number(latest.lastElementSec || latest.lastWebAudioSec || 0) || 0) : 0;
+    var title = shortName(latest && latest.voice);
     root.innerHTML = [
       '<div class="idx-lazy-card" data-role="lazy-card">',
       '  <button class="idx-lazy-play" type="button" data-role="lazy-play" aria-label="播放最后一条语音" title="' + escapeHtml(resumeSec ? ('从 ' + formatTime(resumeSec) + ' 继续') : '播放语音') + '">' + playIcon() + '</button>',
+      '  <div class="idx-lazy-main" data-role="lazy-open" role="button" tabindex="0">',
+      '    <div class="idx-lazy-title">' + escapeHtml(title) + '</div>',
+      '    <div class="idx-lazy-status" data-role="lazy-status">' + (latest ? ('历史音频 ' + historyCount + ' 条 · ' + formatTime(resumeSec)) : '历史音频 0 条 · 点开播放器') + '</div>',
+      '    <div class="idx-lazy-progress"><span style="width:' + (latest && latest.duration_s ? Math.max(2, Math.min(100, resumeSec / Number(latest.duration_s || 1) * 100)) : 0) + '%"></span></div>',
+      '  </div>',
       '</div>'
     ].join("");
 
@@ -150,7 +159,9 @@
         if (btn) btn.click();
       }).catch(function (e) { try { console.error("[GPT-SoVITS TAVO loader]", e && e.message ? e.message : e); } catch (_) {} });
     }
-    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); route('[data-role="play"]'); });
+    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); if (latest) route('[data-role="play"]'); else mountRuntime(""); });
+    on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); mountRuntime(""); });
+    on($(root, '[data-role="lazy-open"]'), "keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); mountRuntime(""); } });
   } catch (e) {
     try { console.error("[GPT-SoVITS TAVO loader]", e && e.stack ? e.stack : e); } catch (_) {}
   }

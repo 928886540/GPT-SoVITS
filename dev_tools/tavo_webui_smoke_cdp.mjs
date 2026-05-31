@@ -212,6 +212,8 @@ try {
     hasPanel: !!document.querySelector('.idx-panel'),
     hasLazyGear: !!document.querySelector('[data-role="lazy-gear"]'),
     lazyButtonCount: document.querySelectorAll('[data-role="lazy-card"] button').length,
+    hasLazyMain: !!document.querySelector('[data-role="lazy-open"]'),
+    lazyStatus: (document.querySelector('[data-role="lazy-status"]') || {}).textContent || "",
     runtimeRequested: window.__idxTest.getFetchLog().some((r) => new URL(r.url).pathname.indexOf('/static/tavo.runtime.js') >= 0)
   }))()`);
 
@@ -232,6 +234,7 @@ try {
       const lazyPlay = document.querySelector('[data-role="lazy-play"]');
       lazyPlay.click();
       await waitFor(() => document.querySelector('[data-role="gear"]'), 5000);
+      const pickerOpenAfterLazyPlay = !!document.querySelector('.idx-picker[open]');
       const gear = document.querySelector('[data-role="gear"]');
       gear.click();
       await waitFor(() => document.querySelector('.idx-panel[open]'), 5000);
@@ -267,7 +270,7 @@ try {
       const globalHasVoiceConfig = ["defaultVoice", "roleVoiceList", "roleVoicesText"].some((key) => Object.prototype.hasOwnProperty.call(globalCfg, key));
       const characterHasVoiceConfig = !!(charCfg.defaultVoice && Array.isArray(charCfg.roleVoiceList) && charCfg.roleVoiceList.length);
       window.__idxTest.clearFetchLog();
-      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys, panelFixed, panelInViewport, scrollDelta: Math.abs(window.scrollY - beforeY) };
+      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys, panelFixed, panelInViewport, scrollDelta: Math.abs(window.scrollY - beforeY), pickerOpenAfterLazyPlay };
     })()`, true);
     await sleep(500);
     pickerCheck.voicePreviewNetworkDelta = voicePreviewRequestCount(cdp) - previewBefore;
@@ -354,6 +357,29 @@ try {
     };
   })()`);
 
+  const remountSnapshot = await cdp.evalJs(`(async () => {
+    function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+    async function waitFor(fn, timeoutMs) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const v = fn();
+        if (v) return v;
+        await sleep(100);
+      }
+      return null;
+    }
+    document.getElementById("mountBtn").click();
+    const lazy = await waitFor(() => document.querySelector('[data-role="lazy-card"]'), 5000);
+    const status = document.querySelector('[data-role="lazy-status"]');
+    return {
+      hasLazy: !!lazy,
+      hasFull: !!document.querySelector('[data-role="add"]'),
+      hasLazyGear: !!document.querySelector('[data-role="lazy-gear"]'),
+      lazyButtonCount: document.querySelectorAll('[data-role="lazy-card"] button').length,
+      lazyStatus: status ? status.textContent : ""
+    };
+  })()`, true);
+
   const hasCacheAudio = /\/cache_audio\//.test(summary.audioSrc) ||
     cdp.responses.some((r) => /\/cache_audio\//.test(r.url) && r.status >= 200 && r.status < 300);
   const cacheKey = latestCacheKeyFromConsole(cdp.consoleLines);
@@ -379,15 +405,19 @@ try {
     pickerCheck.globalCharacterKeys.length === 0 &&
     pickerCheck.panelFixed === true &&
     pickerCheck.panelInViewport === true &&
-    pickerCheck.scrollDelta <= 2;
+    pickerCheck.scrollDelta <= 2 &&
+    pickerCheck.pickerOpenAfterLazyPlay === false;
   const mediaArtworkOk = !summary.mediaArtwork.length ||
     (summary.mediaArtwork[0].src && !/tavo-now-playing-cover\.png/.test(summary.mediaArtwork[0].src));
   const runtimeLazyLoaded = cdp.requests.some((r) => new URL(r.url).pathname.includes('/static/tavo.runtime.js')) ||
     cdp.responses.some((r) => new URL(r.url).pathname.includes('/static/tavo.runtime.js') && r.status >= 200 && r.status < 300);
+  const remountSnapshotOk = remountSnapshot.hasLazy && !remountSnapshot.hasFull && !remountSnapshot.hasLazyGear && remountSnapshot.lazyButtonCount === 1 && /历史音频\s+[1-9]/.test(remountSnapshot.lazyStatus);
 
   console.log(JSON.stringify({
-    ok: lazyBeforeMount.hasLazy && !lazyBeforeMount.hasFull && !lazyBeforeMount.hasPanel && !lazyBeforeMount.hasLazyGear && lazyBeforeMount.lazyButtonCount === 1 && !lazyBeforeMount.runtimeRequested && runtimeLazyLoaded && hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount <= 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
+    ok: lazyBeforeMount.hasLazy && lazyBeforeMount.hasLazyMain && /历史音频/.test(lazyBeforeMount.lazyStatus) && !lazyBeforeMount.hasFull && !lazyBeforeMount.hasPanel && !lazyBeforeMount.hasLazyGear && lazyBeforeMount.lazyButtonCount === 1 && !lazyBeforeMount.runtimeRequested && runtimeLazyLoaded && remountSnapshotOk && hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount <= 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
     lazyBeforeMount,
+    remountSnapshot,
+    remountSnapshotOk,
     runtimeLazyLoaded,
     hasDialogueJob,
     hasStatus,
