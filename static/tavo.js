@@ -1978,6 +1978,7 @@
       if (!track) return "";
       if (cfg.offlineAudioEnabled && track.offlineUrl) return track.offlineUrl;
       if (isSavedTrack(track)) return track.url || track.cacheUrl || track.streamUrl || "";
+      if (track.backgroundOnly) return "";
       if (isLiveTrack(track)) return track.streamUrl || track.url || "";
       return track.url || "";
     }
@@ -2573,6 +2574,18 @@
         await refreshTrackFromStatus(track, "select snapshot");
         state = trackState(track);
       }
+      if (state === "live" && track.backgroundOnly && !track.deleted) {
+        clearElementAudioSrc();
+        if (seek) { seek.disabled = true; seek.value = "0"; }
+        setTrackPlaybackState(track, "loading");
+        setPlayState("loading");
+        if (autoplay) track.playSavedWhenReady = true;
+        pollCacheUpgrade(track, "dialogue background snapshot");
+        setStatus("后台合成中…");
+        showTrackNotice(track, "后台合成中…", "生成完成后自动播放保存音频");
+        updateTrackButtons();
+        return;
+      }
       await hydrateOfflineAudio(track, "select");
       srcUrl = trackPlayableUrl(track);
       debugLog("🎯 selectTrack idx=" + index + " state=" + state + " urlSource=" + (srcUrl === track.offlineUrl ? "offline" : srcUrl === track.url ? "url" : srcUrl === track.cacheUrl ? "cacheUrl" : srcUrl === track.streamUrl ? "streamUrl" : "none") + " src=" + srcUrl, "#9ff");
@@ -2721,11 +2734,16 @@
                 setTrackState(trackEntry, "saved");
                 var autoplaySaved = !!(trackEntry.playSavedWhenReady && currentTrack() === trackEntry);
                 trackEntry.playSavedWhenReady = false;
+                trackEntry.backgroundOnly = false;
                 attachCacheAudio(trackEntry, { forceElement: autoplaySaved, deferElement: trackEntry.webAudioPlaying && !autoplaySaved, autoplay: autoplaySaved });
                 scheduleOfflineAudioSave(trackEntry, label + " offline", 0);
                 if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
                 debugLog("✅ " + label + " 已落盘，cacheUrl 已写回卡片", "#9f9");
                 if (autoplaySaved) setStatus("生成完成，正在播放保存音频");
+                if (trackEntry.stopServerLogWhenReady) {
+                  trackEntry.stopServerLogWhenReady = false;
+                  stopServerLogPolling();
+                }
                 var metricsLine = formatJobMetrics(trackEntry.metrics);
                 if (metricsLine) debugLog("📊 " + label + " 指标: " + metricsLine, "#9ff");
                 if (currentTrack() === trackEntry && isElementUsingTrackStream(trackEntry)) {
@@ -2736,6 +2754,10 @@
               }
               if (j && j.state === "failed") {
                 setTrackState(trackEntry, "failed");
+                if (trackEntry.stopServerLogWhenReady) {
+                  trackEntry.stopServerLogWhenReady = false;
+                  stopServerLogPolling();
+                }
                 debugLog("❌ 服务端推理失败: " + (j.error || ""), "#f99");
                 break;
               }
@@ -3857,6 +3879,7 @@
           trackEntry.streamHealth = "ok";
           trackEntry.savePromptAsked = false;
           trackEntry.allowStreamPlay = true;
+          trackEntry.backgroundOnly = false;
           setTrackState(trackEntry, jobInfo.cached ? "saved" : "live");
           if (!placeholder) {
             // 防御性:正常路径下 placeholder 一定有,这里兜底
@@ -3878,6 +3901,7 @@
           // 如果服务端早就有这条音频的缓存，走完整音频播放器；这是可拖动进度条的路径。
           if (jobInfo.cached && cacheUrl) {
             trackEntry.url = cacheUrl;
+            trackEntry.backgroundOnly = false;
             setTrackState(trackEntry, "saved");
             await prepareOfflineAudio(trackEntry, "cached hit", { saveMissing: true });
             setStatus("已有音频，正在播放");
@@ -3887,39 +3911,17 @@
             startElementAudioFrom(trackEntry, 0);
             return;
           }
-          // 没缓存 → 走流式（移动 Web Audio / 桌面 <audio src>）。后端是异步
-          // job，断线重连不丢；同时 GET 完成后会自动落盘到 snapshot_cache。
-          if (shouldUseWebAudioForLiveTrack(trackEntry)) {
-            setStatus("等待首段音频…");
-            showTrackNotice(trackEntry, "等待首段音频…", "正在合成，声音出来前不要切走");
-            debugLog("▶️ live track 使用 Web Audio API 真流式", "#ffd479");
-            currentCacheKey = jobInfo.cacheKey;
-            setPlayState("loading");
-            pollCacheUpgrade(trackEntry, "web audio snapshot");
-            trackEntry.allowStreamPlay = false;
-            await playLiveTrack(trackEntry, streamUrl, { noticeTitle: "等待首段音频…", noticeDetail: "正在合成，声音出来前不要切走", waitDetail: "正在合成第一段" });
-            if (isSavedTrack(trackEntry)) attachCacheAudio(trackEntry, { deferElement: true });
-            stopServerLogPolling();
-            return;
-          } else {
-            // 默认把 chunked WAV 交给 <audio> 元素播放。Tavo/WebView 的
-            // WebAudio 时钟可能会走但系统音频不出声；原生 audio 更可靠。
-            trackEntry.url = streamUrl;
-            trackEntry.streaming = true;
-            var totalSec = Math.floor((Date.now() - t0) / 1000);
-            currentCacheKey = jobInfo.cacheKey;
-            setPlayState("loading");
-            debugLog("▶️ 启动 audio 元素流式播放, 截至此处用时 " + totalSec + "s", "#9f9");
-            pollCacheUpgrade(trackEntry, "audio element snapshot");
-            trackEntry.allowStreamPlay = false;
-            await playLiveTrack(trackEntry, streamUrl, { noticeTitle: "等待首段音频…", noticeDetail: "正在合成，声音出来前不要切走", waitDetail: "正在合成第一段" });
-            // 音频播完后停止服务端日志轮询
-            try {
-              audio.addEventListener("ended", stopServerLogPolling, { once: true });
-              audio.addEventListener("error", stopServerLogPolling, { once: true });
-              audio.addEventListener("pause", function () { if (audio.currentTime >= (audio.duration || 0) - 0.05) stopServerLogPolling(); });
-            } catch (_) { stopServerLogPolling(); }
-          }
+          trackEntry.backgroundOnly = true;
+          trackEntry.allowStreamPlay = false;
+          trackEntry.playSavedWhenReady = true;
+          trackEntry.stopServerLogWhenReady = true;
+          setTrackPlaybackState(trackEntry, "loading");
+          setPlayState("loading");
+          setStatus("后台合成中…");
+          showTrackNotice(trackEntry, "后台合成中…", "当前多段声腔先生成落盘，完成后自动播放");
+          debugLog("⏳ dialogue 后台生成，等待 cacheUrl 就绪后播放，避免假流式卡住", "#ffd479");
+          pollCacheUpgrade(trackEntry, "dialogue background snapshot");
+          return;
         } else {
           var singleJob = await createSingleStreamJob(base, cfg, messageText, force);
           var singleTrack = {

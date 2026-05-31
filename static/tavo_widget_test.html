@@ -123,6 +123,12 @@
           };
           fetchLog.push(rec);
           renderRequestLog();
+          if (/\/parse_text(?:[?#]|$)/.test(rec.url)) {
+            return Promise.resolve(new Response(JSON.stringify({ segments: mockSegments(els.messageText.value) }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            }));
+          }
           return originalFetch(input, init);
         };
       }
@@ -163,13 +169,41 @@
       function saveBucket(bucket) {
         localStorage.setItem(STORE_KEY, JSON.stringify(bucket || {}));
       }
+      function mockSegments(text) {
+        text = String(text || "").trim();
+        if (!text) text = "她轻轻点头。";
+        var parts = text.split(/\n+/).map(function (line) { return line.trim(); }).filter(Boolean);
+        var roleName = els.characterName.value || "她";
+        var out = [];
+        parts.slice(0, 4).forEach(function (line, index) {
+          var m = line.match(/[「“\"]([^」”\"]+)[」”\"]/);
+          var spoken = m ? m[1].trim() : "";
+          var before = m ? line.slice(0, m.index).trim() : line;
+          if (before) {
+            out.push({ role: "旁白", text: before, style: "neutral", style_alpha: 0.15, emo_vec: [0,0,0,0,0,0,0,1] });
+          }
+          if (spoken) {
+            out.push({ role: /你|白夜雨/.test(before) ? "用户" : roleName, text: spoken, style: index % 2 ? "whisper_soft" : "neutral", style_alpha: index % 2 ? 0.5 : 0.18, emo_vec: [0.2,0,0,0,0,0,0,0.6] });
+          }
+        });
+        return out.length ? out.slice(0, 6) : [{ role: "旁白", text: text.slice(0, 80), style: "neutral", style_alpha: 0.15, emo_vec: [0,0,0,0,0,0,0,1] }];
+      }
       function seedP2Config() {
         var bucket = storageBucket();
-        var globalKey = "global:indextts_tavo_config_v10";
-        var charKey = "character:indextts_tavo_config_v10:34";
+        var globalConfigKey = "gptsovits_tavo_config_v1";
+        var characterConfigKey = "gptsovits_tavo_character_config_v1";
+        var characterLegacyKey = "gptsovits_tavo_character_v1:34";
+        var globalKey = "global:" + globalConfigKey;
+        var charKey = "character:" + characterConfigKey;
         bucket[globalKey] = Object.assign({
+          configVersion: 9,
           mode: "ai8",
           apiBase: location.origin,
+          endpoint: "/tts_cache_stream",
+          dialogueEndpoint: "/tts_dialogue_cache_stream",
+          parseEndpoint: "/parse_text",
+          llmEndpoint: "mock://tavo-widget-test/v1",
+          llmModel: "mock-parser",
           qualityMode: "fast",
           topP: 1,
           topK: 15,
@@ -181,16 +215,20 @@
         }, bucket[globalKey] || {});
         bucket[globalKey].mode = "ai8";
         bucket[globalKey].apiBase = location.origin;
-        bucket[charKey] = Object.assign({
-          defaultVoice: "女声/AD学姐",
+        var charCfg = Object.assign({
+          defaultVoice: "女声/风韵少妇",
           roleVoiceList: [
-            { role: "旁白", voice: "女声/AD学姐" },
-            { role: "用户", voice: "女声/AD学姐" },
-            { role: els.characterName.value || "潘金莲", voice: "女声/AD学姐" },
-            { role: "她", voice: "女声/AD学姐" }
+            { role: "旁白", voice: "女声/风韵少妇" },
+            { role: "用户", voice: "女声/风韵少妇" },
+            { role: els.characterName.value || "潘金莲", voice: "女声/风韵少妇" },
+            { role: "她", voice: "女声/风韵少妇" }
           ]
         }, bucket[charKey] || {});
+        bucket[charKey] = charCfg;
+        bucket["global:" + characterLegacyKey] = charCfg;
         saveBucket(bucket);
+        try { localStorage.setItem(globalConfigKey, JSON.stringify(bucket[globalKey])); } catch (_) {}
+        try { localStorage.setItem(characterLegacyKey, JSON.stringify(charCfg)); } catch (_) {}
       }
       window.tavo = {
         get: async function (name, scope) {
