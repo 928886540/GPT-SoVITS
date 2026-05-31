@@ -4,6 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
+  var LOADER_VERSION = "20260531-restore-snapshot-card-v2";
 
   function deriveBaseUrl(src) {
     var raw = String(src || "").trim();
@@ -21,6 +22,16 @@
     }
   }
   function joinUrl(base, fileName, query) { return String(base || "") + String(fileName || "") + String(query || ""); }
+  function withQueryParam(url, key, value) {
+    try {
+      var u = new URL(url, (typeof location !== "undefined" ? location.href : "http://localhost/"));
+      u.searchParams.set(key, String(value));
+      return u.href;
+    } catch (_) {
+      var sep = String(url || "").indexOf("?") >= 0 ? "&" : "?";
+      return String(url || "") + sep + encodeURIComponent(key) + "=" + encodeURIComponent(String(value));
+    }
+  }
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
@@ -116,7 +127,8 @@
     if (loaderScript && loaderScript.parentNode) loaderScript.parentNode.insertBefore(root, loaderScript.nextSibling); else document.body.appendChild(root);
 
     var info = deriveBaseUrl(loaderScript && loaderScript.src);
-    var runtimeSrc = joinUrl(info.baseUrl || "", "tavo.runtime.js", info.query || "");
+    var runtimeSrc = withQueryParam(joinUrl(info.baseUrl || "", "tavo.runtime.js", info.query || ""), "runtime_v", LOADER_VERSION);
+    try { window.__gptsovits_tavo_loader_version = LOADER_VERSION; } catch (_) {}
     var messageId = pickMessageId(loaderScript);
     var latest = latestTrack(messageId);
     var historyCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;

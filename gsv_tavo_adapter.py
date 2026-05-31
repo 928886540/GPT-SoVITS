@@ -122,12 +122,12 @@ async def health() -> dict[str, str]:
 
 @APP.get("/static/tavo.js")
 async def tavo_js() -> FileResponse:
-    return FileResponse(ROOT / "static" / "tavo.js", media_type="application/javascript")
+    return FileResponse(ROOT / "static" / "tavo.js", media_type="application/javascript", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @APP.head("/static/tavo.js")
 async def tavo_js_head() -> FileResponse:
-    return FileResponse(ROOT / "static" / "tavo.js", media_type="application/javascript")
+    return FileResponse(ROOT / "static" / "tavo.js", media_type="application/javascript", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 def _static_file_response(name: str) -> FileResponse:
@@ -138,14 +138,16 @@ def _static_file_response(name: str) -> FileResponse:
         ".css": "text/css",
         ".html": "text/html",
     }
-    media_type = media_types.get(Path(name).suffix.lower())
+    suffix = Path(name).suffix.lower()
+    media_type = media_types.get(suffix)
     if not media_type:
         raise HTTPException(status_code=404, detail="Not Found")
     static_root = (ROOT / "static").resolve()
     path = (static_root / name).resolve()
     if static_root not in path.parents or not path.is_file():
         raise HTTPException(status_code=404, detail="Not Found")
-    return FileResponse(path, media_type=media_type)
+    headers = {"Cache-Control": "no-store, max-age=0"} if suffix in {".js", ".css", ".html"} else None
+    return FileResponse(path, media_type=media_type, headers=headers)
 
 
 @APP.get("/static/{name}")
