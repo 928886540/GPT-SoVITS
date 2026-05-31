@@ -251,16 +251,19 @@ async def append_usage(request: UsageLogRequest) -> dict[str, int]:
 
 @APP.post("/parse_text")
 async def parse_text(request: ParseTextRequest) -> dict[str, Any]:
-    return llm_proxy.parse_text_openai_compatible(
-        text=request.text,
-        endpoint=request.endpoint,
-        model=request.model,
-        api_key=request.api_key,
-        system_prompt=request.system_prompt,
-        temperature=request.temperature,
-        timeout=request.timeout,
-        max_tokens=request.max_tokens,
-    )
+    try:
+        return llm_proxy.parse_text_openai_compatible(
+            text=request.text,
+            endpoint=request.endpoint,
+            model=request.model,
+            api_key=request.api_key,
+            system_prompt=request.system_prompt,
+            temperature=request.temperature,
+            timeout=request.timeout,
+            max_tokens=request.max_tokens,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM parse failed: {exc}") from exc
 
 
 @APP.get("/server_log/tail")

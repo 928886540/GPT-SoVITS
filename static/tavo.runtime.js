@@ -4,7 +4,7 @@
   var script = (typeof window !== "undefined" && window.__gptsovits_tavo_runtime_script_override) || document.currentScript;
   var STYLE_ID = "gptsovits-tavo-player-v1";
   var CONFIG_KEY = "gptsovits_tavo_config_v1";
-  var CONFIG_VERSION = 10;
+  var CONFIG_VERSION = 11;
   var CHAR_SCOPE_CONFIG_KEY = "gptsovits_tavo_character_config_v1";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   // 角色级配置: defaultVoice + roleVoiceList。LLM/api/mode 参数走全局。
@@ -204,7 +204,7 @@
     roleVoicesText: "旁白=\n用户=\n角色=",
     llmEndpoint: "http://192.168.8.100:8317/v1",
     llmModel: "渡鸦/grok-4.20-fast",
-    llmApiKey: "",
+    llmApiKey: "sk-ming",
     reuseLlmParse: true,
     intervalMs: 50,
     topP: 1.0,
@@ -371,6 +371,11 @@
       if (Number(cfg.temperature) === 0.62 || Number(cfg.temperature) === 0.72 || Number(cfg.temperature) === 0.78 || Number(cfg.temperature) === 0.8 || Number(cfg.temperature) === 0.85) cfg.temperature = 0.7;
       if (Number(cfg.repetitionPenalty) === 2 || Number(cfg.repetitionPenalty) === 8 || Number(cfg.repetitionPenalty) === 10) cfg.repetitionPenalty = 1.2;
       if (Number(cfg.speedFactor) === 1.08) cfg.speedFactor = 1.0;
+      if (savedVersion < 11) {
+        cfg.llmEndpoint = "http://192.168.8.100:8317/v1";
+        cfg.llmModel = "渡鸦/grok-4.20-fast";
+        if (!cfg.llmApiKey) cfg.llmApiKey = "sk-ming";
+      }
     }
     cfg.configVersion = CONFIG_VERSION;
     // 强制把 apiBase 锁死成本次加载脚本的来源 —— 用户换 LAN/外网/隧道 URL 时
@@ -1483,7 +1488,7 @@
       '  <div class="idx-top"><div class="idx-cover" data-role="cover"></div><div class="idx-info"><div class="idx-title-row"><div class="idx-name" data-role="title"></div></div><div class="idx-status" data-role="status">选择音色后点播放</div></div></div>',
       '  <div class="idx-seek-wrap"><input class="idx-seek" data-role="seek" type="range" min="0" max="1000" value="0" disabled><div class="idx-time"><span data-role="current">00:00</span><span data-role="total">--:--</span></div></div>',
       '  <div class="idx-subtitle" data-role="subtitle"><div class="idx-sub-notice"><strong>准备生成语音</strong><span>点播放开始生成音频</span></div></div>',
-      '  <div class="idx-controls"><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="prev" aria-label="上一首" title="上一首"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><button class="idx-ctrl idx-ctrl-skip" type="button" data-role="rewind10" aria-label="后退 10 秒" title="后退 10 秒"><svg viewBox="0 0 24 24"><path d="M9 8H4V3"/><path d="M5 8a8 8 0 1 1-1 6"/><path d="M10 12v5"/><path d="M14 12v5"/><path d="M10 12h1.5"/><path d="M14 12h1.5"/></svg></button><button class="idx-ctrl idx-ctrl-main" type="button" data-role="play" data-state="idle" aria-label="播放">' + playIcon("idle") + '</button><button class="idx-ctrl idx-ctrl-skip" type="button" data-role="forward10" aria-label="快进 10 秒" title="快进 10 秒"><svg viewBox="0 0 24 24"><path d="M15 8h5V3"/><path d="M19 8a8 8 0 1 0 1 6"/><path d="M8 12v5"/><path d="M12 12v5"/><path d="M8 12h1.5"/><path d="M12 12h1.5"/></svg></button><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="next" aria-label="下一首" title="下一首"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-10.5 0v12l8.5-6z"/></svg></button><button class="idx-ctrl idx-ctrl-add" type="button" data-role="add" aria-label="生成音频" title="生成音频"><svg viewBox="0 0 24 24"><path d="M12 3v9.55A4 4 0 1 0 14 16V7h4V3z"/></svg></button><button class="idx-ctrl idx-ctrl-delete" type="button" data-role="delete" aria-label="删除当前音频" title="删除当前音频"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9zm1 11c-1.1 0-2-.9-2-2V8h12v10c0 1.1-.9 2-2 2H8z"/></svg></button></div>',
+      '  <div class="idx-controls"><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="prev" aria-label="上一首" title="上一首"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><button class="idx-ctrl idx-ctrl-main" type="button" data-role="play" data-state="idle" aria-label="播放">' + playIcon("idle") + '</button><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="next" aria-label="下一首" title="下一首"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-10.5 0v12l8.5-6z"/></svg></button><button class="idx-ctrl idx-ctrl-add" type="button" data-role="add" aria-label="生成音频" title="生成音频"><svg viewBox="0 0 24 24"><path d="M12 3v9.55A4 4 0 1 0 14 16V7h4V3z"/></svg></button><button class="idx-ctrl idx-ctrl-delete" type="button" data-role="delete" aria-label="删除当前音频" title="删除当前音频"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9zm1 11c-1.1 0-2-.9-2-2V8h12v10c0 1.1-.9 2-2 2H8z"/></svg></button></div>',
       '  <dialog class="idx-panel" data-role="panel">'
         + '<div class="idx-panel-head"><div class="idx-panel-title">语音设置</div><button class="idx-close" type="button" data-role="close">×</button></div>'
         + '<div class="idx-section-title">播放模式</div>'
@@ -1529,8 +1534,6 @@
     var play = first(root, '[data-role="play"]', '.idx-ctrl-main');
     var prev = first(root, '[data-role="prev"]');
     var next = first(root, '[data-role="next"]');
-    var rewind10 = first(root, '[data-role="rewind10"]');
-    var forward10 = first(root, '[data-role="forward10"]');
     var add = first(root, '[data-role="add"]');
     var del = first(root, '[data-role="delete"]');
     var status = first(root, '[data-role="status"]', '.idx-status');
@@ -1913,8 +1916,6 @@
       if (prev) prev.disabled = currentTrackIndex <= 0;
       if (next) next.disabled = currentTrackIndex < 0 || currentTrackIndex >= generatedTracks.length - 1;
       var canSeekTrack = !!(track && (trackPlayableUrl(track) || track.webAudioPlaying || track.cacheKey));
-      if (rewind10) rewind10.disabled = !canSeekTrack;
-      if (forward10) forward10.disabled = !canSeekTrack;
       if (del) del.disabled = currentTrackIndex < 0 || !track;
       updateTrackCounter();
     }
@@ -4232,16 +4233,10 @@
     }
     on(play, 'pointerdown', function () { primeAudioContext(); });
     on(add, 'pointerdown', function () { primeAudioContext(); });
-    on(rewind10, 'pointerdown', function () { primeAudioContext(); });
-    on(forward10, 'pointerdown', function () { primeAudioContext(); });
     on(play, 'touchstart', function () { primeAudioContext(); });
     on(add, 'touchstart', function () { primeAudioContext(); });
-    on(rewind10, 'touchstart', function () { primeAudioContext(); });
-    on(forward10, 'touchstart', function () { primeAudioContext(); });
     on(play, 'click', function () { primeAudioContext(); if (tryResumeOrPauseInGesture()) return; generate(false).catch(function (e) { setError(e && e.message ? e.message : String(e)); }); });
     on(add, 'click', function () { primeAudioContext(); generate(true).catch(function (e) { setError(e && e.message ? e.message : String(e)); }); });
-    on(rewind10, 'click', function () { primeAudioContext(); if (!seekBySeconds(-10)) setStatus("暂无可跳转音频"); });
-    on(forward10, 'click', function () { primeAudioContext(); if (!seekBySeconds(10)) setStatus("暂无可跳转音频"); });
     on(prev, 'click', function () {
       ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex - 1, true); }).catch(function (e) { setError(e && e.message ? e.message : String(e)); });
     });
