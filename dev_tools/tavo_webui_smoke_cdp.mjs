@@ -194,7 +194,7 @@ try {
   await cdp.send("Network.enable");
 
   await cdp.waitFor("document.readyState === 'complete'");
-  await cdp.waitFor("!!document.querySelector('[data-role=\"add\"]')", 30000);
+  await cdp.waitFor("!!document.querySelector('[data-role=\"lazy-play\"]')", 30000);
   await cdp.evalJs(`(() => {
     const text = document.getElementById("messageText");
     const avatar = document.getElementById("characterAvatar");
@@ -205,7 +205,12 @@ try {
     document.getElementById("mountBtn").click();
     return true;
   })()`);
-  await cdp.waitFor("!!document.querySelector('[data-role=\"add\"]')", 30000);
+  await cdp.waitFor("!!document.querySelector('[data-role=\"lazy-play\"]')", 30000);
+  const lazyBeforeMount = await cdp.evalJs(`(() => ({
+    hasLazy: !!document.querySelector('[data-role="lazy-card"]'),
+    hasFull: !!document.querySelector('[data-role="add"]'),
+    hasPanel: !!document.querySelector('.idx-panel')
+  }))()`);
 
   let pickerCheck = null;
   try {
@@ -221,9 +226,16 @@ try {
         }
         throw new Error("picker wait timeout");
       }
+      const lazyGear = document.querySelector('[data-role="lazy-gear"]');
+      lazyGear.click();
+      await waitFor(() => document.querySelector('[data-role="gear"]'), 5000);
       const gear = document.querySelector('[data-role="gear"]');
-      gear.click();
       await waitFor(() => document.querySelector('.idx-panel[open]'), 5000);
+      const beforeY = window.scrollY;
+      const panel = document.querySelector('.idx-panel[open]');
+      const panelBox = panel.getBoundingClientRect();
+      const panelFixed = getComputedStyle(panel).position === 'fixed';
+      const panelInViewport = panelBox.top >= -2 && panelBox.bottom <= window.innerHeight + 2;
       const quality = document.querySelector('[data-field="qualityMode"]');
       quality.value = "expressive";
       quality.dispatchEvent(new Event("input", { bubbles: true }));
@@ -251,7 +263,7 @@ try {
       const globalHasVoiceConfig = ["defaultVoice", "roleVoiceList", "roleVoicesText"].some((key) => Object.prototype.hasOwnProperty.call(globalCfg, key));
       const characterHasVoiceConfig = !!(charCfg.defaultVoice && Array.isArray(charCfg.roleVoiceList) && charCfg.roleVoiceList.length);
       window.__idxTest.clearFetchLog();
-      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys };
+      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys, panelFixed, panelInViewport, scrollDelta: Math.abs(window.scrollY - beforeY) };
     })()`, true);
     await sleep(500);
     pickerCheck.voicePreviewNetworkDelta = voicePreviewRequestCount(cdp) - previewBefore;
@@ -360,12 +372,16 @@ try {
     pickerCheck.voicePreviewNetworkDelta === 0 &&
     pickerCheck.globalHasVoiceConfig === false &&
     pickerCheck.characterHasVoiceConfig === true &&
-    pickerCheck.globalCharacterKeys.length === 0;
+    pickerCheck.globalCharacterKeys.length === 0 &&
+    pickerCheck.panelFixed === true &&
+    pickerCheck.panelInViewport === true &&
+    pickerCheck.scrollDelta <= 2;
   const mediaArtworkOk = !summary.mediaArtwork.length ||
     (summary.mediaArtwork[0].src && !/tavo-now-playing-cover\.png/.test(summary.mediaArtwork[0].src));
 
   console.log(JSON.stringify({
-    ok: hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount === 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
+    ok: lazyBeforeMount.hasLazy && !lazyBeforeMount.hasFull && !lazyBeforeMount.hasPanel && hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount === 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
+    lazyBeforeMount,
     hasDialogueJob,
     hasStatus,
     hasLiveStream,
