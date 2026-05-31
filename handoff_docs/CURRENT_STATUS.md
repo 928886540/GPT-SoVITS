@@ -60,7 +60,7 @@
   - 当前 canonical Profile：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\400个火爆音色\AD学姐.json`
   - 参考音频：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\400个火爆音色\AD学姐.mp3`
   - 当前用户听写 `prompt_text`：`刀不锋利马太瘦，你拿什么跟我斗？`
-  - Whisper CLI medium 复核输出：`刀屋鋒利 馬太獸 / 你拿什麼跟我鬥`，属于同音错字，最终 JSON 以用户听写校正文本为准。
+  - Whisper CLI large-v3-turbo 复核输出：`刀屋锋利 马太瘦 / 你拿什么跟我斗`，仍有“刀屋/刀不”同音错字，最终 JSON 以用户听写校正文本为准。
   - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`
   - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\result.json`
   - 关键结果：AD学姐 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 3 次平均首包 `2.480s`，RTF `0.163`，GPU after 约 `4744 MiB`。
@@ -148,7 +148,9 @@
 15. Whisper ASR CLI 已可供 Codex 自动调用：
    - GUI：`D:\software\WhisperDesktop\WhisperDesktop.exe`
    - CLI：`D:\software\whisper-codex\transcribe.cmd`
-   - 模型：`D:\software\WhisperDesktop\models\ggml-medium.bin`
+   - 默认模型：`D:\software\Vibe\model\ggml-large-v3-turbo.bin`
+   - 旧 medium 备用模型：`D:\software\WhisperDesktop\models\ggml-medium.bin`，需要时用 `-Model` 手动指定。
+   - 旧 AppData 副本：`C:\Users\Administrator\AppData\Local\github.com.thewh1teagle.vibe\ggml-large-v3-turbo.bin`，不要自动删除。
    - 示例：`D:\software\whisper-codex\transcribe.cmd "D:\path\audio.mp3" "D:\path\out"`
    - 直接支持 `wav` / `mp3` / `flac` / `ogg`，已验证 RTX 3060 CUDA 正常启用并输出 txt。来源是官方 whisper.cpp v1.8.5：`https://github.com/ggml-org/whisper.cpp/releases/tag/v1.8.5`。Codex 本机记忆：`C:\Users\Administrator\.codex\memories\whisper-codex.md`。后续修 Voice Profile 时先用 CLI 转写，再人工校对后写入 `prompt_text`。
 

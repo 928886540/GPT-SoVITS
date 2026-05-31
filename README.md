@@ -136,11 +136,12 @@ Adapter 当前会监听 `0.0.0.0:9880`，并给 Tavo/WebView 请求加 CORS：`a
 
 `prompt_text` 必须是参考音频逐字稿，不能用音色介绍文案代替。2026-05-31 实测 `400个火爆音色/AD学姐.mp3` 原先误写成“你好，我是AD学姐...”介绍词，实际用户听到的是“刀不锋利马太瘦，你拿什么跟我斗？”，这类错逐字稿会让 GPT-SoVITS 对齐条件错误并放大参考词泄漏/复读问题。AD学姐只保留 `400个火爆音色/AD学姐` 一个 canonical profile，不再创建 `女声/AD学姐` 重复别名。
 
-本机 Whisper ASR 已有 GUI 和 CLI 两套入口。用户手动校对可用 `D:\software\WhisperDesktop\WhisperDesktop.exe`；Codex 自动转写用 `D:\software\whisper-codex\transcribe.cmd`，共用模型 `D:\software\WhisperDesktop\models\ggml-medium.bin`。CLI 用法：
+本机 Whisper ASR 已有 GUI 和 CLI 两套入口。用户手动校对可用 `D:\software\WhisperDesktop\WhisperDesktop.exe`；Codex 自动转写用 `D:\software\whisper-codex\transcribe.cmd`。CLI 默认模型已切到 Vibe 迁移后的 `D:\software\Vibe\model\ggml-large-v3-turbo.bin`，旧 medium 模型 `D:\software\WhisperDesktop\models\ggml-medium.bin` 仅作为 `-Model` 手动覆盖备用。旧 AppData 模型副本 `C:\Users\Administrator\AppData\Local\github.com.thewh1teagle.vibe\ggml-large-v3-turbo.bin` 不自动删除。CLI 用法：
 
 ```powershell
 D:\software\whisper-codex\transcribe.cmd "D:\path\audio.wav"
 D:\software\whisper-codex\transcribe.cmd "D:\path\audio.mp3" "D:\path\out"
+D:\software\whisper-codex\transcribe.cmd "D:\path\audio.wav" -Model "D:\software\WhisperDesktop\models\ggml-medium.bin"
 ```
 
 CLI 直接支持 `wav` / `mp3` / `flac` / `ogg`，已用测试音频验证 RTX 3060 CUDA 可用并能输出 txt。Codex 本机记忆写在 `C:\Users\Administrator\.codex\memories\whisper-codex.md`；来源是官方 whisper.cpp v1.8.5：`https://github.com/ggml-org/whisper.cpp/releases/tag/v1.8.5`。后续批量建 Voice Profile 时，先用 CLI 转写参考音频，再人工听一遍修正标点和错字，最后把确认后的逐字稿写入 JSON `prompt_text`；不要再从音色标题、介绍文案或旧 IndexTTS2 脚本里猜。
