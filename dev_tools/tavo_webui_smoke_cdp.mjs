@@ -234,7 +234,9 @@ try {
       const lazyPlay = document.querySelector('[data-role="lazy-play"]');
       lazyPlay.click();
       await waitFor(() => document.querySelector('[data-role="gear"]'), 5000);
+      await sleep(600);
       const pickerOpenAfterLazyPlay = !!document.querySelector('.idx-picker[open]');
+      const panelOpenAfterLazyPlay = !!document.querySelector('.idx-panel[open]');
       const gear = document.querySelector('[data-role="gear"]');
       gear.click();
       await waitFor(() => document.querySelector('.idx-panel[open]'), 5000);
@@ -270,7 +272,7 @@ try {
       const globalHasVoiceConfig = ["defaultVoice", "roleVoiceList", "roleVoicesText"].some((key) => Object.prototype.hasOwnProperty.call(globalCfg, key));
       const characterHasVoiceConfig = !!(charCfg.defaultVoice && Array.isArray(charCfg.roleVoiceList) && charCfg.roleVoiceList.length);
       window.__idxTest.clearFetchLog();
-      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys, panelFixed, panelInViewport, scrollDelta: Math.abs(window.scrollY - beforeY), pickerOpenAfterLazyPlay };
+      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys, panelFixed, panelInViewport, scrollDelta: Math.abs(window.scrollY - beforeY), pickerOpenAfterLazyPlay, panelOpenAfterLazyPlay };
     })()`, true);
     await sleep(500);
     pickerCheck.voicePreviewNetworkDelta = voicePreviewRequestCount(cdp) - previewBefore;
@@ -406,7 +408,8 @@ try {
     pickerCheck.panelFixed === true &&
     pickerCheck.panelInViewport === true &&
     pickerCheck.scrollDelta <= 2 &&
-    pickerCheck.pickerOpenAfterLazyPlay === false;
+    pickerCheck.pickerOpenAfterLazyPlay === false &&
+    pickerCheck.panelOpenAfterLazyPlay === false;
   const mediaArtworkOk = !summary.mediaArtwork.length ||
     (summary.mediaArtwork[0].src && !/tavo-now-playing-cover\.png/.test(summary.mediaArtwork[0].src));
   const runtimeLazyLoaded = cdp.requests.some((r) => new URL(r.url).pathname.includes('/static/tavo.runtime.js')) ||

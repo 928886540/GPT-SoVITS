@@ -4,7 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260531-restore-snapshot-card-v2";
+  var LOADER_VERSION = "20260531-restore-snapshot-card-v3";
 
   function deriveBaseUrl(src) {
     var raw = String(src || "").trim();
@@ -55,7 +55,8 @@
       ".idx-lazy-play{width:58px;height:58px;border-radius:50%;border:1px solid rgba(206,170,230,.30);background:rgba(20,14,28,.58);color:#eee7f4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:0 0 auto}",
       ".idx-lazy-play svg{width:26px;height:26px;fill:currentColor}.idx-lazy-play[data-loading='1']{opacity:.65;cursor:progress}",
       ".idx-lazy-main{min-width:0;flex:1;cursor:pointer}.idx-lazy-title{font-size:17px;font-weight:800;color:#e9c8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-lazy-status{margin-top:4px;font-size:12px;color:rgba(238,231,244,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-      ".idx-lazy-progress{height:4px;margin-top:8px;background:rgba(206,170,230,.13);border-radius:999px;overflow:hidden}.idx-lazy-progress span{display:block;height:100%;background:linear-gradient(90deg,#c890e8,#8ecbff);border-radius:inherit}"
+      ".idx-lazy-progress{height:4px;margin-top:8px;background:rgba(206,170,230,.13);border-radius:999px;overflow:hidden}.idx-lazy-progress span{display:block;height:100%;background:linear-gradient(90deg,#c890e8,#8ecbff);border-radius:inherit}",
+      ".idx-tts[data-touch-guard='1']{pointer-events:none!important}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -154,6 +155,8 @@
         try { window.__gptsovits_tavo_runtime_script_override = loaderScript; } catch (_) {}
       }).then(function () {
         root.setAttribute("data-runtime-loaded", "1");
+        root.setAttribute("data-touch-guard", "1");
+        setTimeout(function () { try { root.removeAttribute("data-touch-guard"); } catch (_) {} }, 450);
         return clickSelector;
       }).catch(function (e) {
         bootPromise = null;
@@ -171,7 +174,7 @@
         if (btn) btn.click();
       }).catch(function (e) { try { console.error("[GPT-SoVITS TAVO loader]", e && e.message ? e.message : e); } catch (_) {} });
     }
-    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); if (latest) route('[data-role="play"]'); else mountRuntime(""); });
+    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); mountRuntime(""); });
     on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); mountRuntime(""); });
     on($(root, '[data-role="lazy-open"]'), "keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); mountRuntime(""); } });
   } catch (e) {
