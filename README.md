@@ -146,6 +146,24 @@ D:\software\whisper-codex\transcribe.cmd "D:\path\audio.wav" -Model "D:\software
 
 CLI 直接支持 `wav` / `mp3` / `flac` / `ogg`，已用测试音频验证 RTX 3060 CUDA 可用并能输出 txt。Codex 本机记忆写在 `C:\Users\Administrator\.codex\memories\whisper-codex.md`；来源是官方 whisper.cpp v1.8.5：`https://github.com/ggml-org/whisper.cpp/releases/tag/v1.8.5`。后续批量建 Voice Profile 时，先用 CLI 转写参考音频，再人工听一遍修正标点和错字，最后把确认后的逐字稿写入 JSON `prompt_text`；不要再从音色标题、介绍文案或旧 IndexTTS2 脚本里猜。
 
+## Codex 生图接口
+
+本机后续需要生成图片时，优先使用用户提供的 OpenAI-compatible images API：
+
+- Base URL: `https://tizenry.xyz/v1`
+- Model: `gpt-image-2`
+- API shape: 标准 OpenAI images 接口，Base URL 写到 `/v1`。
+- Key: 不写入仓库文件；运行时从专用环境变量读取，避免覆盖其他 OpenAI key。
+
+示例环境变量：
+
+```powershell
+$env:TIZENRY_IMAGE_BASE_URL = "https://tizenry.xyz/v1"
+$env:TIZENRY_IMAGE_API_KEY = "<local-secret>"
+```
+
+本机可把真实 key 放到 `local_private/image_api_tizenry.ps1`，该目录被 `.gitignore` 忽略，不提交。注意：不要把真实 API key 提交到 git，也不要写入 README、报告或代码。
+
 已补 Profile：
 
 - `D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\女声\风韵少妇.json`

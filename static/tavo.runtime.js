@@ -4,7 +4,7 @@
   var script = (typeof window !== "undefined" && window.__gptsovits_tavo_runtime_script_override) || document.currentScript;
   var STYLE_ID = "gptsovits-tavo-player-v1";
   var CONFIG_KEY = "gptsovits_tavo_config_v1";
-  var CONFIG_VERSION = 11;
+  var CONFIG_VERSION = 13;
   var CHAR_SCOPE_CONFIG_KEY = "gptsovits_tavo_character_config_v1";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   // 角色级配置: defaultVoice + roleVoiceList。LLM/api/mode 参数走全局。
@@ -39,6 +39,55 @@
     if (role === "narrator") return "旁白";
     if (role === "你" || role === "user" || role === "User" || role === "我") return "用户";
     return role;
+  }
+  function cleanUserAlias(value) {
+    var alias = String(value || "").trim()
+      .replace(/^[\s"'“”‘’《》「」『』【】(\[（]+/, "")
+      .replace(/[\s"'“”‘’《》「」『』【】)\]）]+$/, "");
+    if (!alias || alias.length < 2 || alias.length > 16) return "";
+    if (/[\r\n\t]/.test(alias)) return "";
+    if (/^(旁白|用户|角色|当前角色|默认用户身份|user|you|我|你)$/i.test(alias)) return "";
+    if (/^(一个|一名|默认|当前|男人|女人|男主|女主)$/.test(alias)) return "";
+    return alias;
+  }
+  function pushUserAlias(out, value) {
+    var alias = cleanUserAlias(value);
+    if (alias && out.indexOf(alias) < 0) out.push(alias);
+  }
+  function collectUserAliasesFromText(text, out) {
+    var s = String(text || "");
+    var patterns = [
+      /(?:姓名|名字|本名|真名|用户名|身份名|角色名|称呼)\s*[：:=是为]*\s*([A-Za-z0-9_\-\u4e00-\u9fff·]{2,16})/g,
+      /(?:我叫|我名叫|我名为|你叫|你名叫|你名为|扮演|饰演|角色是|身份是)\s*([A-Za-z0-9_\-\u4e00-\u9fff·]{2,16})/g,
+      /[（(【\[]([A-Za-z0-9_\-\u4e00-\u9fff·]{2,16})[）)】\]]/g
+    ];
+    patterns.forEach(function (re) {
+      var m;
+      while ((m = re.exec(s))) pushUserAlias(out, m[1]);
+    });
+  }
+  function collectUserAliasesFromPersona(persona, out) {
+    if (!persona || typeof persona !== "object") return "";
+    ["name", "nickname", "displayName", "display_name", "alias", "title"].forEach(function (key) {
+      pushUserAlias(out, persona[key]);
+    });
+    var desc = String(persona.description || persona.desc || persona.profile || persona.prompt || "");
+    collectUserAliasesFromText(desc, out);
+    return desc;
+  }
+  function normalizedUserAliases(context) {
+    var out = [];
+    context = context || {};
+    pushUserAlias(out, context.userName);
+    (Array.isArray(context.userAliases) ? context.userAliases : []).forEach(function (alias) {
+      pushUserAlias(out, alias);
+    });
+    return out;
+  }
+  function isUserRoleName(role, context) {
+    role = String(role || "").trim();
+    if (role === "你" || role === "user" || role === "User" || role === "用户") return true;
+    return normalizedUserAliases(context).indexOf(role) >= 0;
   }
   function voiceForRoleNames(list, names, characterRoleName, previousCharacterRoleName) {
     list = (list && Array.isArray(list)) ? list : [];
@@ -423,13 +472,30 @@
     return (list || []).filter(function (r) { return r.role && r.voice; })
       .map(function (r) { return r.role + "=" + r.voice; }).join("\n");
   }
-  function rolesListToVoicesMap(list, defaultVoice, characterRoleName) {
+  function rolesListToVoicesMap(list, defaultVoice, characterRoleName, context) {
     var normalized = normalizeRoleVoiceList(list || [], characterRoleName);
     var out = { default: defaultVoice || "" };
     (normalized || []).forEach(function (r) {
       if (r.role && r.voice) out[r.role] = r.voice;
     });
+    var userVoice = out["用户"] || voiceForRoleNames(normalized, ["用户", "你", "user", "我"], characterRoleName);
+    if (userVoice) {
+      normalizedUserAliases(context).forEach(function (alias) {
+        if (alias && !out[alias]) out[alias] = userVoice;
+      });
+    }
     return out;
+  }
+  function missingVoiceRolesForSegments(segments, voicesMap) {
+    var missing = [];
+    var seen = {};
+    (segments || []).forEach(function (seg) {
+      var role = String((seg && seg.role) || "旁白").trim() || "旁白";
+      if (seen[role]) return;
+      seen[role] = true;
+      if (!voicesMap || !voicesMap[role]) missing.push(role);
+    });
+    return missing;
   }
   var OFFLINE_DB_NAME = "indextts_tavo_audio_v1";
   var OFFLINE_DB_STORE = "audio";
@@ -511,6 +577,8 @@
     var messageId = "";
     var userName = "";
     var userAvatarUrl = "";
+    var userAliases = [];
+    var userDescription = "";
     try {
       if (window.tavo && tavo.message && typeof tavo.message.current === "function") {
         var msg = await tavo.message.current();
@@ -534,11 +602,13 @@
         var chat = await tavo.chat.current();
         if (chat && chat.persona) {
           userName = String(chat.persona.name || "").trim();
+          userDescription = collectUserAliasesFromPersona(chat.persona, userAliases) || userDescription;
           userAvatarUrl = userAvatarUrl || pickAvatarUrl(chat.persona);
           if (chat.persona.id != null && window.tavo && tavo.persona && typeof tavo.persona.get === "function") {
             var persona = await tavo.persona.get(chat.persona.id);
             if (persona) {
               userName = String(persona.name || userName || "").trim();
+              userDescription = collectUserAliasesFromPersona(persona, userAliases) || userDescription;
               userAvatarUrl = userAvatarUrl || pickAvatarUrl(persona);
             }
           }
@@ -562,7 +632,8 @@
     var cleanText = text.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\[IndexTTS_TAVO_SCRIPT\]/g, "").trim();
     if (!messageId) messageId = domMessageId(msgEl);
     if (!messageId && cleanText) messageId = "message-" + stableHash(cleanText);
-    return { text: cleanText, avatarUrl: avatarUrl, characterName: characterName, characterId: characterId, messageId: messageId, userName: userName, userAvatarUrl: userAvatarUrl };
+    pushUserAlias(userAliases, userName);
+    return { text: cleanText, avatarUrl: avatarUrl, characterName: characterName, characterId: characterId, messageId: messageId, userName: userName, userAliases: userAliases, userDescription: shortText(userDescription, 900), userAvatarUrl: userAvatarUrl };
   }
   // 每条消息的播放历史持久化：key = "indextts_tracks_<messageId>"。
   // 只存可重建的元信息（cacheKey + voice + mode + offlineKey），不存 blob。
@@ -1313,19 +1384,23 @@
     // 跟前端 voicesMap 严格对齐(否则后端归一可能错位)。
     context = context || {};
     var userName = String(context.userName || "").trim();
+    var userAliases = normalizedUserAliases(context);
+    var userAliasText = userAliases.length ? userAliases.join(" / ") : (userName || "未读取到");
     var currentCharacterName = String(context.characterName || "").trim();
     var knownRoles = ((cfg.roleVoiceList || []).map(function (r) { return String(r.role || "").trim(); }).filter(function (r) { return r && r !== "角色" && r !== "我"; }));
     if (knownRoles.indexOf("旁白") < 0) knownRoles.unshift("旁白");
     if (knownRoles.indexOf("用户") < 0) knownRoles.splice(1, 0, "用户");
     if (currentCharacterName && knownRoles.indexOf(currentCharacterName) < 0) knownRoles.push(currentCharacterName);
     var rolesHint = "已知角色名单(LLM 输出 role 字段必须从这里选,或者用剧情里出现的新人物名):\n  " + knownRoles.join(" / ") + "\n";
-    var userAliasHint = "用户身份名: " + (userName || "未读取到") + "。只有原文中的「你」以及这个用户身份名明确指向玩家/读者时，role 才写 \"用户\"。";
+    var userAliasHint = "用户身份名/别名: " + userAliasText + "。只有原文中的「你」以及这些身份名/别名明确指向玩家/读者时，role 才写 \"用户\"。";
+    var userProfileHint = context.userDescription ? "用户身份资料(只用于判断别名，不朗读): " + shortText(context.userDescription, 900) : "";
     var characterHint = "当前角色名: " + (currentCharacterName || "未读取到") + "。原文第一人称「我」通常指当前角色或正在自述的人物，不要因为出现「我」就改成用户。";
     var prompt = [
       "你是中文小说→TTS 片段拆分器。只返回严格 JSON，不要任何解释，不要 ``` 代码块。",
       "",
       rolesHint,
       userAliasHint,
+      userProfileHint,
       characterHint,
       "输出格式：",
       "{\"segments\":[{\"role\":\"...\",\"text\":\"...\",\"style\":\"neutral\",\"style_alpha\":0.2}]}",
@@ -1428,7 +1503,7 @@
         role = "旁白";
         style = "neutral";
         styleAlpha = 0.15;
-      } else if (role === "你" || role === "user" || role === "User" || (userName && role === userName)) {
+      } else if (isUserRoleName(role, context)) {
         role = "用户";
       }
       if (role === "旁白") {
@@ -1488,7 +1563,7 @@
       '  <div class="idx-top"><div class="idx-cover" data-role="cover"></div><div class="idx-info"><div class="idx-title-row"><div class="idx-name" data-role="title"></div></div><div class="idx-status" data-role="status">选择音色后点播放</div></div></div>',
       '  <div class="idx-seek-wrap"><input class="idx-seek" data-role="seek" type="range" min="0" max="1000" value="0" disabled><div class="idx-time"><span data-role="current">00:00</span><span data-role="total">--:--</span></div></div>',
       '  <div class="idx-subtitle" data-role="subtitle"><div class="idx-sub-notice"><strong>准备生成语音</strong><span>点播放开始生成音频</span></div></div>',
-      '  <div class="idx-controls"><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="prev" aria-label="上一首" title="上一首"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><button class="idx-ctrl idx-ctrl-main" type="button" data-role="play" data-state="idle" aria-label="播放">' + playIcon("idle") + '</button><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="next" aria-label="下一首" title="下一首"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-10.5 0v12l8.5-6z"/></svg></button><button class="idx-ctrl idx-ctrl-add" type="button" data-role="add" aria-label="生成音频" title="生成音频"><svg viewBox="0 0 24 24"><path d="M12 3v9.55A4 4 0 1 0 14 16V7h4V3z"/></svg></button><button class="idx-ctrl idx-ctrl-delete" type="button" data-role="delete" aria-label="删除当前音频" title="删除当前音频"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9zm1 11c-1.1 0-2-.9-2-2V8h12v10c0 1.1-.9 2-2 2H8z"/></svg></button></div>',
+      '  <div class="idx-controls"><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="prev" aria-label="上一条历史音频" title="上一条历史音频"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button><button class="idx-ctrl idx-ctrl-main" type="button" data-role="play" data-state="idle" aria-label="播放">' + playIcon("idle") + '</button><button class="idx-ctrl idx-ctrl-sm" type="button" data-role="next" aria-label="下一条历史音频" title="下一条历史音频"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-10.5 0v12l8.5-6z"/></svg></button><button class="idx-ctrl idx-ctrl-add" type="button" data-role="add" aria-label="生成音频" title="生成音频"><svg viewBox="0 0 24 24"><path d="M12 3v9.55A4 4 0 1 0 14 16V7h4V3z"/></svg></button><button class="idx-ctrl idx-ctrl-delete" type="button" data-role="delete" aria-label="删除当前音频" title="删除当前音频"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9zm1 11c-1.1 0-2-.9-2-2V8h12v10c0 1.1-.9 2-2 2H8z"/></svg></button></div>',
       '  <dialog class="idx-panel" data-role="panel">'
         + '<div class="idx-panel-head"><div class="idx-panel-title">语音设置</div><button class="idx-close" type="button" data-role="close">×</button></div>'
         + '<div class="idx-section-title">播放模式</div>'
@@ -1644,7 +1719,7 @@
     }
     function currentTrack() { return currentTrackIndex >= 0 ? generatedTracks[currentTrackIndex] : null; }
     function currentVoicesMap(track) {
-      return (track && track.voicesMap) || rolesListToVoicesMap(cfg.roleVoiceList, cfg.defaultVoice, cfg.currentCharacterName);
+      return (track && track.voicesMap) || rolesListToVoicesMap(cfg.roleVoiceList, cfg.defaultVoice, cfg.currentCharacterName, context);
     }
     function voiceNameForRole(role, track) {
       var voices = currentVoicesMap(track);
@@ -1662,14 +1737,24 @@
     function cloneSegments(segments) {
       try { return JSON.parse(JSON.stringify(segments || [])); } catch (_) { return []; }
     }
+    function normalizeSegmentsForContext(segments, context) {
+      return cloneSegments(segments).map(function (seg) {
+        if (!seg || typeof seg !== "object") seg = {};
+        var role = String(seg.role || "旁白").trim() || "旁白";
+        if (isUserRoleName(role, context)) role = "用户";
+        seg.role = role;
+        return seg;
+      });
+    }
     function parseReuseFingerprint(text) {
       var roles = normalizeRoleVoiceList(cfg.roleVoiceList || [], cfg.currentCharacterName)
         .map(function (r) { return String((r && r.role) || "").trim(); })
         .filter(Boolean);
       return JSON.stringify({
-        v: 1,
+        v: 2,
         text: String(text || ""),
         userName: String((context && context.userName) || ""),
+        userAliases: normalizedUserAliases(context),
         characterName: String((context && context.characterName) || cfg.currentCharacterName || ""),
         roles: roles,
         llmEndpoint: String(cfg.llmEndpoint || ""),
@@ -1680,7 +1765,7 @@
       var owner = messageId ? String(messageId) : "message-" + parseReuseHash(messageText || "");
       return "gptsovits_llm_parse_" + parseReuseHash(owner) + "_" + parseReuseHash(fingerprint);
     }
-    async function loadReusableSegments(text) {
+    async function loadReusableSegments(text, context) {
       if (cfg.reuseLlmParse === false) return null;
       var fingerprint = parseReuseFingerprint(text);
       var key = parseReuseStorageKey(fingerprint);
@@ -1692,7 +1777,7 @@
       if (!record || record.fingerprint !== fingerprint || !Array.isArray(record.segments) || !record.segments.length) return null;
       debugLog("♻️ 复用 LLM 拆段 cacheKey=" + key + " segments=" + record.segments.length, "#9f9");
       setStatus("复用 LLM 拆段 " + record.segments.length + " 段");
-      return cloneSegments(record.segments);
+      return normalizeSegmentsForContext(record.segments, context);
     }
     async function saveReusableSegments(text, segments) {
       if (cfg.reuseLlmParse === false || !Array.isArray(segments) || !segments.length) return;
@@ -1704,7 +1789,7 @@
       debugLog("💾 保存 LLM 拆段复用 cacheKey=" + key + " segments=" + segments.length, "#9ff");
     }
     async function parseWithOptionalReuse(text, cfg, setStatus, context) {
-      var cached = await loadReusableSegments(text);
+      var cached = await loadReusableSegments(text, context);
       if (cached && cached.length) return cached;
       var segments = await parseWithLlm(text, cfg, setStatus, context);
       await saveReusableSegments(text, segments);
@@ -3989,7 +4074,11 @@
           var roleSummary = Object.keys(roleCounts).map(function (r) { return r + "×" + roleCounts[r]; }).join(", ");
           setStatus("开始合成 " + segments.length + " 段…");
           showTrackNotice(placeholder, "开始合成 " + segments.length + " 段…", roleSummary);
-          var voicesMap = rolesListToVoicesMap(cfg.roleVoiceList, cfg.defaultVoice, cfg.currentCharacterName);
+          var voicesMap = rolesListToVoicesMap(cfg.roleVoiceList, cfg.defaultVoice, cfg.currentCharacterName, context);
+          var missingRoles = missingVoiceRolesForSegments(segments, voicesMap);
+          if (missingRoles.length) {
+            throw new Error("LLM 返回了未配置音色的角色：" + missingRoles.join("、") + "。请在“角色音色映射”里添加这些名字，或把它们写进用户身份别名。");
+          }
           debugLog("🎙️ 音色映射: " + JSON.stringify(voicesMap), "#ffd479");
           body = Object.assign({ segments: segments, voices: voicesMap, performance_mode: cfg.qualityMode || "balanced", interval_ms: cfg.intervalMs, top_p: cfg.topP, top_k: cfg.topK, temperature: cfg.temperature, repetition_penalty: cfg.repetitionPenalty, speed_factor: clampNumber(cfg.speedFactor || 1.0, 1.0, 0.85, 1.25) }, generationQualityOverrides(cfg.qualityMode));
           var ttsStart = Date.now();

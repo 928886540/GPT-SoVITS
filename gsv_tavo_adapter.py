@@ -571,7 +571,6 @@ def _synthesize_dialogue_to_cache(
     if not segments:
         raise ValueError("segments is empty")
 
-    default_profile = _pick_default_profile(payload, profiles)
     pcm_parts: list[bytes] = []
     segments_meta: list[dict[str, Any]] = []
     sample_rate: Optional[int] = None
@@ -582,9 +581,7 @@ def _synthesize_dialogue_to_cache(
     started = time.perf_counter()
 
     for index, segment in enumerate(segments):
-        profile = profiles.get(segment["role"]) or default_profile
-        if not profile:
-            raise ValueError(f"no voice profile for role {segment['role']!r}")
+        profile = _profile_for_segment(payload, profiles, segment)
         req_payload = _official_payload_for_segment(segment, profile, payload)
         _log_official_segment_request("cache", index, segment, profile, req_payload)
         audio_bytes, first_s, total_s = _post_official_tts(req_payload)
@@ -655,7 +652,6 @@ def _stream_dialogue_to_cache(
     if not segments:
         raise ValueError("segments is empty")
 
-    default_profile = _pick_default_profile(payload, profiles)
     pcm_parts: list[bytes] = []
     segments_meta: list[dict[str, Any]] = []
     sample_rate: Optional[int] = None
@@ -671,9 +667,7 @@ def _stream_dialogue_to_cache(
 
     try:
         for index, segment in enumerate(segments):
-            profile = profiles.get(segment["role"]) or default_profile
-            if not profile:
-                raise ValueError(f"no voice profile for role {segment['role']!r}")
+            profile = _profile_for_segment(payload, profiles, segment)
             req_payload = _official_payload_for_segment(segment, profile, payload)
             req_payload["streaming_mode"] = payload.get("streaming_mode") or 2
             req_payload["media_type"] = "wav"
@@ -799,6 +793,23 @@ def _pick_default_profile(payload: dict[str, Any], profiles: dict[str, Optional[
             return profile
     default_voice = str(payload.get("default_voice") or "local_huihui").strip()
     return voice_library.get_voice_profile(default_voice)
+
+
+def _profile_for_segment(
+    payload: dict[str, Any],
+    profiles: dict[str, Optional[dict[str, Any]]],
+    segment: dict[str, Any],
+) -> dict[str, Any]:
+    role = str(segment.get("role") or "旁白").strip() or "旁白"
+    profile = profiles.get(role)
+    if profile:
+        return profile
+    if role in {"default", "角色", "当前角色"}:
+        profile = _pick_default_profile(payload, profiles)
+        if profile:
+            return profile
+    configured = "、".join(sorted(k for k, v in profiles.items() if v)) or "(none)"
+    raise ValueError(f"no voice profile for role {role!r}; configured roles: {configured}")
 
 
 def _official_payload_for_segment(segment: dict[str, Any], profile: dict[str, Any], request_payload: dict[str, Any]) -> dict[str, Any]:

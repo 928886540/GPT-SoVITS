@@ -4,7 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260531-lan-webview-layer-v9";
+  var LOADER_VERSION = "20260531-lan-webview-layer-v11";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -159,6 +159,37 @@
     try { var raw = localStorage.getItem(key); var arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch (_) {}
     return [];
   }
+  function updateLazyHistory(root, messageId) {
+    if (!root || !messageId) return;
+    var latest = latestTrack(messageId);
+    var historyCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
+    var status = $(root, '[data-role="lazy-status"]');
+    var progress = $(root, '.idx-lazy-progress span');
+    var title = $(root, '.idx-lazy-title');
+    var resumeSec = latest ? Math.max(0, Number(latest.lastElementSec || latest.lastWebAudioSec || 0) || 0) : 0;
+    if (title && latest && latest.voice) title.textContent = shortName(latest.voice);
+    if (status) status.textContent = latest ? ('历史音频 ' + historyCount + ' 条 · ' + formatTime(resumeSec)) : '历史音频 0 条 · 点开播放器';
+    if (progress) progress.style.width = (latest && latest.duration_s ? Math.max(2, Math.min(100, resumeSec / Number(latest.duration_s || 1) * 100)) : 0) + '%';
+  }
+  function refreshLazyHistoryAsync(root, messageId) {
+    if (!root || !messageId || !window.tavo || typeof window.tavo.get !== "function") return;
+    var key = TRACKS_KEY_PREFIX + messageId;
+    function storeAndUpdate(value) {
+      if (!Array.isArray(value) || !value.length) return;
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+      updateLazyHistory(root, messageId);
+    }
+    try {
+      var chatValue = window.tavo.get(key, "chat");
+      if (chatValue && typeof chatValue.then === "function") chatValue.then(storeAndUpdate).catch(function () {});
+      else storeAndUpdate(chatValue);
+    } catch (_) {}
+    try {
+      var globalValue = window.tavo.get(key, "global");
+      if (globalValue && typeof globalValue.then === "function") globalValue.then(storeAndUpdate).catch(function () {});
+      else storeAndUpdate(globalValue);
+    } catch (_) {}
+  }
   function latestTrack(messageId) {
     var arr = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); });
     return arr.length ? arr[arr.length - 1] : null;
@@ -221,6 +252,7 @@
       '  </div>',
       '</div>'
     ].join("");
+    refreshLazyHistoryAsync(root, messageId);
 
     var bootPromise = null;
     function mountRuntime(clickSelector) {

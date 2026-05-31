@@ -33,6 +33,7 @@ __pycache__/
 *.log
 *.err
 *.out
+local_private/
 
 # Local long-form/private benchmark reports
 reports/v4_mature_sister_balanced_20260531/
