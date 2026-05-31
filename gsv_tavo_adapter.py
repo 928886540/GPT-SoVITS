@@ -644,6 +644,11 @@ def _pick_default_profile(payload: dict[str, Any], profiles: dict[str, Optional[
 def _official_payload_for_segment(segment: dict[str, Any], profile: dict[str, Any], request_payload: dict[str, Any]) -> dict[str, Any]:
     defaults = dict(profile.get("default_params") or {})
     parallel_infer = request_payload.get("parallel_infer")
+
+    def request_or_default(key: str, default: Any) -> Any:
+        value = request_payload.get(key)
+        return default if value is None else value
+
     segment_aux_paths = _style_aux_ref_audio_paths(segment.get("style"), segment.get("style_alpha"))
     aux_ref_audio_paths = (
         segment_aux_paths
@@ -658,21 +663,21 @@ def _official_payload_for_segment(segment: dict[str, Any], profile: dict[str, An
         "ref_audio_path": profile.get("ref_audio_path") or "",
         "prompt_text": profile.get("prompt_text") or "",
         "prompt_lang": profile.get("prompt_lang") or "zh",
-        "top_k": request_payload.get("top_k", defaults.get("top_k", 15)),
-        "top_p": request_payload.get("top_p", defaults.get("top_p", 1.0)),
-        "temperature": request_payload.get("temperature", defaults.get("temperature", 1.0)),
+        "top_k": request_or_default("top_k", defaults.get("top_k", 15)),
+        "top_p": request_or_default("top_p", defaults.get("top_p", 1.0)),
+        "temperature": request_or_default("temperature", defaults.get("temperature", 1.0)),
         "text_split_method": request_payload.get("text_split_method") or defaults.get("text_split_method", "cut5"),
-        "batch_size": request_payload.get("batch_size") or defaults.get("batch_size", 1),
+        "batch_size": request_or_default("batch_size", defaults.get("batch_size", 1)),
         "batch_threshold": defaults.get("batch_threshold", 0.75),
         "split_bucket": defaults.get("split_bucket", True),
-        "speed_factor": request_payload.get("speed_factor", defaults.get("speed_factor", 1.0)),
+        "speed_factor": request_or_default("speed_factor", defaults.get("speed_factor", 1.0)),
         "fragment_interval": defaults.get("fragment_interval", 0.3),
         "seed": defaults.get("seed", -1),
         "media_type": "wav",
         "streaming_mode": False,
         "parallel_infer": defaults.get("parallel_infer", True) if parallel_infer is None else parallel_infer,
-        "repetition_penalty": request_payload.get("repetition_penalty", defaults.get("repetition_penalty", 1.35)),
-        "sample_steps": request_payload.get("sample_steps", defaults.get("sample_steps", 32)),
+        "repetition_penalty": request_or_default("repetition_penalty", defaults.get("repetition_penalty", 1.35)),
+        "sample_steps": request_or_default("sample_steps", defaults.get("sample_steps", 32)),
         "super_sampling": defaults.get("super_sampling", False),
         "overlap_length": defaults.get("overlap_length", 2),
         "min_chunk_length": defaults.get("min_chunk_length", 16),

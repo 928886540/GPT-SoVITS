@@ -1,5 +1,5 @@
 {
-  "name": "女声/AD学姐",
+  "name": "400个火爆音色/AD学姐",
   "ref_audio_path": "D:/apiWorkSpace/GPT-SoVITS/Leon_api/prompts/library/400个火爆音色/AD学姐.mp3",
   "prompt_text": "你好,我是AD学姐。今天有什么想聊的,慢慢说,我陪着你。",
   "prompt_lang": "zh",
@@ -18,5 +18,5 @@
     "overlap_length": 2,
     "min_chunk_length": 16
   },
-  "notes": "Alias to 400个火爆音色/AD学姐.mp3 because the previous 女声/AD学姐.wav sample was low quality for product testing."
+  "notes": "Volink fire-hot voice source. Prompt text from old IndexTTS2 dev_tools/volink_replace.py; needs later word-for-word check against current mp3."
 }

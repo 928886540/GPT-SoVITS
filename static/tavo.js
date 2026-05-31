@@ -641,9 +641,15 @@
   }
   function generationQualityOverrides(mode) {
     mode = String(mode || "balanced").trim();
-    if (mode === "fast") return { diffusion_steps: 8, prompt_audio_seconds: 6, segment_tokens: 40, first_tokens: 10 };
-    if (mode === "balanced") return { diffusion_steps: 14, prompt_audio_seconds: 10, segment_tokens: 60, first_tokens: 18 };
-    return { diffusion_steps: 16, prompt_audio_seconds: 12, segment_tokens: 72, first_tokens: 24 };
+    if (mode === "fast") return { diffusion_steps: 8, sample_steps: 8, batch_size: 8, parallel_infer: true, prompt_audio_seconds: 6, segment_tokens: 40, first_tokens: 10 };
+    if (mode === "balanced") return { diffusion_steps: 14, sample_steps: 8, batch_size: 8, parallel_infer: true, prompt_audio_seconds: 10, segment_tokens: 60, first_tokens: 18 };
+    return { diffusion_steps: 16, sample_steps: 16, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 12, segment_tokens: 72, first_tokens: 24 };
+  }
+  function stripNullishFields(obj) {
+    Object.keys(obj || {}).forEach(function (k) {
+      if (obj[k] === null || typeof obj[k] === "undefined") delete obj[k];
+    });
+    return obj;
   }
   function applyGenerationParamsToSearchParams(p, cfg) {
     var q = generationQualityOverrides(cfg && cfg.qualityMode);
@@ -3819,6 +3825,7 @@
           }, 1000);
           try {
             debugLog("📡 提交 dialogue job", "#ffd479");
+            body = stripNullishFields(body);
             jobInfo = await createDialogueStreamJob(base, body);
             debugLog("🔗 cache_key=" + jobInfo.cacheKey + " cached=" + jobInfo.cached + " live=" + jobInfo.live, "#9f9");
           } finally {
