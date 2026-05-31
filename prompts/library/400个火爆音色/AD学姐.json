@@ -18,5 +18,5 @@
     "overlap_length": 2,
     "min_chunk_length": 16
   },
-  "notes": "Volink fire-hot voice source. Prompt text corrected from user listening on 2026-05-31; verify again with whisper-cli when available. Keep only this canonical AD学姐 profile; do not add a duplicate 女声/AD学姐 alias."
+  "notes": "Volink fire-hot voice source. whisper-cli medium on 2026-05-31 transcribed this as '刀屋鋒利 馬太獸 / 你拿什麼跟我鬥'; prompt_text is the user-verified normalized text. Keep only this canonical AD学姐 profile; do not add a duplicate 女声/AD学姐 alias."
 }

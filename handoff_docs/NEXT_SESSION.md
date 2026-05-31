@@ -175,6 +175,7 @@ Genie 测试脚本：
 - V4 参数扫描已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_param_sweep_20260531\REPORT.md`。旧慢结果来自 `batch_size=1` / `sample_steps=32`；长文本下 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 的 RTF 已降到 `0.191`。
 - AD学姐 canonical zero-shot profile 是：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\400个火爆音色\AD学姐.json`。不要恢复或新增 `女声\AD学姐*.json` 重复别名。
 - AD学姐当前用户听写 `prompt_text` 是：`刀不锋利马太瘦，你拿什么跟我斗？`。之前的“你好，我是AD学姐...”是介绍文案/错逐字稿，会导致 GPT-SoVITS 参考音频对齐错误和复读污染。
+- Whisper CLI medium 已复核 `400个火爆音色\AD学姐.mp3`，输出为 `刀屋鋒利 馬太獸 / 你拿什麼跟我鬥`；这是同音错字，JSON 保留用户校正后的简体逐字稿。
 - AD学姐 V4 3 组参数测试已完成，报告在 `D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`。其中 `batch_size=8` / `sample_steps=8` 三次平均 RTF `0.163`。
 - Whisper ASR 两套入口已可用：
   - 用户手动 GUI：`D:\software\WhisperDesktop\WhisperDesktop.exe`

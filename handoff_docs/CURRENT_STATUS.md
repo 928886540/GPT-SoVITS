@@ -60,6 +60,7 @@
   - 当前 canonical Profile：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\400个火爆音色\AD学姐.json`
   - 参考音频：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\prompts\library\400个火爆音色\AD学姐.mp3`
   - 当前用户听写 `prompt_text`：`刀不锋利马太瘦，你拿什么跟我斗？`
+  - Whisper CLI medium 复核输出：`刀屋鋒利 馬太獸 / 你拿什麼跟我鬥`，属于同音错字，最终 JSON 以用户听写校正文本为准。
   - 报告：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\REPORT.md`
   - 原始数据：`D:\apiWorkSpace\GPT-SoVITS\Leon_api\reports\v4_ad_xuejie_20260531\result.json`
   - 关键结果：AD学姐 `batch_size=8` / `sample_steps=8` / `parallel_infer=true` 3 次平均首包 `2.480s`，RTF `0.163`，GPU after 约 `4744 MiB`。
