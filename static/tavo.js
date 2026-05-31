@@ -4,15 +4,15 @@
   var script = document.currentScript;
   var STYLE_ID = "gptsovits-tavo-player-v1";
   var CONFIG_KEY = "gptsovits_tavo_config_v1";
-  var CONFIG_VERSION = 9;
+  var CONFIG_VERSION = 10;
   var CHAR_SCOPE_CONFIG_KEY = "gptsovits_tavo_character_config_v1";
   // 角色级配置: defaultVoice + roleVoiceList。LLM/api/mode 参数走全局。
   var CHAR_KEY_PREFIX = "gptsovits_tavo_character_v1:";
   var GLOBAL_CONFIG_FIELDS = [
     "configVersion",
     "apiBase", "mode", "endpoint", "dialogueEndpoint", "parseEndpoint",
-    "llmEndpoint", "llmModel", "llmApiKey",
-    "intervalMs", "topP", "topK", "temperature", "repetitionPenalty", "emoAlpha", "speedFactor", "qualityMode",
+    "llmEndpoint", "llmModel", "llmApiKey", "reuseLlmParse",
+    "intervalMs", "topP", "topK", "temperature", "repetitionPenalty", "speedFactor", "qualityMode",
     "offlineAudioEnabled"
   ];
   var RESERVED_ROLES = ["旁白", "用户"];  // 这两个常驻不可删；具体人物用原名或 defaultVoice
@@ -202,12 +202,12 @@
     llmEndpoint: "http://127.0.0.1:8317/v1",
     llmModel: "渡鸦/grok-4.20-fast",
     llmApiKey: "",
+    reuseLlmParse: true,
     intervalMs: 50,
     topP: 1.0,
     topK: 15,
     temperature: 1.0,
     repetitionPenalty: 1.2,
-    emoAlpha: 0.38,
     speedFactor: 1.0,
     qualityMode: "balanced",
     offlineAudioEnabled: false
@@ -348,7 +348,6 @@
       if (Number(cfg.topP) === 0.72 || Number(cfg.topP) === 0.78 || Number(cfg.topP) === 0.85) cfg.topP = 0.8;
       if (Number(cfg.temperature) === 0.62 || Number(cfg.temperature) === 0.72 || Number(cfg.temperature) === 0.78 || Number(cfg.temperature) === 0.8 || Number(cfg.temperature) === 0.85) cfg.temperature = 0.7;
       if (Number(cfg.repetitionPenalty) === 2 || Number(cfg.repetitionPenalty) === 8 || Number(cfg.repetitionPenalty) === 10) cfg.repetitionPenalty = 1.2;
-      if (Number(cfg.emoAlpha) === 0.7 || Number(cfg.emoAlpha) === 0.75 || Number(cfg.emoAlpha) === 0.55) cfg.emoAlpha = 0.38;
       if (Number(cfg.speedFactor) === 1.08) cfg.speedFactor = 1.0;
     }
     cfg.configVersion = CONFIG_VERSION;
@@ -712,28 +711,7 @@
     style = normalizeStyleId(style);
     var hit = STYLE_PRESETS.find(function (s) { return s.id === style; });
     if (hit) return Math.min(hit.alpha, style === "neutral" ? 0.20 : 0.66);
-    return Math.min(Number(cfg.emoAlpha || 0.38), 0.66);
-  }
-  function stabilizeEmoVec(vec, role, style) {
-    if (role === "旁白") return [0,0,0,0,0,0,0,1];
-    var arr = Array.isArray(vec) ? vec.slice(0, 8).map(function (v) {
-      v = Number(v);
-      return isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
-    }) : [];
-    while (arr.length < 8) arr.push(0);
-    var activeCap = style === "neutral" ? 0.34 : 0.42;
-    var activeSum = 0;
-    for (var i = 0; i < 7; i++) {
-      arr[i] = Math.min(arr[i], activeCap);
-      activeSum += arr[i];
-    }
-    var maxActiveSum = style === "neutral" ? 0.55 : 0.76;
-    if (activeSum > maxActiveSum && activeSum > 0) {
-      var scale = maxActiveSum / activeSum;
-      for (var j = 0; j < 7; j++) arr[j] = arr[j] * scale;
-    }
-    arr[7] = Math.max(style === "neutral" ? 0.60 : 0.38, Math.min(1, arr[7] || 0));
-    return arr;
+    return 0.38;
   }
   function llmMaxTokensForText(text) {
     return Math.min(12000, Math.max(4000, Math.ceil(String(text || "").length * 5)));
@@ -820,9 +798,6 @@
     var p = new URLSearchParams();
     p.set("text", text);
     p.set("ref_audio_path", cfg.defaultVoice);
-    p.set("emo_text", "");
-    p.set("emo_ref_audio_path", "");
-    p.set("emo_alpha", String(cfg.emoAlpha));
     p.set("top_p", String(cfg.topP));
     p.set("top_k", String(cfg.topK));
     p.set("temperature", String(cfg.temperature));
@@ -845,15 +820,10 @@
     return Object.assign({
       text: text,
       ref_audio_path: cfg.defaultVoice,
-      emo_text: "",
-      emo_ref_audio_path: "",
-      emo_vec: [],
-      normalize_emo_vec: false,
       top_p: cfg.topP,
       top_k: cfg.topK,
       temperature: cfg.temperature,
       repetition_penalty: cfg.repetitionPenalty,
-      emo_alpha: cfg.emoAlpha,
       bypass_cache: !!force
     }, generationQualityOverrides(cfg.qualityMode));
   }
@@ -1322,14 +1292,14 @@
       userAliasHint,
       characterHint,
       "输出格式：",
-      "{\"segments\":[{\"role\":\"...\",\"text\":\"...\",\"style\":\"neutral\",\"style_alpha\":0.2,\"emo_vec\":[h,a,s,f,d,l,u,n]}]}",
+      "{\"segments\":[{\"role\":\"...\",\"text\":\"...\",\"style\":\"neutral\",\"style_alpha\":0.2}]}",
       "",
       "拆段规则：",
       "1. 旁白（叙述、环境、动作描写、心理描写、所有无引号正文）→ role 固定为 \"旁白\"。",
       "   无论主语是不是用户身份名/当前角色名，只要不是引号里的直接台词，都必须写 \"旁白\"。",
       "   例如「白夜雨抱住她」「潘金莲低下头」「她笑了」「我低下头看着……」「白夜雨说道：」都写旁白，不要让用户或角色认领旁白。",
-      "   ⚠️ 旁白的 style 永远写 neutral，style_alpha 写 0.15，emo_vec 永远写 [0,0,0,0,0,0,0,1]（纯 neutral）。",
-      "       旁白是叙述者，本身没情绪，跟着剧情起伏会做作；后端也会强制覆盖成中性。",
+      "   ⚠️ 旁白的 style 永远写 neutral，style_alpha 写 0.15。",
+      "       旁白是叙述者，本身不使用声腔参考；后端也会强制覆盖成 neutral。",
       "   ⚠️ 旁白连续多个句子，要按句号/问号/感叹号/分号 拆成多个旁白 segments，每段≤2 句。",
       "       不要把整段旁白合并成一条 segment 偷懒。例：「她抬头看了我一眼。她哭了。」要拆成两条。",
       "2. 人物直接说出口的话 → role 用说话人的名字。",
@@ -1359,36 +1329,18 @@
       "- 如果最后一个引号后还有动作/叙述/心理描写，最后一段必须是 role=\"旁白\"。",
       "- 不确定说话人时用 role=\"旁白\"，不要沿用上一句对白角色。",
       "",
-      "emo_vec 是 8 维向量，必须严格按这个顺序（与模型情绪矩阵一致，顺序错位会让整段情绪跑偏）：",
-      "  [0]=happy 高兴    [1]=angry 愤怒    [2]=sad 悲伤     [3]=fear 恐惧",
-      "  [4]=hate 反感     [5]=low 低落      [6]=surprise 惊讶 [7]=neutral 自然",
-      "每个值 0-1。必须根据该段实际语义分析，不是随便填数。",
-      "",
-      "分析要求（极重要）：",
-      "- 每段只激活 1-2 个最匹配的维度，其他全部写 0。多维齐动 = 模型会演得做作。",
-      "  ❌ 错误示范：[0,0,0.4,0,0.5,0.6,0.3,0.1]（4 维齐动）",
-      "  ✅ 正确示范：[0,0,0.7,0,0,0,0,0.3]（只 sad 主导 + 一点 neutral）",
-      "- 平静叙述 / 客观描写 → [0,0,0,0,0,0,0,0.8]。不要混入别的。",
-      "- 哭、自责 → sad 主导。例：[0,0,0.7,0,0,0,0,0.2]",
-      "- 紧张、害怕 → fear 主导。例：[0,0,0,0.7,0,0,0,0.2]",
-      "- 撒娇、温柔 → happy 适中。例：[0.4,0,0,0,0,0,0,0.5]",
-      "- 愤怒、咆哮 → angry 主导。例：[0,0.8,0,0,0,0,0,0.1]",
-      "- 不要每段写一样；不要全 0；维度数宁少勿多。",
-      "",
-      "每段可加 emo_alpha 字段（0.12-0.52），控制情绪向量强度：",
-      "- 旁白固定 0.12-0.22，平静对白 0.20-0.30，正常带情绪对白 0.32-0.44，强烈台词 0.46-0.52。",
-      "- 不要每段都高强度；只有明确哭、怒、恐惧、惊讶、亲密气声时才超过 0.6。",
-      "style_alpha 控制声腔/情绪参考音频强度：neutral=0.12-0.20；轻微 style=0.34-0.46；明显 breath/moan/呻吟/喘息 参考=0.50-0.70；高潮 scream_peak/stage_peak 可到 0.70。",
+      "style_alpha 控制声腔参考音频强度：neutral=0.12-0.20；轻微 style=0.34-0.46；明显 breath/moan/呻吟/喘息 参考=0.50-0.70；高潮 scream_peak/stage_peak 可到 0.70。",
+      "不要输出额外字段；当前链路只使用 role/text/style/style_alpha。",
       "",
       "示例输入：",
       "她低着头，眼角有泪。「对不起，我真的撑不住了。」",
       (userName ? userName : "你") + "叹了口气，把手放在她肩上：「别哭。」",
       "示例输出：",
       "{\"segments\":[",
-      "  {\"role\":\"旁白\",\"text\":\"她低着头，眼角有泪。\",\"style\":\"neutral\",\"style_alpha\":0.15,\"emo_vec\":[0,0,0,0,0,0,0,1]},",
-      "  {\"role\":\"她\",\"text\":\"对不起，我真的撑不住了。\",\"style\":\"sob_soft\",\"style_alpha\":0.42,\"emo_vec\":[0,0,0.48,0.05,0,0.12,0,0.35]},",
-      "  {\"role\":\"旁白\",\"text\":\"" + (userName ? userName : "你") + "叹了口气，把手放在她肩上：\",\"style\":\"neutral\",\"style_alpha\":0.15,\"emo_vec\":[0,0,0,0,0,0,0,1]},",
-      "  {\"role\":\"用户\",\"text\":\"别哭。\",\"style\":\"whisper_soft\",\"style_alpha\":0.45,\"emo_vec\":[0.2,0,0.3,0,0,0.2,0,0.5]}",
+      "  {\"role\":\"旁白\",\"text\":\"她低着头，眼角有泪。\",\"style\":\"neutral\",\"style_alpha\":0.15},",
+      "  {\"role\":\"她\",\"text\":\"对不起，我真的撑不住了。\",\"style\":\"sob_soft\",\"style_alpha\":0.42},",
+      "  {\"role\":\"旁白\",\"text\":\"" + (userName ? userName : "你") + "叹了口气，把手放在她肩上：\",\"style\":\"neutral\",\"style_alpha\":0.15},",
+      "  {\"role\":\"用户\",\"text\":\"别哭。\",\"style\":\"whisper_soft\",\"style_alpha\":0.45}",
       "]}"
     ].join("\n");
     setStatus("AI 分析中…");
@@ -1418,8 +1370,7 @@
     debugLog("✅ LLM 返回 " + data.segments.length + " 段, 用时 " + llmSec + "s", "#9f9");
     try {
       data.segments.forEach(function (s, i) {
-        var ev = (s.emo_vec || []).map(function (v) { return Number(v).toFixed(2); }).join(",");
-        debugLog("  [raw " + i + "] role=" + (s.role || "?") + "  style=" + normalizeStyleId(s.style || s.style_ref) + (s.style_alpha != null ? "  sα=" + s.style_alpha : "") + "  emo=[" + ev + "]" + (s.emo_alpha != null ? "  α=" + s.emo_alpha : "") + "  text=" + JSON.stringify(String(s.text || "").slice(0, 40)));
+        debugLog("  [raw " + i + "] role=" + (s.role || "?") + "  style=" + normalizeStyleId(s.style || s.style_ref) + (s.style_alpha != null ? "  sα=" + s.style_alpha : "") + "  text=" + JSON.stringify(String(s.text || "").slice(0, 40)));
       });
     } catch (_) {}
     var sourceSearchOffset = 0;
@@ -1448,18 +1399,11 @@
         style = "neutral";
         styleAlpha = 0.15;
       }
-      var emoAlpha = Number(seg.emo_alpha);
-      if (!isFinite(emoAlpha)) emoAlpha = role === "旁白" ? 0.18 : (style === "neutral" ? 0.28 : Number(cfg.emoAlpha || 0.38));
-      emoAlpha = role === "旁白" ? Math.max(0.12, Math.min(0.22, emoAlpha)) : Math.max(0.18, Math.min(0.52, emoAlpha));
-      var emoVec = seg.emo_vec || [0,0,0,0,0,0,0,0.35];
-      emoVec = stabilizeEmoVec(emoVec, role, style);
       return {
         role: role || "旁白",
         text: seg.text || "",
         style: style,
-        style_alpha: styleAlpha,
-        emo_vec: emoVec,
-        emo_alpha: emoAlpha
+        style_alpha: styleAlpha
       };
     }).filter(function (seg) { return seg.text.trim(); });
     assertLlmSegmentsCoverSource(text, normalizedSegments);
@@ -1498,7 +1442,7 @@
         + '<label class="idx-check"><input type="checkbox" data-field="offlineAudioEnabled"><span><strong>保存离线音频</strong><span>已落盘音频存到本机，下次优先放本地。</span></span></label>'
         // 单音色模式专属 —— mode==="single" 时显示
         + '<div class="idx-single-only"><div class="idx-section-title">音色选择</div><div class="idx-default-voice"><button class="idx-voice-btn" type="button" data-role="default-voice-btn">选择音色…</button></div></div>'
-        // AI 八情绪专属 —— mode==="ai8" 时显示；切换不清空（输入值在 readFields 时已存入 cfg）
+        // 多音色拆段专属 —— mode==="ai8" 时显示；切换不清空（输入值在 readFields 时已存入 cfg）
         + '<div class="idx-ai8-only">'
           + '<div class="idx-section-title">角色音色映射</div>'
           + '<div class="idx-roles" data-role="roles-list"></div>'
@@ -1508,6 +1452,7 @@
             + '<label class="idx-field"><span class="idx-label">LLM 模型</span><input class="idx-input" data-field="llmModel" placeholder="渡鸦/grok-4.20-fast"></label>'
             + '<label class="idx-field"><span class="idx-label">LLM Key</span><input class="idx-input" type="password" data-field="llmApiKey" placeholder="sk-..."></label>'
           + '</div></details>'
+          + '<label class="idx-check"><input type="checkbox" data-field="reuseLlmParse"><span><strong>复用 LLM 拆段</strong><span>同一消息只换音色或参数时，不重新请求 LLM。</span></span></label>'
         + '</div>'
         + '<div class="idx-actions"><button class="idx-btn" type="button" data-role="save">保存</button></div>'
         + '</dialog>'
@@ -1639,6 +1584,66 @@
       role = String(role || "").trim();
       if (role === "用户") return (context && context.userName) ? context.userName : "用户";
       return role || "旁白";
+    }
+    function parseReuseHash(text) {
+      text = String(text || "");
+      var h = 2166136261;
+      for (var i = 0; i < text.length; i++) {
+        h ^= text.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return (h >>> 0).toString(16);
+    }
+    function cloneSegments(segments) {
+      try { return JSON.parse(JSON.stringify(segments || [])); } catch (_) { return []; }
+    }
+    function parseReuseFingerprint(text) {
+      var roles = normalizeRoleVoiceList(cfg.roleVoiceList || [], cfg.currentCharacterName)
+        .map(function (r) { return String((r && r.role) || "").trim(); })
+        .filter(Boolean);
+      return JSON.stringify({
+        v: 1,
+        text: String(text || ""),
+        userName: String((context && context.userName) || ""),
+        characterName: String((context && context.characterName) || cfg.currentCharacterName || ""),
+        roles: roles,
+        llmEndpoint: String(cfg.llmEndpoint || ""),
+        llmModel: String(cfg.llmModel || "")
+      });
+    }
+    function parseReuseStorageKey(fingerprint) {
+      var owner = messageId ? String(messageId) : "message-" + parseReuseHash(messageText || "");
+      return "gptsovits_llm_parse_" + parseReuseHash(owner) + "_" + parseReuseHash(fingerprint);
+    }
+    async function loadReusableSegments(text) {
+      if (cfg.reuseLlmParse === false) return null;
+      var fingerprint = parseReuseFingerprint(text);
+      var key = parseReuseStorageKey(fingerprint);
+      var record = null;
+      try { record = JSON.parse(localStorage.getItem(key) || "null"); } catch (_) {}
+      if (!record) {
+        try { if (window.tavo && typeof tavo.get === "function") record = await tavo.get(key, "chat"); } catch (_) {}
+      }
+      if (!record || record.fingerprint !== fingerprint || !Array.isArray(record.segments) || !record.segments.length) return null;
+      debugLog("♻️ 复用 LLM 拆段 cacheKey=" + key + " segments=" + record.segments.length, "#9f9");
+      setStatus("复用 LLM 拆段 " + record.segments.length + " 段");
+      return cloneSegments(record.segments);
+    }
+    async function saveReusableSegments(text, segments) {
+      if (cfg.reuseLlmParse === false || !Array.isArray(segments) || !segments.length) return;
+      var fingerprint = parseReuseFingerprint(text);
+      var key = parseReuseStorageKey(fingerprint);
+      var record = { fingerprint: fingerprint, segments: cloneSegments(segments), createdAt: Date.now() };
+      try { localStorage.setItem(key, JSON.stringify(record)); } catch (_) {}
+      try { if (window.tavo && typeof tavo.set === "function") await tavo.set(key, record, "chat"); } catch (_) {}
+      debugLog("💾 保存 LLM 拆段复用 cacheKey=" + key + " segments=" + segments.length, "#9ff");
+    }
+    async function parseWithOptionalReuse(text, cfg, setStatus, context) {
+      var cached = await loadReusableSegments(text);
+      if (cached && cached.length) return cached;
+      var segments = await parseWithLlm(text, cfg, setStatus, context);
+      await saveReusableSegments(text, segments);
+      return segments;
     }
     function playbackLabelForRole(role, track) {
       role = String(role || "").trim() || "多音色";
@@ -2975,6 +2980,7 @@
       cfg.llmModel = String(getField("llmModel", cfg.llmModel || "")).trim();
       cfg.llmEndpoint = String(getField("llmEndpoint", cfg.llmEndpoint || "")).trim();
       cfg.llmApiKey = String(getField("llmApiKey", cfg.llmApiKey || "")).trim();
+      cfg.reuseLlmParse = getCheckedField("reuseLlmParse", cfg.reuseLlmParse !== false);
     }
     function isDialogOpen(d) {
       return !!(d && (d.open || d.hasAttribute && d.hasAttribute("open")));
@@ -3032,12 +3038,13 @@
       setField("llmModel", cfg.llmModel || "");
       setField("llmEndpoint", cfg.llmEndpoint || "");
       setField("llmApiKey", cfg.llmApiKey || "");
+      setCheckedField("reuseLlmParse", cfg.reuseLlmParse !== false);
       setField("speedFactor", cfg.speedFactor || 1.0);
       setField("qualityMode", cfg.qualityMode || "balanced");
       setCheckedField("offlineAudioEnabled", cfg.offlineAudioEnabled);
       try { audio.playbackRate = clampNumber(cfg.speedFactor || 1.0, 1.0, 0.85, 1.25); } catch (_) {}
       renderRoleList();
-      // AI 八情绪 设置只在该模式下显示；单音色配置反之
+      // 多音色拆段设置只在该模式下显示；单音色配置反之
       try {
         var ai8Show = (cfg.mode === "ai8");
         $all(panel, '.idx-ai8-only').forEach(function (el) { el.style.display = ai8Show ? "" : "none"; });
@@ -3823,13 +3830,13 @@
         var base = cleanBase(cfg.apiBase), body, url;
         if (cfg.mode === "ai8") {
           setStatus("AI 分析中…");
-          showTrackNotice(placeholder, "AI 分析中…", "正在拆分旁白、人物、声腔和情绪");
-          if (!cfg.llmEndpoint || !cfg.llmModel) throw new Error("AI 八情绪模式需要填写 LLM 接口地址和模型。");
+          showTrackNotice(placeholder, "AI 分析中…", "正在拆分旁白、人物和声腔");
+          if (!cfg.llmEndpoint || !cfg.llmModel) throw new Error("多音色模式需要填写 LLM 接口地址和模型。");
           var t0 = Date.now();
           debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━", "#fff");
-          debugLog("🎬 AI 八情绪生成开始 (text=" + messageText.length + " 字)", "#fff");
+          debugLog("🎬 多音色生成开始 (text=" + messageText.length + " 字)", "#fff");
           startServerLogPolling(base);
-          var segments = await parseWithLlm(messageText, cfg, setStatus, context);
+          var segments = await parseWithOptionalReuse(messageText, cfg, setStatus, context);
           if (placeholder && placeholder.deleted) throw Object.assign(new Error("生成已取消"), { name: "AbortError" });
           var roleCounts = {}; segments.forEach(function (s) { roleCounts[s.role] = (roleCounts[s.role] || 0) + 1; });
           var roleSummary = Object.keys(roleCounts).map(function (r) { return r + "×" + roleCounts[r]; }).join(", ");
@@ -3837,7 +3844,7 @@
           showTrackNotice(placeholder, "开始合成 " + segments.length + " 段…", roleSummary);
           var voicesMap = rolesListToVoicesMap(cfg.roleVoiceList, cfg.defaultVoice, cfg.currentCharacterName);
           debugLog("🎙️ 音色映射: " + JSON.stringify(voicesMap), "#ffd479");
-          body = Object.assign({ segments: segments, voices: voicesMap, performance_mode: cfg.qualityMode || "balanced", interval_ms: cfg.intervalMs, top_p: cfg.topP, top_k: cfg.topK, temperature: cfg.temperature, repetition_penalty: cfg.repetitionPenalty, emo_alpha: cfg.emoAlpha, speed_factor: clampNumber(cfg.speedFactor || 1.0, 1.0, 0.85, 1.25) }, generationQualityOverrides(cfg.qualityMode));
+          body = Object.assign({ segments: segments, voices: voicesMap, performance_mode: cfg.qualityMode || "balanced", interval_ms: cfg.intervalMs, top_p: cfg.topP, top_k: cfg.topK, temperature: cfg.temperature, repetition_penalty: cfg.repetitionPenalty, speed_factor: clampNumber(cfg.speedFactor || 1.0, 1.0, 0.85, 1.25) }, generationQualityOverrides(cfg.qualityMode));
           var ttsStart = Date.now();
           var jobInfo;
           var ttsTimer = setInterval(function () {

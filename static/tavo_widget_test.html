@@ -119,6 +119,7 @@
           var rec = {
             method: String((init && init.method) || (input && input.method) || "GET").toUpperCase(),
             url: fetchUrl(input),
+            body: init && typeof init.body === "string" ? init.body : "",
             at: Date.now()
           };
           fetchLog.push(rec);
@@ -180,13 +181,13 @@
           var spoken = m ? m[1].trim() : "";
           var before = m ? line.slice(0, m.index).trim() : line;
           if (before) {
-            out.push({ role: "旁白", text: before, style: "neutral", style_alpha: 0.15, emo_vec: [0,0,0,0,0,0,0,1] });
+            out.push({ role: "旁白", text: before, style: "neutral", style_alpha: 0.15 });
           }
           if (spoken) {
-            out.push({ role: /你|白夜雨/.test(before) ? "用户" : roleName, text: spoken, style: index % 2 ? "whisper_soft" : "neutral", style_alpha: index % 2 ? 0.5 : 0.18, emo_vec: [0.2,0,0,0,0,0,0,0.6] });
+            out.push({ role: /你|白夜雨/.test(before) ? "用户" : roleName, text: spoken, style: index % 2 ? "whisper_soft" : "neutral", style_alpha: index % 2 ? 0.5 : 0.18 });
           }
         });
-        return out.length ? out.slice(0, 6) : [{ role: "旁白", text: text.slice(0, 80), style: "neutral", style_alpha: 0.15, emo_vec: [0,0,0,0,0,0,0,1] }];
+        return out.length ? out.slice(0, 6) : [{ role: "旁白", text: text.slice(0, 80), style: "neutral", style_alpha: 0.15 }];
       }
       function seedP2Config() {
         var bucket = storageBucket();
@@ -196,7 +197,7 @@
         var globalKey = "global:" + globalConfigKey;
         var charKey = "character:" + characterConfigKey;
         bucket[globalKey] = Object.assign({
-          configVersion: 9,
+          configVersion: 10,
           mode: "ai8",
           apiBase: location.origin,
           endpoint: "/tts_cache_stream",
@@ -204,12 +205,12 @@
           parseEndpoint: "/parse_text",
           llmEndpoint: "mock://tavo-widget-test/v1",
           llmModel: "mock-parser",
+          reuseLlmParse: true,
           qualityMode: "fast",
           topP: 1,
           topK: 15,
           temperature: 1,
           repetitionPenalty: 1.2,
-          emoAlpha: 0.38,
           speedFactor: 1,
           offlineAudioEnabled: false
         }, bucket[globalKey] || {});

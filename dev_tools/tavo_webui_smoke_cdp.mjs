@@ -193,6 +193,19 @@ try {
     throw error;
   }
 
+  const countsBeforeReuse = await cdp.evalJs(`(() => {
+    const log = window.__idxTest.getFetchLog();
+    return {
+      parse: log.filter((r) => new URL(r.url).pathname === "/parse_text").length,
+      dialogue: log.filter((r) => new URL(r.url).pathname === "/tts_dialogue_stream_job").length
+    };
+  })()`);
+  await cdp.evalJs(`document.querySelector('[data-role="add"]').click(); true`);
+  await cdp.waitFor(`(() => {
+    const log = window.__idxTest.getFetchLog();
+    return log.filter((r) => new URL(r.url).pathname === "/tts_dialogue_stream_job").length >= ${countsBeforeReuse.dialogue + 1};
+  })()`, 30000);
+
   const summary = await cdp.evalJs(`(() => {
     const log = window.__idxTest.getFetchLog();
     const audio = document.querySelector('audio[data-role="audio"]');
@@ -200,6 +213,11 @@ try {
     const play = document.querySelector('[data-role="play"]');
     return {
       fetches: log.map((r) => ({ method: r.method, path: new URL(r.url).pathname })).slice(-20),
+      parseCount: log.filter((r) => new URL(r.url).pathname === "/parse_text").length,
+      dialogueCount: log.filter((r) => new URL(r.url).pathname === "/tts_dialogue_stream_job").length,
+      parseHasLegacyEmotionFields: log
+        .filter((r) => new URL(r.url).pathname === "/parse_text")
+        .some((r) => /八情绪|emo_vec|emo_alpha/.test(r.body || "")),
       statusText: status ? status.textContent : "",
       playState: play ? play.dataset.state : "",
       audioSrc: audio ? audio.currentSrc || audio.src || "" : "",
@@ -211,15 +229,21 @@ try {
 
   const hasCacheAudio = /\/cache_audio\//.test(summary.audioSrc) ||
     cdp.responses.some((r) => /\/cache_audio\//.test(r.url) && r.status >= 200 && r.status < 300);
+  const parseCount = summary.parseCount;
+  const reusedParse = cdp.consoleLines.some((line) => /复用 LLM 拆段/.test(line));
   const hasDialogueJob = summary.fetches.some((r) => r.path === "/tts_dialogue_stream_job");
   const hasStatus = summary.fetches.some((r) => /\/tts_dialogue_job_status\//.test(r.path));
-  const failedConsole = cdp.consoleLines.filter((line) => /❌|error code=4|服务端推理失败|HTTP 422|has no prompt_text/i.test(line));
+  const failedConsole = cdp.consoleLines.filter((line) => /❌|error code=4|服务端推理失败|HTTP 422|has no prompt_text|八情绪|emo=\[/i.test(line));
+  const noLegacyEmotionPrompt = !summary.parseHasLegacyEmotionFields;
 
   console.log(JSON.stringify({
-    ok: hasDialogueJob && hasCacheAudio && failedConsole.length === 0,
+    ok: hasDialogueJob && hasCacheAudio && parseCount === 1 && reusedParse && noLegacyEmotionPrompt && failedConsole.length === 0,
     hasDialogueJob,
     hasStatus,
     hasCacheAudio,
+    parseCount,
+    reusedParse,
+    noLegacyEmotionPrompt,
     failedConsole,
     summary,
   }, null, 2));
