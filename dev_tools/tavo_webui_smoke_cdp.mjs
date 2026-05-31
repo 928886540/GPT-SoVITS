@@ -210,6 +210,8 @@ try {
     hasLazy: !!document.querySelector('[data-role="lazy-card"]'),
     hasFull: !!document.querySelector('[data-role="add"]'),
     hasPanel: !!document.querySelector('.idx-panel'),
+    hasLazyGear: !!document.querySelector('[data-role="lazy-gear"]'),
+    lazyButtonCount: document.querySelectorAll('[data-role="lazy-card"] button').length,
     runtimeRequested: window.__idxTest.getFetchLog().some((r) => new URL(r.url).pathname.indexOf('/static/tavo.runtime.js') >= 0)
   }))()`);
 
@@ -227,10 +229,11 @@ try {
         }
         throw new Error("picker wait timeout");
       }
-      const lazyGear = document.querySelector('[data-role="lazy-gear"]');
-      lazyGear.click();
+      const lazyPlay = document.querySelector('[data-role="lazy-play"]');
+      lazyPlay.click();
       await waitFor(() => document.querySelector('[data-role="gear"]'), 5000);
       const gear = document.querySelector('[data-role="gear"]');
+      gear.click();
       await waitFor(() => document.querySelector('.idx-panel[open]'), 5000);
       const beforeY = window.scrollY;
       const panel = document.querySelector('.idx-panel[open]');
@@ -383,7 +386,7 @@ try {
     cdp.responses.some((r) => new URL(r.url).pathname.includes('/static/tavo.runtime.js') && r.status >= 200 && r.status < 300);
 
   console.log(JSON.stringify({
-    ok: lazyBeforeMount.hasLazy && !lazyBeforeMount.hasFull && !lazyBeforeMount.hasPanel && !lazyBeforeMount.runtimeRequested && runtimeLazyLoaded && hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount === 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
+    ok: lazyBeforeMount.hasLazy && !lazyBeforeMount.hasFull && !lazyBeforeMount.hasPanel && !lazyBeforeMount.hasLazyGear && lazyBeforeMount.lazyButtonCount === 1 && !lazyBeforeMount.runtimeRequested && runtimeLazyLoaded && hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount <= 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
     lazyBeforeMount,
     runtimeLazyLoaded,
     hasDialogueJob,

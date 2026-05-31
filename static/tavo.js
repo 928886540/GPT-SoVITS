@@ -30,7 +30,6 @@
     return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(Math.floor(sec % 60)).padStart(2, "0");
   }
   function playIcon() { return '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'; }
-  function gearIcon() { return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.2"/><circle cx="15" cy="17" r="2.2"/></svg>'; }
   function $(root, sel) { return root && root.querySelector ? root.querySelector(sel) : null; }
   function $all(root, sel) { return root && root.querySelectorAll ? Array.prototype.slice.call(root.querySelectorAll(sel)) : []; }
   function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
@@ -40,13 +39,10 @@
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = [
-      ".idx-tts{margin:10px 0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#eee7f4}",
-      ".idx-lazy-card{position:relative;display:flex;align-items:center;gap:12px;border-radius:16px;background:radial-gradient(circle at 88% 8%,rgba(216,167,255,.18),transparent 40%),linear-gradient(160deg,rgba(27,21,34,.55),rgba(12,9,16,.55));border:1px solid rgba(206,170,230,.22);padding:14px;backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%)}",
-      ".idx-lazy-play,.idx-lazy-gear{border:1px solid rgba(206,170,230,.30);background:rgba(20,14,28,.58);color:#eee7f4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:0 0 auto}",
-      ".idx-lazy-play{width:58px;height:58px;border-radius:50%}.idx-lazy-play svg{width:26px;height:26px;fill:currentColor}.idx-lazy-play[data-loading='1']{opacity:.65;cursor:progress}",
-      ".idx-lazy-gear{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:50%}.idx-lazy-gear svg{width:18px;height:18px;fill:none!important;stroke:currentColor}",
-      ".idx-lazy-main{min-width:0;flex:1;padding-right:44px;cursor:pointer}.idx-lazy-title{font-size:17px;font-weight:800;color:#e9c8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-lazy-status{margin-top:4px;font-size:12px;color:rgba(238,231,244,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-      ".idx-lazy-progress{height:4px;margin-top:8px;background:rgba(206,170,230,.13);border-radius:999px;overflow:hidden}.idx-lazy-progress span{display:block;height:100%;background:linear-gradient(90deg,#c890e8,#8ecbff);border-radius:inherit}"
+      ".idx-tts{margin:6px 0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#eee7f4}",
+      ".idx-lazy-card{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}",
+      ".idx-lazy-play{width:42px;height:42px;border-radius:50%;border:1px solid rgba(206,170,230,.35);background:rgba(20,14,28,.62);color:#eee7f4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.26)}",
+      ".idx-lazy-play svg{width:20px;height:20px;fill:currentColor}.idx-lazy-play[data-loading='1']{opacity:.65;cursor:progress}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -121,27 +117,17 @@
     var runtimeSrc = joinUrl(info.baseUrl || "", "tavo.runtime.js", info.query || "");
     var messageId = pickMessageId(loaderScript);
     var latest = latestTrack(messageId);
-    var historyCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
     var resumeSec = latest ? Math.max(0, Number(latest.lastElementSec || latest.lastWebAudioSec || 0) || 0) : 0;
-    var title = shortName(latest && latest.voice);
     root.innerHTML = [
       '<div class="idx-lazy-card" data-role="lazy-card">',
-      '  <button class="idx-lazy-play" type="button" data-role="lazy-play" aria-label="播放">' + playIcon() + '</button>',
-      '  <button class="idx-lazy-gear" type="button" data-role="lazy-gear" aria-label="设置">' + gearIcon() + '</button>',
-      '  <div class="idx-lazy-main" data-role="lazy-open" role="button" tabindex="0">',
-      '    <div class="idx-lazy-title">' + escapeHtml(title) + '</div>',
-      '    <div class="idx-lazy-status" data-role="lazy-status">' + (latest ? ('快照 ' + historyCount + ' 条 · ' + formatTime(resumeSec)) : '未生成 · 点播放') + '</div>',
-      '    <div class="idx-lazy-progress"><span style="width:' + (latest && latest.duration_s ? Math.max(2, Math.min(100, resumeSec / Number(latest.duration_s || 1) * 100)) : 0) + '%"></span></div>',
-      '  </div>',
+      '  <button class="idx-lazy-play" type="button" data-role="lazy-play" aria-label="播放最后一条语音" title="' + escapeHtml(resumeSec ? ('从 ' + formatTime(resumeSec) + ' 继续') : '播放语音') + '">' + playIcon() + '</button>',
       '</div>'
     ].join("");
 
     var bootPromise = null;
     function mountRuntime(clickSelector) {
       if (bootPromise) return bootPromise.then(function () { return clickSelector; });
-      var status = $(root, '[data-role="lazy-status"]');
       var playBtn = $(root, '[data-role="lazy-play"]');
-      if (status) status.textContent = "加载播放器…";
       if (playBtn) playBtn.setAttribute("data-loading", "1");
       bootPromise = loadScript(runtimeSrc, function () {
         try { window.__gptsovits_tavo_runtime_script_override = loaderScript; } catch (_) {}
@@ -150,7 +136,6 @@
         return clickSelector;
       }).catch(function (e) {
         bootPromise = null;
-        if (status) status.textContent = "播放器加载失败";
         if (playBtn) playBtn.removeAttribute("data-loading");
         throw e;
       }).finally(function () {
@@ -166,9 +151,6 @@
       }).catch(function (e) { try { console.error("[GPT-SoVITS TAVO loader]", e && e.message ? e.message : e); } catch (_) {} });
     }
     on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); route('[data-role="play"]'); });
-    on($(root, '[data-role="lazy-gear"]'), "click", function (ev) { ev.preventDefault(); route('[data-role="gear"]'); });
-    on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); mountRuntime(""); });
-    on($(root, '[data-role="lazy-open"]'), "keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); mountRuntime(""); } });
   } catch (e) {
     try { console.error("[GPT-SoVITS TAVO loader]", e && e.stack ? e.stack : e); } catch (_) {}
   }
