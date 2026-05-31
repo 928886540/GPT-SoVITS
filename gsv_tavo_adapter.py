@@ -352,7 +352,7 @@ async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
         "cache_key": cache_key,
         "cacheKey": cache_key,
         "cached": False,
-        "live": False,
+        "live": bool(payload.get("streaming_mode")),
         "url": f"/tts_dialogue_stream_job/{cache_key}",
         "cache_url": f"/cache_audio/{cache_key}",
         "state": state,
@@ -372,6 +372,13 @@ async def get_dialogue_job_audio(cache_key: str):
     profiles = job.get("profiles")
     if not isinstance(payload, dict) or not isinstance(profiles, dict):
         raise HTTPException(status_code=404, detail="job not found or stream context expired")
+
+    if job.get("state") == "deferred_stream":
+        return StreamingResponse(
+            _stream_dialogue_to_cache(cache_key, payload, profiles),
+            media_type="audio/wav",
+            headers={"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"},
+        )
 
     with JOBS_LOCK:
         current = JOBS.get(cache_key, {})
@@ -400,8 +407,7 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
         if job.get("state") == "queued":
             job["queue_position"] = _queue_position(cache_key)
         elif job.get("state") == "deferred_stream":
-            job["queue_position"] = _enqueue_cache_job_locked(cache_key)
-            job["state"] = "queued"
+            job["queue_position"] = 0
     metadata = snapshot_cache.get_cache_metadata(cache_key) if path else None
     state = "done" if path else job.get("state", "pending")
     return {
@@ -547,6 +553,7 @@ def _synthesize_dialogue_to_cache(
         if not profile:
             raise ValueError(f"no voice profile for role {segment['role']!r}")
         req_payload = _official_payload_for_segment(segment, profile, payload)
+        _log_official_segment_request("cache", index, segment, profile, req_payload)
         audio_bytes, first_s, total_s = _post_official_tts(req_payload)
         part = _read_wav(audio_bytes)
         if sample_rate is None:
@@ -606,6 +613,130 @@ def _synthesize_dialogue_to_cache(
     }
 
 
+def _stream_dialogue_to_cache(
+    cache_key: str,
+    payload: dict[str, Any],
+    profiles: dict[str, Optional[dict[str, Any]]],
+):
+    segments = _normalize_segments(payload.get("segments") or [])
+    if not segments:
+        raise ValueError("segments is empty")
+
+    default_profile = _pick_default_profile(payload, profiles)
+    pcm_parts: list[bytes] = []
+    segments_meta: list[dict[str, Any]] = []
+    sample_rate: Optional[int] = None
+    channels: Optional[int] = None
+    sample_width: Optional[int] = None
+    offset_frames = 0
+    total_bytes = 0
+    started = time.perf_counter()
+
+    with JOBS_LOCK:
+        current = JOBS.get(cache_key, {})
+        JOBS[cache_key] = {**current, "state": "running", "started_at": time.time(), "queue_position": 0}
+
+    try:
+        for index, segment in enumerate(segments):
+            profile = profiles.get(segment["role"]) or default_profile
+            if not profile:
+                raise ValueError(f"no voice profile for role {segment['role']!r}")
+            req_payload = _official_payload_for_segment(segment, profile, payload)
+            req_payload["streaming_mode"] = payload.get("streaming_mode") or 2
+            req_payload["media_type"] = "wav"
+            _log_official_segment_request("live", index, segment, profile, req_payload)
+
+            segment_started = time.perf_counter()
+            first_s: Optional[float] = None
+            header_buf = b""
+            saw_header = False
+            segment_pcm_bytes = 0
+
+            for chunk in _stream_official_tts(req_payload):
+                if first_s is None:
+                    first_s = time.perf_counter() - segment_started
+                if not saw_header:
+                    header_buf += chunk
+                    if len(header_buf) < 44:
+                        continue
+                    header = header_buf[:44]
+                    rest = header_buf[44:]
+                    info = _wav_header_info(header)
+                    if sample_rate is None:
+                        sample_rate = info["sample_rate"]
+                        channels = info["channels"]
+                        sample_width = info["sample_width"]
+                        yield header
+                    elif (sample_rate, channels, sample_width) != (info["sample_rate"], info["channels"], info["sample_width"]):
+                        raise ValueError("official API returned incompatible wav format across streamed segments")
+                    if rest:
+                        pcm_parts.append(rest)
+                        segment_pcm_bytes += len(rest)
+                        total_bytes += len(rest)
+                        yield rest
+                    saw_header = True
+                else:
+                    pcm_parts.append(chunk)
+                    segment_pcm_bytes += len(chunk)
+                    total_bytes += len(chunk)
+                    yield chunk
+
+            if sample_rate is None or channels is None or sample_width is None:
+                raise ValueError("official API returned no streamable wav audio")
+            frame_count = segment_pcm_bytes // (channels * sample_width)
+            duration_s = frame_count / float(sample_rate)
+            total_s = time.perf_counter() - segment_started
+            segments_meta.append(
+                {
+                    "index": index,
+                    "role": segment["role"],
+                    "text": segment["text"],
+                    "style": segment.get("style") or "neutral",
+                    "style_alpha": segment.get("style_alpha"),
+                    "aux_ref_audio_paths": req_payload.get("aux_ref_audio_paths", []),
+                    "start_s": offset_frames / float(sample_rate),
+                    "start_offset_bytes": total_bytes - segment_pcm_bytes,
+                    "duration_s": duration_s,
+                    "voice": str(profile.get("name") or ""),
+                    "metrics": {"first_byte_s": first_s, "total_s": total_s, "bytes": segment_pcm_bytes},
+                }
+            )
+            offset_frames += frame_count
+
+        if sample_rate is None or channels is None or sample_width is None:
+            raise ValueError("no audio returned")
+        merged = _write_wav_bytes(b"".join(pcm_parts), sample_rate, channels, sample_width)
+        duration_s = offset_frames / float(sample_rate)
+        elapsed_s = time.perf_counter() - started
+        metadata = {
+            "kind": "gptsovits_dialogue_v1",
+            "source": "official_api_v2_stream",
+            "official_url": OFFICIAL_TTS_URL,
+            "sample_rate": sample_rate,
+            "channels": channels,
+            "sample_width": sample_width,
+            "duration_s": duration_s,
+            "segments_meta": segments_meta,
+            "request": payload,
+            "metrics": {"total_s": elapsed_s, "audio_duration_s": duration_s, "rtf": elapsed_s / duration_s if duration_s > 0 else None},
+        }
+        snapshot_cache.save_cached_audio(cache_key, merged, metadata)
+        result = {
+            "segments_meta": segments_meta,
+            "sample_rate": sample_rate,
+            "duration_s": duration_s,
+            "metrics": metadata["metrics"],
+            "finished_at": time.time(),
+        }
+        with JOBS_LOCK:
+            if JOBS.get(cache_key, {}).get("state") != "deleted":
+                JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, **result}
+    except Exception as exc:
+        with JOBS_LOCK:
+            JOBS[cache_key] = {**JOBS.get(cache_key, {}), "state": "failed", "error": str(exc), "finished_at": time.time()}
+        raise
+
+
 def _normalize_segments(raw_segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = []
     for item in raw_segments:
@@ -621,10 +752,6 @@ def _normalize_segments(raw_segments: list[dict[str, Any]]) -> list[dict[str, An
         segment: dict[str, Any] = {"role": role, "text": text, "style": style}
         if style_alpha is not None:
             segment["style_alpha"] = style_alpha
-        if item.get("emo_vec") is not None:
-            segment["emo_vec"] = item.get("emo_vec")
-        if item.get("emo_alpha") is not None:
-            segment["emo_alpha"] = item.get("emo_alpha")
         out.append(segment)
     return out
 
@@ -738,6 +865,37 @@ def _official_payload_for_live_stream(payload: dict[str, Any], profiles: dict[st
     stream_payload["streaming_mode"] = True
     stream_payload["media_type"] = "wav"
     return stream_payload
+
+
+def _log_official_segment_request(kind: str, index: int, segment: dict[str, Any], profile: dict[str, Any], payload: dict[str, Any]) -> None:
+    text = str(segment.get("text") or "").replace("\n", " ")[:120]
+    prompt_text = str(payload.get("prompt_text") or "").replace("\n", " ")[:80]
+    record = {
+        "kind": kind,
+        "idx": index,
+        "role": segment.get("role"),
+        "style": segment.get("style"),
+        "voice": profile.get("name"),
+        "streaming_mode": payload.get("streaming_mode"),
+        "sample_steps": payload.get("sample_steps"),
+        "batch_size": payload.get("batch_size"),
+        "ref_audio_path": payload.get("ref_audio_path"),
+        "prompt_text": prompt_text,
+        "text": text,
+    }
+    print("[gsv_adapter] official_tts " + json.dumps(record, ensure_ascii=True, separators=(",", ":")), flush=True)
+
+
+def _wav_header_info(header: bytes) -> dict[str, int]:
+    if len(header) < 44 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
+        preview = header[:80].decode("utf-8", errors="replace")
+        raise ValueError(f"official API did not return a WAV stream: {preview}")
+    bits_per_sample = int.from_bytes(header[34:36], "little") or 16
+    return {
+        "channels": int.from_bytes(header[22:24], "little") or 1,
+        "sample_rate": int.from_bytes(header[24:28], "little") or 32000,
+        "sample_width": max(1, bits_per_sample // 8),
+    }
 
 
 def _post_official_tts(payload: dict[str, Any]) -> tuple[bytes, float, float]:

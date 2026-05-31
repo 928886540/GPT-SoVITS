@@ -79,19 +79,15 @@
     return reserved.concat(extra);
   }
   async function loadCharacterCfg(characterId) {
-    if (characterId) {
-      try { var rawLocal = localStorage.getItem(CHAR_KEY_PREFIX + characterId); if (rawLocal) return JSON.parse(rawLocal); } catch (_) {}
-    }
+    // 音色选择和角色音色映射只属于当前 Tavo 角色，不读写 global scope。
     try { if (window.tavo && typeof tavo.get === "function") { var cs = await tavo.get(CHAR_SCOPE_CONFIG_KEY, "character"); if (cs) return cs; } } catch (_) {}
     if (!characterId) return null;
-    try { if (window.tavo && typeof tavo.get === "function") { var tv = await tavo.get(CHAR_KEY_PREFIX + characterId, "global"); if (tv) return tv; } } catch (_) {}
     try { var raw = localStorage.getItem(CHAR_KEY_PREFIX + characterId); if (raw) return JSON.parse(raw); } catch (_) {}
     return null;
   }
   async function saveCharacterCfg(characterId, partial) {
     try { if (window.tavo && typeof tavo.set === "function") await tavo.set(CHAR_SCOPE_CONFIG_KEY, partial || {}, "character"); } catch (_) {}
     if (!characterId) return;
-    try { if (window.tavo && typeof tavo.set === "function") await tavo.set(CHAR_KEY_PREFIX + characterId, partial || {}, "global"); } catch (_) {}
     try { localStorage.setItem(CHAR_KEY_PREFIX + characterId, JSON.stringify(partial || {})); } catch (_) {}
   }
 
@@ -327,12 +323,12 @@
       // 结构化角色映射 UI
       ".idx-roles{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}.idx-role-row{display:grid;grid-template-columns:96px 1fr 28px;gap:6px;align-items:center}.idx-role-name{min-width:0;border:1px solid rgba(206,170,230,.16);background:#0b0810;color:#eee7f4;border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;outline:none}.idx-voice-btn{min-width:0;border:1px solid rgba(206,170,230,.20);background:rgba(206,170,230,.08);color:#eee7f4;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit}.idx-voice-btn:hover{background:rgba(206,170,230,.16)}.idx-role-del{width:28px;height:28px;border:1px solid rgba(255,120,145,.28);background:rgba(120,38,52,.22);color:#ffd5dd;border-radius:8px;cursor:pointer;font-size:14px;line-height:1;font-family:inherit}.idx-role-lock{width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:rgba(238,231,244,.45);font-size:13px;user-select:none;cursor:default}.idx-add-role{margin-top:4px;width:100%;border:1px dashed rgba(206,170,230,.30);background:transparent;color:#d9b7f0;padding:8px;border-radius:9px;cursor:pointer;font-size:12px;font-family:inherit}.idx-add-role:hover{background:rgba(206,170,230,.06)}.idx-llm-details{margin-top:10px;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:rgba(255,255,255,.03);overflow:hidden}.idx-llm-details>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:#d9b7f0;display:flex;align-items:center;justify-content:space-between;user-select:none}.idx-llm-details>summary::-webkit-details-marker{display:none}.idx-llm-details>summary::after{content:'▾';font-size:10px;color:rgba(238,231,244,.55);transition:transform .2s}.idx-llm-details[open]>summary::after{transform:rotate(180deg)}.idx-llm-details>.idx-grid{padding:8px 12px 12px;border-top:1px solid rgba(206,170,230,.12)}",
       // 音色选择器弹窗
-      ".idx-picker{margin:auto auto 0 auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:fit-content;max-height:80vh;box-shadow:0 -8px 32px rgba(0,0,0,.45);padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;min-height:0}.idx-picker::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-picker-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(206,170,230,.18);margin-bottom:8px}.idx-picker-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-picker-close{border:0;background:transparent;color:#eee7f4;font-size:22px;cursor:pointer;padding:0 6px;line-height:1}.idx-picker-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;flex-wrap:wrap}.idx-picker-tab{flex:0 0 auto;border:1px solid rgba(206,170,230,.16);background:rgba(255,255,255,.04);color:#eee7f4;border-radius:999px;padding:5px 11px;cursor:pointer;font-size:11px;font-family:inherit;white-space:nowrap}.idx-picker-tab.is-active{border-color:#c890e8;background:rgba(200,144,232,.20);color:#fff}.idx-picker-search{margin-bottom:8px}.idx-picker-grid{flex:1 1 auto;min-height:200px;max-height:50vh;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-content:start;padding:2px;width:100%}.idx-picker-item{min-width:0;overflow:hidden;min-height:54px;border:1px solid rgba(206,170,230,.16);border-radius:10px;background:rgba(255,255,255,.05);color:#eee7f4;text-align:left;padding:8px 8px 8px 12px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.35;display:flex;align-items:center;gap:6px;justify-content:space-between;transition:background .15s,border-color .15s}.idx-picker-item:hover{background:rgba(206,170,230,.14);border-color:rgba(206,170,230,.34)}.idx-picker-item.is-playing{border-color:#c890e8;background:rgba(200,144,232,.18);box-shadow:0 0 0 1px rgba(200,144,232,.22) inset}.idx-picker-item-info{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center}.idx-picker-item-name{font-size:13px;font-weight:600;white-space:nowrap;overflow-x:auto;overflow-y:hidden;text-overflow:clip;display:block;scrollbar-width:none}.idx-picker-item-name::-webkit-scrollbar{display:none}.idx-picker-item-sub{font-size:10px;color:rgba(238,231,244,.55);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-picker-apply{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(200,144,232,.45);background:rgba(200,144,232,.18);color:#fff;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:0;line-height:1}.idx-picker-apply:hover{background:#c890e8;color:#170e20;border-color:#c890e8;transform:scale(1.05)}.idx-picker-apply:active{transform:scale(.95)}.idx-picker-pager{display:flex;align-items:center;justify-content:center;gap:12px;padding-top:8px;border-top:1px solid rgba(206,170,230,.14);color:rgba(238,231,244,.72);font-size:11px}.idx-picker-pager button{border:1px solid rgba(206,170,230,.20);background:rgba(255,255,255,.06);color:#eee7f4;border-radius:7px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:11px}.idx-picker-pager button:disabled{opacity:.4;cursor:not-allowed}",
+      ".idx-picker{margin:auto auto 0 auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:fit-content;max-height:min(72dvh,640px);box-shadow:0 -8px 32px rgba(0,0,0,.45);padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;min-height:0}.idx-picker::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-picker-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(206,170,230,.18);margin-bottom:8px}.idx-picker-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-picker-close{border:0;background:transparent;color:#eee7f4;font-size:22px;cursor:pointer;padding:0 6px;line-height:1}.idx-picker-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;flex-wrap:wrap}.idx-picker-tab{flex:0 0 auto;border:1px solid rgba(206,170,230,.16);background:rgba(255,255,255,.04);color:#eee7f4;border-radius:999px;padding:5px 11px;cursor:pointer;font-size:11px;font-family:inherit;white-space:nowrap}.idx-picker-tab.is-active{border-color:#c890e8;background:rgba(200,144,232,.20);color:#fff}.idx-picker-search{margin-bottom:8px}.idx-picker-grid{flex:1 1 auto;min-height:0;max-height:44dvh;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-content:start;padding:2px;width:100%}.idx-picker-item{min-width:0;overflow:hidden;min-height:54px;border:1px solid rgba(206,170,230,.16);border-radius:10px;background:rgba(255,255,255,.05);color:#eee7f4;text-align:left;padding:8px 8px 8px 12px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.35;display:flex;align-items:center;gap:6px;justify-content:space-between;transition:background .15s,border-color .15s}.idx-picker-item:hover{background:rgba(206,170,230,.14);border-color:rgba(206,170,230,.34)}.idx-picker-item.is-playing{border-color:#c890e8;background:rgba(200,144,232,.18);box-shadow:0 0 0 1px rgba(200,144,232,.22) inset}.idx-picker-item-info{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center}.idx-picker-item-name{font-size:13px;font-weight:600;white-space:nowrap;overflow-x:auto;overflow-y:hidden;text-overflow:clip;display:block;scrollbar-width:none}.idx-picker-item-name::-webkit-scrollbar{display:none}.idx-picker-item-sub{font-size:10px;color:rgba(238,231,244,.55);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-picker-apply{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(200,144,232,.45);background:rgba(200,144,232,.18);color:#fff;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:0;line-height:1}.idx-picker-apply:hover{background:#c890e8;color:#170e20;border-color:#c890e8;transform:scale(1.05)}.idx-picker-apply:active{transform:scale(.95)}.idx-picker-pager{display:flex;align-items:center;justify-content:center;gap:12px;padding-top:8px;border-top:1px solid rgba(206,170,230,.14);color:rgba(238,231,244,.72);font-size:11px}.idx-picker-pager button{border:1px solid rgba(206,170,230,.20);background:rgba(255,255,255,.06);color:#eee7f4;border-radius:7px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:11px}.idx-picker-pager button:disabled{opacity:.4;cursor:not-allowed}",
       ".idx-card audio{display:none!important}.idx-info{padding-right:104px}.idx-card-counter{position:absolute;right:58px;top:16px;min-width:48px;height:32px;padding:0 10px;border:1px solid rgba(206,170,230,.22);border-radius:999px;background:rgba(20,14,28,.46);color:rgba(238,231,244,.78);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;z-index:2}.idx-gear svg{width:19px;height:19px;fill:none!important;stroke:currentColor}",
       ".idx-seek{-webkit-appearance:none;appearance:none;height:36px;background:transparent;accent-color:auto}.idx-seek::-webkit-slider-runnable-track{height:9px;border-radius:999px;background:linear-gradient(90deg,rgba(216,167,255,.85),rgba(130,190,255,.72));box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)}.idx-seek::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;margin-top:-9.5px;border-radius:50%;border:3px solid #fff;background:#c890e8;box-shadow:0 0 0 6px rgba(200,144,232,.20),0 5px 16px rgba(0,0,0,.42)}.idx-seek::-moz-range-track{height:9px;border-radius:999px;background:linear-gradient(90deg,rgba(216,167,255,.85),rgba(130,190,255,.72))}.idx-seek::-moz-range-thumb{width:26px;height:26px;border-radius:50%;border:3px solid #fff;background:#c890e8;box-shadow:0 0 0 6px rgba(200,144,232,.20)}",
       ".idx-panel{width:min(760px,calc(100vw - 24px));max-width:760px;max-height:min(88dvh,calc(100dvh - 12px));margin:auto auto 8px auto;border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);scrollbar-width:thin}.idx-panel::-webkit-scrollbar{width:6px}.idx-panel::-webkit-scrollbar-thumb{background:rgba(216,167,255,.28);border-radius:999px}.idx-panel-head{top:-14px}.idx-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.idx-field{display:flex;flex-direction:column;gap:5px;min-width:0}.idx-field.idx-wide{grid-column:1/-1}.idx-actions{position:sticky;bottom:-18px;z-index:2;display:flex;justify-content:flex-end;gap:12px;margin:14px -14px -18px;padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(206,170,230,.12);background:linear-gradient(180deg,rgba(12,8,18,.74) 0%,rgba(12,8,18,.985) 34%,rgba(12,8,18,.985) 100%);backdrop-filter:blur(8px)}",
       ".idx-picker,.idx-picker-grid{scrollbar-width:none}.idx-picker::-webkit-scrollbar,.idx-picker-grid::-webkit-scrollbar,.idx-subtitle::-webkit-scrollbar{display:none}.idx-picker-item.is-selected{border-color:#d8a7ff;background:rgba(200,144,232,.20);box-shadow:0 0 0 1px rgba(216,167,255,.24) inset,0 0 18px rgba(200,144,232,.14)}.idx-picker-selected{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:#d8a7ff;color:#160d1f;font-size:12px;font-weight:900;display:none;align-items:center;justify-content:center}.idx-picker-item.is-selected .idx-picker-selected{display:flex}.idx-picker-wave{flex:0 0 auto;width:24px;height:18px;display:none;align-items:center;justify-content:center;gap:2px}.idx-picker-item.is-selected .idx-picker-wave,.idx-picker-item.is-playing .idx-picker-wave{display:flex}.idx-picker-wave i{width:3px;border-radius:999px;background:#d8a7ff;opacity:.85;animation:idx-wave .78s ease-in-out infinite}.idx-picker-wave i:nth-child(2){animation-delay:.12s}.idx-picker-wave i:nth-child(3){animation-delay:.24s}@keyframes idx-wave{0%,100%{height:5px;opacity:.45}50%{height:17px;opacity:1}}",
-      "@media(max-width:520px){.idx-card{padding:14px;border-radius:16px}.idx-info{padding-right:98px}.idx-card-counter{right:56px;top:16px;height:30px;min-width:46px}.idx-panel{width:calc(100vw - 16px);max-height:min(90dvh,calc(100dvh - 10px));border-top-left-radius:16px;border-top-right-radius:16px;border-bottom-left-radius:0;border-bottom-right-radius:0}.idx-actions{justify-content:stretch}.idx-actions .idx-btn{flex:1;min-width:0}.idx-controls{gap:10px}.idx-ctrl-sm{width:40px;height:40px}.idx-ctrl-main{width:62px;height:62px}.idx-ctrl-add,.idx-ctrl-delete{width:44px;height:44px}.idx-grid{grid-template-columns:1fr}.idx-voices{grid-template-columns:1fr 1fr}.idx-role-row{grid-template-columns:84px 1fr 26px}.idx-picker-grid{grid-template-columns:1fr 1fr}}"
+      "@media(max-width:520px){.idx-card{padding:14px;border-radius:16px}.idx-info{padding-right:98px}.idx-card-counter{right:56px;top:16px;height:30px;min-width:46px}.idx-panel{width:calc(100vw - 16px);max-height:min(86dvh,calc(100dvh - 44px));border-top-left-radius:16px;border-top-right-radius:16px;border-bottom-left-radius:0;border-bottom-right-radius:0}.idx-actions{justify-content:stretch}.idx-actions .idx-btn{flex:1;min-width:0}.idx-controls{gap:10px}.idx-ctrl-sm{width:40px;height:40px}.idx-ctrl-main{width:62px;height:62px}.idx-ctrl-add,.idx-ctrl-delete{width:44px;height:44px}.idx-grid{grid-template-columns:1fr}.idx-voices{grid-template-columns:1fr 1fr}.idx-role-row{grid-template-columns:84px 1fr 26px}.idx-picker{width:calc(100vw - 8px);max-height:min(62dvh,calc(100dvh - 160px));padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}.idx-picker-grid{grid-template-columns:1fr 1fr;max-height:34dvh}.idx-picker-item{min-height:50px}.idx-picker-tabs{flex-wrap:nowrap;scrollbar-width:none}.idx-picker-tabs::-webkit-scrollbar{display:none}}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -1469,7 +1465,6 @@
     ].join("");
 
     var audio = first(root, '[data-role="audio"]', 'audio');
-    var preview = null;
     var play = first(root, '[data-role="play"]', '.idx-ctrl-main');
     var prev = first(root, '[data-role="prev"]');
     var next = first(root, '[data-role="next"]');
@@ -3120,16 +3115,6 @@
       });
       return voicesLoading;
     }
-    async function previewVoice() {
-      if (!cfg.defaultVoice) return;
-    if (preview) { try { preview.pause(); } catch (_) {} }
-      preview = new Audio(cleanBase(cfg.apiBase) + "/voice_preview?name=" + encodeURIComponent(cfg.defaultVoice));
-      setStatus("正在试听：" + shortName(cfg.defaultVoice));
-      preview.addEventListener('ended', function () { setStatus("试听完成"); });
-      preview.addEventListener('error', function () { setStatus("试听失败"); });
-      try { await preview.play(); } catch (_) { setStatus("试听失败，请点一下页面后重试"); }
-    }
-
     // ───── 实时字幕控制器 ───── (按当前播放时间显示对应 segment 的角色头像+台词)
     var DEFAULT_AVATARS = {
       narrator: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b2340"/><stop offset="1" stop-color="#171827"/></linearGradient><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3d8ff"/><stop offset="1" stop-color="#8ecbff"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#g)"/><path d="M146 164c58-24 94-12 110 2 16-14 52-26 110-2v186c-54-20-89-12-110 6-21-18-56-26-110-6V164z" fill="none" stroke="url(#a)" stroke-width="28" stroke-linejoin="round"/><path d="M256 170v178" stroke="url(#a)" stroke-width="22" stroke-linecap="round"/><path d="M176 218h48M288 218h48M176 268h48M288 268h48" stroke="#f3d8ff" stroke-width="18" stroke-linecap="round" opacity=".82"/></svg>'),
@@ -3251,8 +3236,8 @@
       try {
         var ms = navigator.mediaSession;
         var charName = (context && context.characterName) ? context.characterName : (cfg.defaultVoice || "IndexTTS");
-        var artSrc = scriptAssetUrl("tavo-now-playing-cover.png");
-        var artType = "image/png";
+        var artSrc = avatarForRole(speakerRole || lastSpeakerRole || "");
+        var artType = mediaArtworkType(artSrc) || "image/png";
         ms.metadata = new MediaMetadata({
           title: (currentText ? String(currentText).slice(0, 60) : charName),
           artist: charName,
@@ -3437,7 +3422,7 @@
     var pickerPageEl   = first(pickerEl, '[data-role="picker-page"]');
     var pickerPrevEl   = first(pickerEl, '[data-role="picker-prev"]');
     var pickerNextEl   = first(pickerEl, '[data-role="picker-next"]');
-    var pickerState = { rowIdx: -1, tab: "", search: "", page: 1, pageSize: 12 };
+    var pickerState = { rowIdx: -1, tab: "", search: "", page: 1, pageSize: 12, returnPanel: false, panelScrollTop: 0 };
 
     function renderRoleList() {
       if (!rolesListEl) return;
@@ -3533,10 +3518,14 @@
       pickerState.tab = "";
       pickerState.search = "";
       pickerState.page = 1;
+      pickerState.pageSize = (window.matchMedia && window.matchMedia("(max-width:520px)").matches) ? 8 : 12;
+      pickerState.returnPanel = isDialogOpen(panel);
+      pickerState.panelScrollTop = panel ? Number(panel.scrollTop || 0) : 0;
       if (pickerSearchEl) pickerSearchEl.value = "";
       if (pickerTabsEl) pickerTabsEl.innerHTML = "";
       if (pickerGridEl) pickerGridEl.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:rgba(238,231,244,.58);font-size:12px">正在读取音色…</div>';
       if (pickerPageEl) pickerPageEl.textContent = "读取中";
+      if (pickerState.returnPanel) closeDialog(panel);
       openDialog(pickerEl);
       try {
         await ensureVoicesLoaded();
@@ -3551,7 +3540,14 @@
     }
     function closeVoicePicker() {
       if (pickerEl) closeDialog(pickerEl);
+      if (pickerState.returnPanel) {
+        openDialog(panel);
+        setTimeout(function () {
+          try { panel.scrollTop = pickerState.panelScrollTop || 0; } catch (_) {}
+        }, 0);
+      }
       pickerState.rowIdx = -1;
+      pickerState.returnPanel = false;
     }
     function pickerSubdirs() {
       var set = {};
@@ -3591,27 +3587,6 @@
         return true;
       });
     }
-    // picker 内试听:点 item 整块 toggle 播放 /voice_preview;另一份 audio
-    // 实例避免跟主播放器冲突。同一时间只播一个 preview。
-    var pickerPreviewAudio = null;
-    function pickerPreview(voiceName, itemEl) {
-      try {
-        if (pickerPreviewAudio) { try { pickerPreviewAudio.pause(); } catch (_) {} }
-        $all(pickerGridEl, '.idx-picker-item.is-playing').forEach(function (b) { b.classList.remove('is-playing'); });
-        if (!voiceName) return;
-        var url = cleanBase(cfg.apiBase) + "/voice_preview?name=" + encodeURIComponent(voiceName);
-        pickerPreviewAudio = new Audio(url);
-        if (itemEl) itemEl.classList.add('is-playing');
-        pickerPreviewAudio.addEventListener('ended', function () { if (itemEl) itemEl.classList.remove('is-playing'); });
-        pickerPreviewAudio.addEventListener('error', function () { if (itemEl) itemEl.classList.remove('is-playing'); });
-        pickerPreviewAudio.play().catch(function () { if (itemEl) itemEl.classList.remove('is-playing'); });
-      } catch (_) { if (itemEl) itemEl.classList.remove('is-playing'); }
-    }
-    function stopPickerPreview() {
-      if (pickerPreviewAudio) { try { pickerPreviewAudio.pause(); } catch (_) {} pickerPreviewAudio = null; }
-      $all(pickerGridEl, '.idx-picker-item.is-playing').forEach(function (b) { b.classList.remove('is-playing'); });
-    }
-
     function renderPickerGrid() {
       if (!pickerGridEl) return;
       var filtered = pickerFiltered();
@@ -3625,7 +3600,7 @@
       pickerGridEl.innerHTML = page.map(function (v) {
         var sd = v.subdir || "";
         var selected = v.name === selectedVoice;
-        return '<div class="idx-picker-item' + (selected ? ' is-selected' : '') + '" data-voice="' + escapeHtml(v.name) + '" title="点击试听">'
+        return '<div class="idx-picker-item' + (selected ? ' is-selected' : '') + '" data-voice="' + escapeHtml(v.name) + '" title="选用此音色">'
           + '<div class="idx-picker-item-info">'
             + '<span class="idx-picker-item-name">' + escapeHtml(v.name.split("/").pop()) + '</span>'
             + (sd ? '<span class="idx-picker-item-sub">' + escapeHtml(sd) + '</span>' : '')
@@ -3639,7 +3614,6 @@
         var apply = first(item, '[data-action="apply"]');
         var voiceName = item.dataset.voice;
         function applyVoice() {
-          stopPickerPreview();
           if (pickerState.rowIdx === -2) {
             cfg.defaultVoice = voiceName;
             var defBtn = first(panel, '[data-role="default-voice-btn"]');
@@ -3651,11 +3625,11 @@
           }
           closeVoicePicker();
         }
-        // 点 item 主体 = toggle 试听
+        // 点 item 主体 = 直接选中。旧版点卡片会试听参考音频，容易跟正文播放串声。
         on(item, 'click', function (e) {
           if (e.target && e.target.closest && e.target.closest('[data-action="apply"]')) return;
-          if (item.classList.contains('is-playing')) { stopPickerPreview(); return; }
-          pickerPreview(voiceName, item);
+          e.preventDefault();
+          applyVoice();
         });
         on(apply, 'click', function (e) { e.preventDefault(); e.stopPropagation(); applyVoice(); });
       });
@@ -3665,7 +3639,7 @@
     }
     // 绑定 picker 的全局事件(close / search / pager)
     // 注意:picker 已经移到 panel 外、跟 panel 平级了,picker-close 在 picker 内,从 pickerEl 查找
-    on(first(pickerEl, '.idx-picker-close'), 'click', function () { stopPickerPreview(); closeVoicePicker(); });
+    on(first(pickerEl, '.idx-picker-close'), 'click', function () { closeVoicePicker(); });
     on(pickerSearchEl, 'input', function () { pickerState.search = pickerSearchEl.value || ""; pickerState.page = 1; renderPickerGrid(); });
     on(pickerPrevEl, 'click', function () { if (pickerState.page > 1) { pickerState.page--; renderPickerGrid(); } });
     on(pickerNextEl, 'click', function () { pickerState.page++; renderPickerGrid(); });
@@ -3916,6 +3890,24 @@
             setPlayState("loading");
             debugLog(trackEntry.offlineUrl ? "⚡ 命中本地离线音频，直接播放" : "⚡ 命中服务端缓存，直接 audio.src 播放", "#9f9");
             startElementAudioFrom(trackEntry, 0);
+            return;
+          }
+          if (jobInfo.live && streamUrl) {
+            trackEntry.url = streamUrl;
+            trackEntry.backgroundOnly = false;
+            trackEntry.allowStreamPlay = true;
+            trackEntry.playSavedWhenReady = false;
+            setTrackState(trackEntry, "live");
+            setStatus("连接流式音频…");
+            showTrackNotice(trackEntry, "连接流式音频…", "边合成边播放，完成后自动保存缓存");
+            debugLog("▶️ dialogue live stream 播放: " + streamUrl, "#9f9");
+            pollCacheUpgrade(trackEntry, "dialogue live snapshot");
+            await playLiveTrack(trackEntry, streamUrl, {
+              noticeTitle: "等待首段音频…",
+              noticeDetail: "边合成边播放，完成后自动保存缓存",
+              waitDetail: "正在合成第一段",
+              startOffsetSec: 0
+            });
             return;
           }
           trackEntry.backgroundOnly = true;

@@ -226,7 +226,6 @@
           ]
         }, bucket[charKey] || {});
         bucket[charKey] = charCfg;
-        bucket["global:" + characterLegacyKey] = charCfg;
         saveBucket(bucket);
         try { localStorage.setItem(globalConfigKey, JSON.stringify(bucket[globalKey])); } catch (_) {}
         try { localStorage.setItem(characterLegacyKey, JSON.stringify(charCfg)); } catch (_) {}
