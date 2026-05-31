@@ -232,11 +232,18 @@ try {
         throw new Error("picker wait timeout");
       }
       const lazyPlay = document.querySelector('[data-role="lazy-play"]');
+      lazyPlay.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
       lazyPlay.click();
       await waitFor(() => document.querySelector('[data-role="gear"]'), 5000);
+      const guardedVoiceBtn = document.querySelector('[data-role="default-voice-btn"]') || document.querySelector('.idx-role-row .idx-voice-btn');
+      if (guardedVoiceBtn) {
+        guardedVoiceBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+        guardedVoiceBtn.click();
+      }
       await sleep(600);
       const pickerOpenAfterLazyPlay = !!document.querySelector('.idx-picker[open]');
       const panelOpenAfterLazyPlay = !!document.querySelector('.idx-panel[open]');
+      await sleep(1200);
       const gear = document.querySelector('[data-role="gear"]');
       gear.click();
       await waitFor(() => document.querySelector('.idx-panel[open]'), 5000);
@@ -256,7 +263,14 @@ try {
       const pickerHeight = Math.round(picker.getBoundingClientRect().height);
       const pickerItems = document.querySelectorAll('.idx-picker[open] .idx-picker-item').length;
       const panelWasOpenWithPicker = !!document.querySelector('.idx-panel[open]');
-      item.click();
+      const closeBtn = document.querySelector('.idx-picker[open] .idx-picker-close');
+      closeBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+      await waitFor(() => !document.querySelector('.idx-picker[open]') && document.querySelector('.idx-panel[open]'), 5000);
+      const closeButtonWorked = !document.querySelector('.idx-picker[open]') && !!document.querySelector('.idx-panel[open]');
+      firstVoiceBtn.click();
+      await waitFor(() => document.querySelector('.idx-picker[open] .idx-picker-item'), 10000);
+      const itemAfterClose = document.querySelector('.idx-picker[open] .idx-picker-item');
+      itemAfterClose.click();
       await waitFor(() => !document.querySelector('.idx-picker[open]') && document.querySelector('.idx-panel[open]'), 5000);
       const panelRestored = !!document.querySelector('.idx-panel[open]');
       quality.value = "expressive";
@@ -272,7 +286,7 @@ try {
       const globalHasVoiceConfig = ["defaultVoice", "roleVoiceList", "roleVoicesText"].some((key) => Object.prototype.hasOwnProperty.call(globalCfg, key));
       const characterHasVoiceConfig = !!(charCfg.defaultVoice && Array.isArray(charCfg.roleVoiceList) && charCfg.roleVoiceList.length);
       window.__idxTest.clearFetchLog();
-      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys, panelFixed, panelInViewport, scrollDelta: Math.abs(window.scrollY - beforeY), pickerOpenAfterLazyPlay, panelOpenAfterLazyPlay };
+      return { pickerHeight, pickerItems, panelWasOpenWithPicker, panelRestored, closeButtonWorked, selectedQuality, globalHasVoiceConfig, characterHasVoiceConfig, globalCharacterKeys, panelFixed, panelInViewport, scrollDelta: Math.abs(window.scrollY - beforeY), pickerOpenAfterLazyPlay, panelOpenAfterLazyPlay };
     })()`, true);
     await sleep(500);
     pickerCheck.voicePreviewNetworkDelta = voicePreviewRequestCount(cdp) - previewBefore;
@@ -405,6 +419,7 @@ try {
     pickerCheck.globalHasVoiceConfig === false &&
     pickerCheck.characterHasVoiceConfig === true &&
     pickerCheck.globalCharacterKeys.length === 0 &&
+    pickerCheck.closeButtonWorked === true &&
     pickerCheck.panelFixed === true &&
     pickerCheck.panelInViewport === true &&
     pickerCheck.scrollDelta <= 2 &&

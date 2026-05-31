@@ -3648,7 +3648,18 @@
     }
     // 绑定 picker 的全局事件(close / search / pager)
     // 注意:picker 已经移到 panel 外、跟 panel 平级了,picker-close 在 picker 内,从 pickerEl 查找
-    on(first(pickerEl, '.idx-picker-close'), 'click', function () { closeVoicePicker(); });
+    var pickerCloseBtn = first(pickerEl, '.idx-picker-close');
+    function handlePickerClose(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      }
+      closeVoicePicker();
+    }
+    ['pointerup', 'touchend', 'mouseup', 'click'].forEach(function (type) {
+      if (pickerCloseBtn) pickerCloseBtn.addEventListener(type, handlePickerClose, true);
+    });
     on(pickerSearchEl, 'input', function () { pickerState.search = pickerSearchEl.value || ""; pickerState.page = 1; renderPickerGrid(); });
     on(pickerPrevEl, 'click', function () { if (pickerState.page > 1) { pickerState.page--; renderPickerGrid(); } });
     on(pickerNextEl, 'click', function () { pickerState.page++; renderPickerGrid(); });

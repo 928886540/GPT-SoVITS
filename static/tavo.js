@@ -4,7 +4,9 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260531-restore-snapshot-card-v3";
+  var LOADER_VERSION = "20260531-restore-snapshot-card-v5";
+  var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
+  var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
   function deriveBaseUrl(src) {
     var raw = String(src || "").trim();
@@ -44,6 +46,39 @@
   function $(root, sel) { return root && root.querySelector ? root.querySelector(sel) : null; }
   function $all(root, sel) { return root && root.querySelectorAll ? Array.prototype.slice.call(root.querySelectorAll(sel)) : []; }
   function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
+
+  function installGlobalTapGuard() {
+    try {
+      if (window.__gptsovits_tavo_tap_guard_installed) return;
+      window.__gptsovits_tavo_tap_guard_installed = true;
+      ["click", "touchend", "pointerup", "mouseup"].forEach(function (type) {
+        document.addEventListener(type, function (ev) {
+          var until = Number(window[TAP_GUARD_KEY] || 0) || 0;
+          if (!until || Date.now() > until) return;
+          var target = ev.target;
+          if (target && target.closest && target.closest('[data-role="lazy-card"]')) return;
+          if (!target || !target.closest || !target.closest(PICKER_TRIGGER_SELECTOR)) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
+        }, true);
+      });
+    } catch (_) {}
+  }
+
+  function armTapGuard(ms) {
+    installGlobalTapGuard();
+    try { window[TAP_GUARD_KEY] = Date.now() + Math.max(800, Number(ms || 0) || 0); } catch (_) {}
+  }
+
+  function closeAccidentalPicker() {
+    try {
+      $all(document, ".idx-picker[open]").forEach(function (picker) {
+        try { if (typeof picker.close === "function") picker.close(); else picker.removeAttribute("open"); }
+        catch (_) { try { picker.removeAttribute("open"); } catch (__) {} }
+      });
+    } catch (_) {}
+  }
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -156,7 +191,9 @@
       }).then(function () {
         root.setAttribute("data-runtime-loaded", "1");
         root.setAttribute("data-touch-guard", "1");
-        setTimeout(function () { try { root.removeAttribute("data-touch-guard"); } catch (_) {} }, 450);
+        armTapGuard(1600);
+        [0, 80, 220, 520].forEach(function (delay) { setTimeout(closeAccidentalPicker, delay); });
+        setTimeout(function () { try { root.removeAttribute("data-touch-guard"); } catch (_) {} }, 1600);
         return clickSelector;
       }).catch(function (e) {
         bootPromise = null;
@@ -174,8 +211,12 @@
         if (btn) btn.click();
       }).catch(function (e) { try { console.error("[GPT-SoVITS TAVO loader]", e && e.message ? e.message : e); } catch (_) {} });
     }
+    on($(root, '[data-role="lazy-play"]'), "pointerdown", function () { armTapGuard(1600); });
+    on($(root, '[data-role="lazy-play"]'), "touchstart", function () { armTapGuard(1600); });
+    on($(root, '[data-role="lazy-open"]'), "pointerdown", function () { armTapGuard(1600); });
+    on($(root, '[data-role="lazy-open"]'), "touchstart", function () { armTapGuard(1600); });
     on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); mountRuntime(""); });
-    on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); mountRuntime(""); });
+    on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); mountRuntime(""); });
     on($(root, '[data-role="lazy-open"]'), "keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); mountRuntime(""); } });
   } catch (e) {
     try { console.error("[GPT-SoVITS TAVO loader]", e && e.stack ? e.stack : e); } catch (_) {}
