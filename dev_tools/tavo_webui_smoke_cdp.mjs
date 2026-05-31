@@ -209,7 +209,8 @@ try {
   const lazyBeforeMount = await cdp.evalJs(`(() => ({
     hasLazy: !!document.querySelector('[data-role="lazy-card"]'),
     hasFull: !!document.querySelector('[data-role="add"]'),
-    hasPanel: !!document.querySelector('.idx-panel')
+    hasPanel: !!document.querySelector('.idx-panel'),
+    runtimeRequested: window.__idxTest.getFetchLog().some((r) => new URL(r.url).pathname.indexOf('/static/tavo.runtime.js') >= 0)
   }))()`);
 
   let pickerCheck = null;
@@ -378,10 +379,13 @@ try {
     pickerCheck.scrollDelta <= 2;
   const mediaArtworkOk = !summary.mediaArtwork.length ||
     (summary.mediaArtwork[0].src && !/tavo-now-playing-cover\.png/.test(summary.mediaArtwork[0].src));
+  const runtimeLazyLoaded = cdp.requests.some((r) => new URL(r.url).pathname.includes('/static/tavo.runtime.js')) ||
+    cdp.responses.some((r) => new URL(r.url).pathname.includes('/static/tavo.runtime.js') && r.status >= 200 && r.status < 300);
 
   console.log(JSON.stringify({
-    ok: lazyBeforeMount.hasLazy && !lazyBeforeMount.hasFull && !lazyBeforeMount.hasPanel && hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount === 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
+    ok: lazyBeforeMount.hasLazy && !lazyBeforeMount.hasFull && !lazyBeforeMount.hasPanel && !lazyBeforeMount.runtimeRequested && runtimeLazyLoaded && hasDialogueJob && hasLiveStream && hasLiveConsole && !hasBackgroundConsole && cacheSnapshotOk && parseCount === 1 && reusedParse && noLegacyEmotionPrompt && pickerOk && mediaArtworkOk && failedConsole.length === 0,
     lazyBeforeMount,
+    runtimeLazyLoaded,
     hasDialogueJob,
     hasStatus,
     hasLiveStream,

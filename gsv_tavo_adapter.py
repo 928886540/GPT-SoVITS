@@ -130,6 +130,34 @@ async def tavo_js_head() -> FileResponse:
     return FileResponse(ROOT / "static" / "tavo.js", media_type="application/javascript")
 
 
+def _static_file_response(name: str) -> FileResponse:
+    if not name or "/" in name or "\\" in name or ".." in name:
+        raise HTTPException(status_code=404, detail="Not Found")
+    media_types = {
+        ".js": "application/javascript",
+        ".css": "text/css",
+        ".html": "text/html",
+    }
+    media_type = media_types.get(Path(name).suffix.lower())
+    if not media_type:
+        raise HTTPException(status_code=404, detail="Not Found")
+    static_root = (ROOT / "static").resolve()
+    path = (static_root / name).resolve()
+    if static_root not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(path, media_type=media_type)
+
+
+@APP.get("/static/{name}")
+async def static_file(name: str) -> FileResponse:
+    return _static_file_response(name)
+
+
+@APP.head("/static/{name}")
+async def static_file_head(name: str) -> FileResponse:
+    return _static_file_response(name)
+
+
 @APP.get("/tavo_test")
 async def tavo_test() -> HTMLResponse:
     path = ROOT / "static" / "tavo_widget_test.html"
