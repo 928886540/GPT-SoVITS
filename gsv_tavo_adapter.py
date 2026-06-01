@@ -8,6 +8,7 @@ import threading
 import time
 import wave
 import audioop
+from http.client import IncompleteRead, RemoteDisconnected
 from pathlib import Path
 from typing import Any, Optional
 from urllib import error, request as urlrequest
@@ -145,7 +146,14 @@ async def tavo_js_head() -> FileResponse:
 
 
 def _static_file_response(name: str) -> FileResponse:
-    if not name or "/" in name or "\\" in name or ".." in name:
+    raw_name = str(name or "").replace("\\", "/").strip()
+    parts = raw_name.split("/")
+    if (
+        not raw_name
+        or raw_name.startswith("/")
+        or ":" in raw_name
+        or any(part in {"", ".."} for part in parts)
+    ):
         raise HTTPException(status_code=404, detail="Not Found")
     media_types = {
         ".js": "application/javascript",
@@ -153,24 +161,24 @@ def _static_file_response(name: str) -> FileResponse:
         ".html": "text/html",
         ".json": "application/json",
     }
-    suffix = Path(name).suffix.lower()
+    suffix = Path(raw_name).suffix.lower()
     media_type = media_types.get(suffix)
     if not media_type:
         raise HTTPException(status_code=404, detail="Not Found")
     static_root = (ROOT / "static").resolve()
-    path = (static_root / name).resolve()
+    path = (static_root / Path(*parts)).resolve()
     if static_root not in path.parents or not path.is_file():
         raise HTTPException(status_code=404, detail="Not Found")
     headers = {"Cache-Control": "no-store, max-age=0"} if suffix in {".js", ".css", ".html", ".json"} else None
     return FileResponse(path, media_type=media_type, headers=headers)
 
 
-@APP.get("/static/{name}")
+@APP.get("/static/{name:path}")
 async def static_file(name: str) -> FileResponse:
     return _static_file_response(name)
 
 
-@APP.head("/static/{name}")
+@APP.head("/static/{name:path}")
 async def static_file_head(name: str) -> FileResponse:
     return _static_file_response(name)
 
@@ -486,7 +494,7 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
         state = "done"
     else:
         job_state = str(job.get("state") or "").strip()
-        if job_state in {"queued", "deferred_stream", "running"}:
+        if job_state in {"queued", "deferred_stream", "running", "failed"}:
             state = job_state
         else:
             state = "missing"
@@ -732,6 +740,43 @@ def _stream_dialogue_to_cache(
         current = JOBS.get(cache_key, {})
         JOBS[cache_key] = {**current, "state": "running", "started_at": time.time(), "queue_position": 0}
 
+    def fail_stream(exc: Exception, segment_index: Optional[int] = None, segment: Optional[dict[str, Any]] = None) -> None:
+        role = str((segment or {}).get("role") or "").strip()
+        text = str((segment or {}).get("text") or "").strip()
+        error_text = str(exc)
+        if segment_index is not None:
+            error_text = f"segment {segment_index} role={role or '?'} failed: {error_text}"
+        print(
+            "[gsv_adapter] dialogue_stream_failed "
+            + json.dumps(
+                {
+                    "cache_key": cache_key,
+                    "segment_index": segment_index,
+                    "role": role,
+                    "text_preview": text[:80],
+                    "error": error_text,
+                },
+                ensure_ascii=True,
+                separators=(",", ":"),
+            ),
+            flush=True,
+        )
+        with JOBS_LOCK:
+            JOBS[cache_key] = {
+                **JOBS.get(cache_key, {}),
+                "state": "failed",
+                "error": error_text,
+                "segments_meta": segments_meta,
+                "sample_rate": sample_rate,
+                "duration_s": offset_frames / float(sample_rate) if sample_rate else None,
+                "metrics": {
+                    "partial": bool(total_bytes),
+                    "partial_bytes": total_bytes,
+                    "elapsed_s": time.perf_counter() - started,
+                },
+                "finished_at": time.time(),
+            }
+
     try:
         for index, segment in enumerate(segments):
             profile = _profile_for_segment(payload, profiles, segment)
@@ -759,38 +804,42 @@ def _stream_dialogue_to_cache(
                     return b""
                 return _apply_pcm_gain(data[:usable], width, gain_db)
 
-            for chunk in _stream_official_tts(req_payload):
-                if first_s is None:
-                    first_s = time.perf_counter() - segment_started
-                if not saw_header:
-                    header_buf += chunk
-                    if len(header_buf) < 44:
-                        continue
-                    header = header_buf[:44]
-                    rest = header_buf[44:]
-                    info = _wav_header_info(header)
-                    if sample_rate is None:
-                        sample_rate = info["sample_rate"]
-                        channels = info["channels"]
-                        sample_width = info["sample_width"]
-                        yield header
-                    elif (sample_rate, channels, sample_width) != (info["sample_rate"], info["channels"], info["sample_width"]):
-                        raise ValueError("official API returned incompatible wav format across streamed segments")
-                    if rest:
-                        rest = apply_segment_gain(rest, info["sample_width"])
-                        pcm_parts.append(rest)
-                        segment_pcm_bytes += len(rest)
-                        total_bytes += len(rest)
+            try:
+                for chunk in _stream_official_tts(req_payload):
+                    if first_s is None:
+                        first_s = time.perf_counter() - segment_started
+                    if not saw_header:
+                        header_buf += chunk
+                        if len(header_buf) < 44:
+                            continue
+                        header = header_buf[:44]
+                        rest = header_buf[44:]
+                        info = _wav_header_info(header)
+                        if sample_rate is None:
+                            sample_rate = info["sample_rate"]
+                            channels = info["channels"]
+                            sample_width = info["sample_width"]
+                            yield header
+                        elif (sample_rate, channels, sample_width) != (info["sample_rate"], info["channels"], info["sample_width"]):
+                            raise ValueError("official API returned incompatible wav format across streamed segments")
                         if rest:
-                            yield rest
-                    saw_header = True
-                else:
-                    chunk = apply_segment_gain(chunk, sample_width or 2)
-                    pcm_parts.append(chunk)
-                    segment_pcm_bytes += len(chunk)
-                    total_bytes += len(chunk)
-                    if chunk:
-                        yield chunk
+                            rest = apply_segment_gain(rest, info["sample_width"])
+                            pcm_parts.append(rest)
+                            segment_pcm_bytes += len(rest)
+                            total_bytes += len(rest)
+                            if rest:
+                                yield rest
+                        saw_header = True
+                    else:
+                        chunk = apply_segment_gain(chunk, sample_width or 2)
+                        pcm_parts.append(chunk)
+                        segment_pcm_bytes += len(chunk)
+                        total_bytes += len(chunk)
+                        if chunk:
+                            yield chunk
+            except Exception as exc:
+                fail_stream(exc, index, segment)
+                return
 
             if sample_rate is None or channels is None or sample_width is None:
                 raise ValueError("official API returned no streamable wav audio")
@@ -844,9 +893,8 @@ def _stream_dialogue_to_cache(
             if JOBS.get(cache_key, {}).get("state") != "deleted":
                 JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, **result}
     except Exception as exc:
-        with JOBS_LOCK:
-            JOBS[cache_key] = {**JOBS.get(cache_key, {}), "state": "failed", "error": str(exc), "finished_at": time.time()}
-        raise
+        fail_stream(exc)
+        return
 
 
 def _normalize_segments(raw_segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1068,12 +1116,32 @@ def _stream_official_tts(payload: dict[str, Any], on_done=None):
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"official API HTTP {exc.code}: {detail}") from exc
+    except error.URLError as exc:
+        raise RuntimeError(f"official API connection failed: {getattr(exc, 'reason', exc)}") from exc
+    bytes_read = 0
+    chunks_read = 0
     try:
         with resp_ctx as resp:
             while True:
-                chunk = resp.read(65536)
+                try:
+                    chunk = resp.read(65536)
+                except IncompleteRead as exc:
+                    partial = getattr(exc, "partial", b"") or b""
+                    if partial:
+                        bytes_read += len(partial)
+                        chunks_read += 1
+                        yield partial
+                    raise RuntimeError(
+                        f"official API stream incomplete after {bytes_read} bytes/{chunks_read} chunks: {exc}"
+                    ) from exc
+                except (RemoteDisconnected, TimeoutError, ConnectionError, OSError) as exc:
+                    raise RuntimeError(
+                        f"official API stream connection interrupted after {bytes_read} bytes/{chunks_read} chunks: {exc}"
+                    ) from exc
                 if not chunk:
                     break
+                bytes_read += len(chunk)
+                chunks_read += 1
                 yield chunk
     finally:
         if on_done is not None:

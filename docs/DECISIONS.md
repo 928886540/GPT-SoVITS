@@ -37,3 +37,30 @@ GPT-SoVITS 可生成音色不是一个裸 wav/mp3 文件，而是 JSON Voice Pro
 Status: accepted
 
 v2ProPlus 做稳定默认候选，V4 做情绪/抑扬顿挫候选。二者的权重、默认参数和缓存 key 分开保存。
+
+## DEC-007: 模式命名改为普通模式 / 智能模式
+
+Status: accepted, implementation in progress
+
+前端产品文案不再用“单音色 / 多音色”作为主模式名，改为：
+
+- 普通模式：本地 JS 清洗正文，不走 LLM 拆段；支持配置默认音色、旁白音色和对白音色。
+- 智能模式：继续走 LLM 拆旁白、人物和声腔，并按角色映射选择 Voice Profile。
+
+实现时要保持配置错误显式暴露，不要因为普通模式存在默认音色就随机兜底缺失配置。
+
+## DEC-008: `static/tavo.runtime.js` 需要拆分，但保留单入口 loader
+
+Status: accepted, first physical split implemented
+
+`static/tavo.runtime.js` 已经超过 5000 行，后续继续改弹层、播放器、模式配置和文本清洗时冲突风险太高。下一步需要拆分 runtime，但保持 `static/tavo.js` 作为 Tavo 正则注入的唯一入口，避免每次内部重构都要求用户改正则。
+
+拆分原则：
+
+- 先记录计划，再做小步拆分；每步拆分后跑基础语法检查和真实 Tavo 回归。
+- 不在同一个补丁里混合“普通/智能模式”与“弹层/播放器 bug”两条线。
+- 拆分后仍要保证注入脚本幂等，不能重复挂 DOM、样式、事件监听或 AudioContext。
+
+第一版采用行为等价的物理拆分：`static/tavo.runtime.js` 只负责懒加载 `static/tavo.runtime.parts/*.js`，parts 拼接后仍按原闭包执行。这样先解决单文件过大、token 消耗和并行冲突问题，不先重写业务逻辑。
+
+已继续抽出 `static/tavo.runtime.parts/05_message_text_config.js`、`static/tavo.ui.skin.default.css` 和 `static/tavo.runtime.parts/25_ui_templates.js`，并把 runtime 继续按函数边界拆到 21 个 parts。当前仍保持行为等价，不改普通/智能模式、不改弹层/播放器 bug 逻辑。后续再把 UI templates/skin 从闭包片段升级成可替换 UI API。

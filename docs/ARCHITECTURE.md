@@ -35,6 +35,53 @@ Tavo 原文
 
 缓存 key 必须区分文本、角色映射、Voice Profile、模型版本和推理参数。相同文本分别用 v2ProPlus / V4 生成时必须是两个不同缓存。
 
+普通模式 / 智能模式也必须进入缓存边界：相同原文在不同模式、不同默认/旁白/对白音色、不同角色映射或不同推理参数下，不能复用同一个 cache。
+
+## Tavo runtime 拆分计划
+
+当前 `static/tavo.runtime.js` 是单文件 runtime，已经同时承载配置、消息提取、正文清洗、播放器、缓存、dialogue job、设置页、音色选择器和调试日志。文件过大导致每次 AI 接手都会大量消耗上下文 token，定位慢、改动慢，也更容易误碰并行工作线。后续需要拆分来降低冲突和上下文成本，但 Tavo 正则注入仍保留 `static/tavo.js` 一个入口。
+
+第一版已落地为行为等价的物理拆分：
+
+- `static/tavo.js`：Tavo 正则唯一入口和消息懒加载卡片。
+- `static/tavo.runtime.js`：小型 runtime part loader；只有点击懒加载卡片后才加载。
+- `static/tavo.runtime.parts/00_base_config_storage.js`
+- `static/tavo.runtime.parts/05_message_text_config.js`
+- `static/tavo.runtime.parts/10_tts_jobs_audio_stream.js`
+- `static/tavo.runtime.parts/20_llm_segmentation.js`
+- `static/tavo.runtime.parts/25_ui_templates.js`
+- `static/tavo.runtime.parts/30_player_shell.js`
+- `static/tavo.runtime.parts/32_llm_reuse_helpers.js`
+- `static/tavo.runtime.parts/34_element_audio_controls.js`
+- `static/tavo.runtime.parts/36_track_state_offline.js`
+- `static/tavo.runtime.parts/38_saved_prompt_stream_helpers.js`
+- `static/tavo.runtime.parts/40_playback_cache.js`
+- `static/tavo.runtime.parts/42_saved_playback_cache.js`
+- `static/tavo.runtime.parts/44_track_history_cache.js`
+- `static/tavo.runtime.parts/48_settings_fields.js`
+- `static/tavo.runtime.parts/50_settings_voice_picker.js`
+- `static/tavo.runtime.parts/52_voice_subtitle_media.js`
+- `static/tavo.runtime.parts/54_voice_picker_panel.js`
+- `static/tavo.runtime.parts/58_live_pause_helper.js`
+- `static/tavo.runtime.parts/60_generate_mount_boot.js`
+- `static/tavo.runtime.parts/62_dialog_audio_events.js`
+- `static/tavo.runtime.parts/68_mount_boot.js`
+- `static/tavo.ui.skin.default.css`
+
+当前 parts 是按顺序拼接执行的闭包片段，目的是先降低单文件 token 成本并减少并行冲突。第二步已把 message/text/config 从 bootstrap 里拆出，抽离 CSS 和第一批 HTML 模板，并继续把播放、track/cache、设置、picker、生成和事件绑定按函数边界拆小。`tavo.ui.skin.default.css` 承载默认皮肤，`25_ui_templates.js` 承载主 shell、懒加载 shell、字幕、角色行和 picker 小模板。下一阶段再把这些闭包片段整理成真正独立 UI/API 模块，并允许按需替换 UI/skin JS。
+
+拆分建议按职责推进：
+
+- bootstrap / loader handshake：注入幂等、base URL、版本和日志入口。
+- config / storage：Tavo character/chat scope 配置、历史 tracks、IndexedDB。
+- message / text cleaning：当前消息识别、正文清洗、普通模式规则拆段。
+- audio / player：`<audio>`、Web Audio、seek、保存音频复播、AudioContext 生命周期。
+- tts jobs：普通模式 stream job、智能模式 dialogue job、cache 状态轮询。
+- settings panel / voice picker：设置页布局、弹层层级、音色试听和应用。
+- UI skin：参考旧项目 `insert.ui.skin.*.js`，后续允许加载不同 UI/skin JS。
+
+拆分前必须先看当前未提交 diff，避免把普通/智能模式半成品和 BUG-004/014/015/016 的弹层/播放器修复混在一个大改里。
+
 ## 质量档位
 
 当前暂定：

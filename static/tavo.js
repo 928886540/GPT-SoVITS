@@ -4,7 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260601-lan-webview-layer-v17";
+  var LOADER_VERSION = "20260601-lan-webview-layer-v20";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -261,6 +261,11 @@
       if (playBtn) playBtn.setAttribute("data-loading", "1");
       bootPromise = loadScript(runtimeSrc, function () {
         try { window.__gptsovits_tavo_runtime_script_override = loaderScript; } catch (_) {}
+      }).then(function () {
+        var runtimeReady = null;
+        try { runtimeReady = window.__gptsovits_tavo_runtime_ready; } catch (_) {}
+        if (runtimeReady && typeof runtimeReady.then === "function") return runtimeReady;
+        return true;
       }).then(function () {
         root.setAttribute("data-runtime-loaded", "1");
         root.style.display = "none";

@@ -26,6 +26,11 @@
 - 下一步工作写 `docs/TODO.md`。
 - 每次修复后的必跑验证写 `docs/REGRESSION.md`。
 - 每修一个 bug，必须更新 `docs/BUGS.md`；如果同类问题复发，同步更新 `docs/REGRESSION.md`。
+- 如果 Codex 上下文接近耗尽，先更新 `docs/AGENT_STATE.md` 和 TODO/BUGS/REGRESSION，再提醒结束当前会话并重开。
+
+## 协作语气
+
+默认中文，直接、简洁、哥们式沟通，适度用 emoji；调试时先说根因假设和证据。完整协作规则见 `AGENTS.md`。
 
 ## 项目边界
 
