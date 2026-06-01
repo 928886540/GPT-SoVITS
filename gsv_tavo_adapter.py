@@ -7,13 +7,14 @@ import queue
 import threading
 import time
 import wave
+import audioop
 from pathlib import Path
 from typing import Any, Optional
 from urllib import error, request as urlrequest
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from gsv_adapter import llm_proxy, profile_store, snapshot_cache, voice_library
@@ -31,6 +32,9 @@ APP.add_middleware(
 ROOT = Path(__file__).resolve().parent
 STYLE_DIR = ROOT / "prompts" / "library" / "声腔"
 OFFICIAL_TTS_URL = os.getenv("GPT_SOVITS_OFFICIAL_TTS_URL", "http://127.0.0.1:9881/tts")
+LLM_ENDPOINT = os.getenv("GSV_TAVO_LLM_ENDPOINT", "").strip()
+LLM_MODEL = os.getenv("GSV_TAVO_LLM_MODEL", "").strip()
+LLM_API_KEY = os.getenv("GSV_TAVO_LLM_API_KEY", "").strip()
 
 
 STYLE_ALIASES = {
@@ -74,8 +78,8 @@ class UsageLogRequest(BaseModel):
 
 class ParseTextRequest(BaseModel):
     text: str
-    endpoint: str
-    model: str
+    endpoint: Optional[str] = None
+    model: Optional[str] = None
     api_key: Optional[str] = None
     system_prompt: Optional[str] = None
     temperature: float = 0.2
@@ -118,6 +122,16 @@ class SingleStreamRequest(BaseModel):
 @APP.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "engine": "gptsovits-adapter"}
+
+
+@APP.get("/llm_config")
+async def llm_config() -> dict[str, Any]:
+    return {
+        "endpoint": LLM_ENDPOINT,
+        "model": LLM_MODEL,
+        "api_key_configured": bool(LLM_API_KEY),
+        "source": "env" if (LLM_ENDPOINT or LLM_MODEL or LLM_API_KEY) else "request",
+    }
 
 
 @APP.get("/static/tavo.js")
@@ -251,12 +265,19 @@ async def append_usage(request: UsageLogRequest) -> dict[str, int]:
 
 @APP.post("/parse_text")
 async def parse_text(request: ParseTextRequest) -> dict[str, Any]:
+    endpoint = LLM_ENDPOINT or (request.endpoint or "").strip()
+    model = LLM_MODEL or (request.model or "").strip()
+    api_key = LLM_API_KEY or (request.api_key or "").strip()
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="LLM endpoint is not configured. Set GSV_TAVO_LLM_ENDPOINT on the adapter or fill LLM endpoint in Tavo.")
+    if not model:
+        raise HTTPException(status_code=400, detail="LLM model is not configured. Set GSV_TAVO_LLM_MODEL on the adapter or fill LLM model in Tavo.")
     try:
         return llm_proxy.parse_text_openai_compatible(
             text=request.text,
-            endpoint=request.endpoint,
-            model=request.model,
-            api_key=request.api_key,
+            endpoint=endpoint,
+            model=model,
+            api_key=api_key or None,
             system_prompt=request.system_prompt,
             temperature=request.temperature,
             timeout=request.timeout,
@@ -394,11 +415,29 @@ async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
     }
 
 
+@APP.head("/tts_dialogue_stream_job/{cache_key}")
+async def get_dialogue_job_audio_head(cache_key: str):
+    path = snapshot_cache.get_cached_audio(cache_key)
+    headers = {"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"}
+    if path is not None:
+        return FileResponse(path, media_type="audio/wav", headers=headers)
+
+    with JOBS_LOCK:
+        job = dict(JOBS.get(cache_key, {}))
+    if job.get("state") in {"deferred_stream", "queued", "running"}:
+        return Response(status_code=202, headers=headers)
+    raise HTTPException(status_code=404, detail="job not found or stream context expired")
+
+
 @APP.get("/tts_dialogue_stream_job/{cache_key}")
 async def get_dialogue_job_audio(cache_key: str):
     path = snapshot_cache.get_cached_audio(cache_key)
     if path is not None:
-        return FileResponse(path, media_type="audio/wav")
+        return FileResponse(
+            path,
+            media_type="audio/wav",
+            headers={"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"},
+        )
 
     with JOBS_LOCK:
         job = dict(JOBS.get(cache_key, {}))
@@ -443,7 +482,14 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
         elif job.get("state") == "deferred_stream":
             job["queue_position"] = 0
     metadata = snapshot_cache.get_cache_metadata(cache_key) if path else None
-    state = "done" if path else job.get("state", "pending")
+    if path:
+        state = "done"
+    else:
+        job_state = str(job.get("state") or "").strip()
+        if job_state in {"queued", "deferred_stream", "running"}:
+            state = job_state
+        else:
+            state = "missing"
     return {
         "cache_key": cache_key,
         "state": state,
@@ -454,7 +500,7 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
         "sample_rate": job.get("sample_rate") or (metadata or {}).get("sample_rate"),
         "duration_s": job.get("duration_s") or (metadata or {}).get("duration_s"),
         "metrics": job.get("metrics") or (metadata or {}).get("metrics", {}),
-        "error": job.get("error", ""),
+        "error": job.get("error", "") or ("" if path or job else "cache not found or job expired"),
         "queue_position": job.get("queue_position", 0),
     }
 
@@ -562,6 +608,25 @@ def _single_request_to_dialogue_payload(request: SingleStreamRequest, voice_name
         "aux_ref_audio_paths": [],
     }
 
+
+def _profile_post_gain_db(profile: dict[str, Any]) -> float:
+    raw = profile.get("post_gain_db")
+    if raw is None and isinstance(profile.get("default_params"), dict):
+        raw = profile["default_params"].get("post_gain_db")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(-12.0, min(12.0, value))
+
+
+def _apply_pcm_gain(pcm: bytes, sample_width: int, gain_db: float) -> bytes:
+    if not pcm or not gain_db:
+        return pcm
+    factor = 10 ** (gain_db / 20.0)
+    return audioop.mul(pcm, sample_width, factor)
+
+
 def _synthesize_dialogue_to_cache(
     cache_key: str,
     payload: dict[str, Any],
@@ -593,7 +658,8 @@ def _synthesize_dialogue_to_cache(
         elif (sample_rate, channels, sample_width) != (part["sample_rate"], part["channels"], part["sample_width"]):
             raise ValueError("official API returned incompatible wav format across segments")
 
-        pcm = part["pcm"]
+        gain_db = _profile_post_gain_db(profile)
+        pcm = _apply_pcm_gain(part["pcm"], part["sample_width"], gain_db)
         frame_count = part["frames"]
         duration_s = frame_count / float(sample_rate or 1)
         pcm_parts.append(pcm)
@@ -609,6 +675,7 @@ def _synthesize_dialogue_to_cache(
                 "start_offset_bytes": total_bytes,
                 "duration_s": duration_s,
                 "voice": str(profile.get("name") or ""),
+                "post_gain_db": gain_db,
                 "metrics": {"first_byte_s": first_s, "total_s": total_s, "bytes": len(audio_bytes)},
             }
         )
@@ -678,6 +745,19 @@ def _stream_dialogue_to_cache(
             header_buf = b""
             saw_header = False
             segment_pcm_bytes = 0
+            gain_db = _profile_post_gain_db(profile)
+            gain_tail = b""
+
+            def apply_segment_gain(data: bytes, width: int) -> bytes:
+                nonlocal gain_tail
+                if not data or not gain_db:
+                    return data
+                data = gain_tail + data
+                usable = len(data) - (len(data) % width)
+                gain_tail = data[usable:]
+                if usable <= 0:
+                    return b""
+                return _apply_pcm_gain(data[:usable], width, gain_db)
 
             for chunk in _stream_official_tts(req_payload):
                 if first_s is None:
@@ -697,16 +777,20 @@ def _stream_dialogue_to_cache(
                     elif (sample_rate, channels, sample_width) != (info["sample_rate"], info["channels"], info["sample_width"]):
                         raise ValueError("official API returned incompatible wav format across streamed segments")
                     if rest:
+                        rest = apply_segment_gain(rest, info["sample_width"])
                         pcm_parts.append(rest)
                         segment_pcm_bytes += len(rest)
                         total_bytes += len(rest)
-                        yield rest
+                        if rest:
+                            yield rest
                     saw_header = True
                 else:
+                    chunk = apply_segment_gain(chunk, sample_width or 2)
                     pcm_parts.append(chunk)
                     segment_pcm_bytes += len(chunk)
                     total_bytes += len(chunk)
-                    yield chunk
+                    if chunk:
+                        yield chunk
 
             if sample_rate is None or channels is None or sample_width is None:
                 raise ValueError("official API returned no streamable wav audio")
@@ -725,6 +809,7 @@ def _stream_dialogue_to_cache(
                     "start_offset_bytes": total_bytes - segment_pcm_bytes,
                     "duration_s": duration_s,
                     "voice": str(profile.get("name") or ""),
+                    "post_gain_db": gain_db,
                     "metrics": {"first_byte_s": first_s, "total_s": total_s, "bytes": segment_pcm_bytes},
                 }
             )
@@ -1020,3 +1105,4 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(APP, host="127.0.0.1", port=9880)
+

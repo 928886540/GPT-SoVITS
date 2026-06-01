@@ -4,7 +4,7 @@
   var script = (typeof window !== "undefined" && window.__gptsovits_tavo_runtime_script_override) || document.currentScript;
   var STYLE_ID = "gptsovits-tavo-player-v1";
   var CONFIG_KEY = "gptsovits_tavo_config_v1";
-  var CONFIG_VERSION = 13;
+  var CONFIG_VERSION = 17;
   var CHAR_SCOPE_CONFIG_KEY = "gptsovits_tavo_character_config_v1";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   // 角色级配置: defaultVoice + roleVoiceList。LLM/api/mode 参数走全局。
@@ -253,7 +253,7 @@
     roleVoicesText: "旁白=\n用户=\n角色=",
     llmEndpoint: "http://192.168.8.100:8317/v1",
     llmModel: "渡鸦/grok-4.20-fast",
-    llmApiKey: "sk-ming",
+    llmApiKey: "",
     reuseLlmParse: true,
     intervalMs: 50,
     topP: 1.0,
@@ -388,22 +388,22 @@
       ".idx-subtitle{display:flex;flex-direction:column;gap:3px;margin:12px 0 0;padding:12px 10px;background:linear-gradient(180deg,rgba(60,36,84,.30) 0%,rgba(40,24,56,.48) 50%,rgba(60,36,84,.30) 100%);border:1px solid rgba(206,170,230,.18);border-radius:14px;height:136px;min-height:136px;max-height:136px;overflow-y:auto;scroll-behavior:auto;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(to bottom,transparent 0,#000 14%,#000 86%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 14%,#000 86%,transparent 100%)}.idx-subtitle.idx-hidden{display:none}.idx-sub-row{display:flex;align-items:center;justify-content:center;min-height:34px;padding:6px 8px;border-radius:10px;flex-shrink:0;text-align:center;cursor:pointer;color:rgba(244,231,255,.42);font-size:13px;line-height:1.32;font-weight:500;transition:color .18s,background .18s,box-shadow .18s}.idx-sub-row:hover{background:rgba(255,255,255,.04)}.idx-sub-row.is-current{color:#fff;font-size:13px;font-weight:800;background:rgba(216,167,255,.10);box-shadow:inset 3px 0 0 rgba(216,167,255,.75)}.idx-sub-row.is-past{color:rgba(244,231,255,.30)}.idx-sub-notice{margin:auto;text-align:center;color:rgba(244,231,255,.78);font-size:13px;line-height:1.45;max-width:92%;padding:10px 8px}.idx-sub-notice strong{display:block;color:#fff;font-size:15px;margin-bottom:4px}.idx-sub-notice span{display:block;color:rgba(244,231,255,.56);font-size:12px}.idx-sub-avatar{width:24px;height:24px;border-radius:50%;background:#241a2c;object-fit:cover;border:1.5px solid rgba(206,170,230,.40);opacity:.85}.idx-sub-avatar.idx-hidden{display:none}.idx-sub-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;max-width:100%}",
       ".idx-controls{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;flex-wrap:wrap}.idx-ctrl{border:1px solid rgba(206,170,230,.16);border-radius:50%;background:rgba(206,170,230,.08);color:#eee7f4;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-tap-highlight-color:transparent;transition:background-color .12s ease}@media(hover:hover){.idx-ctrl:hover{background:rgba(206,170,230,.16)}}.idx-ctrl:focus{outline:none}.idx-ctrl svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}.idx-ctrl-sm{width:42px;height:42px}.idx-ctrl-skip{width:42px;height:42px;background:rgba(130,190,255,.10);color:#cfe6ff}.idx-ctrl-skip svg{width:22px;height:22px}.idx-ctrl-main{width:66px;height:66px;background:#c890e8;color:#170e20;border-color:rgba(255,255,255,.18);box-shadow:0 10px 24px rgba(200,144,232,.25)}.idx-ctrl-main[data-state='playing']{background:#e1b0f5}.idx-ctrl-main svg{width:28px;height:28px;fill:currentColor;stroke:none}.idx-ctrl-main[data-state='loading'] svg{animation:idx-spin .9s linear infinite}@keyframes idx-spin{to{transform:rotate(360deg)}}.idx-ctrl-add{width:48px;height:48px;background:rgba(154,94,182,.42);color:#f4e7ff}.idx-ctrl-add svg,.idx-ctrl-delete svg{fill:currentColor;stroke:none}.idx-ctrl-delete{width:48px;height:48px;background:rgba(120,38,52,.46);color:#ffd5dd}.idx-ctrl:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.25)}",
       ".idx-meta{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}.idx-pill{font-size:11px;color:rgba(238,231,244,.75);background:rgba(255,255,255,.06);border:1px solid rgba(206,170,230,.14);border-radius:999px;padding:4px 9px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      ".idx-panel,.idx-panel *{box-sizing:border-box}.idx-panel:not([open]),.idx-picker:not([open]),.idx-panel[aria-hidden='true'],.idx-picker[aria-hidden='true']{display:none!important;pointer-events:none!important}.idx-panel{margin:auto auto 8px auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:auto;max-height:min(88dvh,calc(100dvh - 12px));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-shadow:0 -8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);padding:14px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2147483400}.idx-panel::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-14px -14px 10px;padding:12px 14px 10px;position:sticky;top:-14px;background:linear-gradient(180deg,#120e18 0%,rgba(18,14,24,.94) 100%);z-index:2}.idx-panel-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-close{border:0;background:transparent;color:rgba(238,231,244,.70);font-size:22px;line-height:1;cursor:pointer;padding:0 6px}",
+      ".idx-panel,.idx-panel *{box-sizing:border-box;min-width:0}.idx-panel:not([open]),.idx-picker:not([open]),.idx-panel[aria-hidden='true'],.idx-picker[aria-hidden='true']{display:none!important;pointer-events:none!important}.idx-panel{margin:auto auto 8px auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100dvw;height:auto;max-height:min(88dvh,calc(100dvh - 12px));overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-shadow:0 -8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);padding:14px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2147483400}.idx-panel::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-14px -14px 10px;padding:12px 14px 10px;position:sticky;top:-14px;background:linear-gradient(180deg,#120e18 0%,rgba(18,14,24,.94) 100%);z-index:2}.idx-panel-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-close{border:0;background:transparent;color:rgba(238,231,244,.70);font-size:22px;line-height:1;cursor:pointer;padding:0 6px}",
       ".idx-section-title{font-size:12px;font-weight:700;color:#d9b7f0;margin:10px 0 5px}.idx-voices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.idx-voice{min-height:58px;border:1px solid rgba(206,170,230,.16);border-radius:8px;background:rgba(255,255,255,.06);color:#eee7f4;text-align:left;padding:9px;cursor:pointer;font-family:inherit;position:relative;overflow:hidden}.idx-voice:before{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;background:linear-gradient(90deg,#c890e8,#d8a7ff);opacity:.30}.idx-voice strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-voice span{display:block;margin-top:4px;font-size:11px;color:rgba(238,231,244,.56)}.idx-voice.is-active{border-color:#c890e8;background:rgba(200,144,232,.16);box-shadow:0 0 0 2px rgba(200,144,232,.12)}",
       ".idx-modes{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.idx-mode{border:1px solid rgba(206,170,230,.16);border-radius:8px;background:rgba(255,255,255,.06);color:#eee7f4;text-align:left;padding:9px;cursor:pointer;font-family:inherit}.idx-mode strong{display:block;font-size:12px}.idx-mode span{display:block;margin-top:3px;font-size:11px;color:rgba(238,231,244,.56)}.idx-mode.is-active{border-color:#c890e8;background:rgba(200,144,232,.16);box-shadow:0 0 0 2px rgba(200,144,232,.10)}",
       ".idx-check{display:flex;align-items:flex-start;gap:8px;margin:10px 0 4px;padding:9px;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:rgba(255,255,255,.04);cursor:pointer}.idx-check input{margin:2px 0 0;accent-color:#c890e8}.idx-check strong{display:block;font-size:12px;color:#eee7f4}.idx-check span{display:block;margin-top:3px;font-size:11px;color:rgba(238,231,244,.56);line-height:1.35}",
-      ".idx-label{font-size:11px;color:rgba(238,231,244,.66)}.idx-input,.idx-textarea{width:100%;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:#0b0810;color:#eee7f4;padding:8px;font-size:12px;font-family:inherit;outline:none}.idx-btn{height:32px;border:1px solid rgba(206,170,230,.20);border-radius:9px;background:rgba(255,255,255,.06);color:#eee7f4;padding:0 10px;font-size:12px;cursor:pointer;font-family:inherit}.idx-error{margin-top:10px;color:#ffd5dd;background:rgba(120,38,52,.22);border:1px solid rgba(255,120,145,.28);border-radius:10px;padding:8px;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}",
+      ".idx-label{display:block;font-size:11px;color:rgba(238,231,244,.66);line-height:1.35;overflow-wrap:anywhere}.idx-input,.idx-textarea{width:100%;max-width:100%;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:#0b0810;color:#eee7f4;padding:8px;font-size:12px;font-family:inherit;outline:none}.idx-panel input,.idx-panel select,.idx-panel textarea,.idx-panel button{max-width:100%}.idx-btn{height:32px;border:1px solid rgba(206,170,230,.20);border-radius:9px;background:rgba(255,255,255,.06);color:#eee7f4;padding:0 10px;font-size:12px;cursor:pointer;font-family:inherit}.idx-error{margin-top:10px;color:#ffd5dd;background:rgba(120,38,52,.22);border:1px solid rgba(255,120,145,.28);border-radius:10px;padding:8px;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}",
       // 结构化角色映射 UI
-      ".idx-roles{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}.idx-role-row{display:grid;grid-template-columns:96px 1fr 28px;gap:6px;align-items:center}.idx-role-name{min-width:0;border:1px solid rgba(206,170,230,.16);background:#0b0810;color:#eee7f4;border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;outline:none}.idx-voice-btn{min-width:0;border:1px solid rgba(206,170,230,.20);background:rgba(206,170,230,.08);color:#eee7f4;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit}.idx-voice-btn:hover{background:rgba(206,170,230,.16)}.idx-role-del{width:28px;height:28px;border:1px solid rgba(255,120,145,.28);background:rgba(120,38,52,.22);color:#ffd5dd;border-radius:8px;cursor:pointer;font-size:14px;line-height:1;font-family:inherit}.idx-role-lock{width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:rgba(238,231,244,.45);font-size:13px;user-select:none;cursor:default}.idx-add-role{margin-top:4px;width:100%;border:1px dashed rgba(206,170,230,.30);background:transparent;color:#d9b7f0;padding:8px;border-radius:9px;cursor:pointer;font-size:12px;font-family:inherit}.idx-add-role:hover{background:rgba(206,170,230,.06)}.idx-llm-details{margin-top:10px;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:rgba(255,255,255,.03);overflow:hidden}.idx-llm-details>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:#d9b7f0;display:flex;align-items:center;justify-content:space-between;user-select:none}.idx-llm-details>summary::-webkit-details-marker{display:none}.idx-llm-details>summary::after{content:'▾';font-size:10px;color:rgba(238,231,244,.55);transition:transform .2s}.idx-llm-details[open]>summary::after{transform:rotate(180deg)}.idx-llm-details>.idx-grid{padding:8px 12px 12px;border-top:1px solid rgba(206,170,230,.12)}",
+      ".idx-roles{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;width:100%}.idx-role-row{display:grid;grid-template-columns:minmax(70px,96px) minmax(0,1fr) 28px;gap:6px;align-items:center;width:100%}.idx-role-name{min-width:0;border:1px solid rgba(206,170,230,.16);background:#0b0810;color:#eee7f4;border-radius:8px;padding:6px 8px;font-size:12px;font-family:inherit;outline:none}.idx-voice-btn{min-width:0;border:1px solid rgba(206,170,230,.20);background:rgba(206,170,230,.08);color:#eee7f4;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit}.idx-voice-btn:hover{background:rgba(206,170,230,.16)}.idx-role-del{width:28px;height:28px;border:1px solid rgba(255,120,145,.28);background:rgba(120,38,52,.22);color:#ffd5dd;border-radius:8px;cursor:pointer;font-size:14px;line-height:1;font-family:inherit}.idx-role-lock{width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:rgba(238,231,244,.45);font-size:13px;user-select:none;cursor:default}.idx-add-role{margin-top:4px;width:100%;border:1px dashed rgba(206,170,230,.30);background:transparent;color:#d9b7f0;padding:8px;border-radius:9px;cursor:pointer;font-size:12px;font-family:inherit}.idx-add-role:hover{background:rgba(206,170,230,.06)}.idx-llm-details{margin-top:10px;border:1px solid rgba(206,170,230,.16);border-radius:9px;background:rgba(255,255,255,.03);overflow:hidden}.idx-llm-details>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:#d9b7f0;display:flex;align-items:center;justify-content:space-between;user-select:none;overflow-wrap:anywhere}.idx-llm-details>summary::-webkit-details-marker{display:none}.idx-llm-details>summary::after{content:'▾';font-size:10px;color:rgba(238,231,244,.55);transition:transform .2s}.idx-llm-details[open]>summary::after{transform:rotate(180deg)}.idx-llm-details>.idx-grid{padding:8px 12px 12px;border-top:1px solid rgba(206,170,230,.12)}",
       // 音色选择器弹窗
       ".idx-picker{margin:auto auto 0 auto;border:1px solid rgba(206,170,230,.22);border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);color:#eee7f4;width:100%;max-width:100vw;height:fit-content;max-height:min(72dvh,640px);box-shadow:0 -8px 32px rgba(0,0,0,.45);padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;min-height:0;z-index:2147483500}.idx-picker::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}.idx-picker-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(206,170,230,.18);margin-bottom:8px}.idx-picker-title{font-size:14px;font-weight:800;color:#e9c8ff}.idx-picker-close{border:0;background:transparent;color:#eee7f4;font-size:22px;cursor:pointer;padding:0 6px;line-height:1}.idx-picker-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;flex-wrap:wrap}.idx-picker-tab{flex:0 0 auto;border:1px solid rgba(206,170,230,.16);background:rgba(255,255,255,.04);color:#eee7f4;border-radius:999px;padding:5px 11px;cursor:pointer;font-size:11px;font-family:inherit;white-space:nowrap}.idx-picker-tab.is-active{border-color:#c890e8;background:rgba(200,144,232,.20);color:#fff}.idx-picker-search{margin-bottom:8px}.idx-picker-grid{flex:1 1 auto;min-height:0;max-height:44dvh;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-content:start;padding:2px;width:100%}.idx-picker-item{min-width:0;overflow:hidden;min-height:54px;border:1px solid rgba(206,170,230,.16);border-radius:10px;background:rgba(255,255,255,.05);color:#eee7f4;text-align:left;padding:8px 8px 8px 12px;cursor:pointer;font-family:inherit;font-size:12px;line-height:1.35;display:flex;align-items:center;gap:6px;justify-content:space-between;transition:background .15s,border-color .15s}.idx-picker-item:hover{background:rgba(206,170,230,.14);border-color:rgba(206,170,230,.34)}.idx-picker-item.is-playing{border-color:#c890e8;background:rgba(200,144,232,.18);box-shadow:0 0 0 1px rgba(200,144,232,.22) inset}.idx-picker-item-info{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center}.idx-picker-item-name{font-size:13px;font-weight:600;white-space:nowrap;overflow-x:auto;overflow-y:hidden;text-overflow:clip;display:block;scrollbar-width:none}.idx-picker-item-name::-webkit-scrollbar{display:none}.idx-picker-item-sub{font-size:10px;color:rgba(238,231,244,.55);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-picker-apply{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid rgba(200,144,232,.45);background:rgba(200,144,232,.18);color:#fff;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:0;line-height:1}.idx-picker-apply:hover{background:#c890e8;color:#170e20;border-color:#c890e8;transform:scale(1.05)}.idx-picker-apply:active{transform:scale(.95)}.idx-picker-pager{display:flex;align-items:center;justify-content:center;gap:12px;padding-top:8px;border-top:1px solid rgba(206,170,230,.14);color:rgba(238,231,244,.72);font-size:11px}.idx-picker-pager button{border:1px solid rgba(206,170,230,.20);background:rgba(255,255,255,.06);color:#eee7f4;border-radius:7px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:11px}.idx-picker-pager button:disabled{opacity:.4;cursor:not-allowed}",
       ".idx-card audio{display:none!important}.idx-info{padding-right:104px}.idx-card-counter{position:absolute;right:58px;top:16px;min-width:48px;height:32px;padding:0 10px;border:1px solid rgba(206,170,230,.22);border-radius:999px;background:rgba(20,14,28,.46);color:rgba(238,231,244,.78);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;z-index:2}.idx-gear svg{width:19px;height:19px;fill:none!important;stroke:currentColor}",
       ".idx-lazy-card{position:relative;display:flex;align-items:center;gap:12px;border-radius:16px;background:radial-gradient(circle at 88% 8%,rgba(216,167,255,.18),transparent 40%),linear-gradient(160deg,rgba(27,21,34,.55),rgba(12,9,16,.55));border:1px solid rgba(206,170,230,.22);padding:14px;backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%)}.idx-lazy-play,.idx-lazy-gear{border:1px solid rgba(206,170,230,.30);background:rgba(20,14,28,.58);color:#eee7f4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:0 0 auto}.idx-lazy-play{width:58px;height:58px;border-radius:50%}.idx-lazy-play svg{width:26px;height:26px;fill:currentColor}.idx-lazy-gear{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:50%}.idx-lazy-gear svg{width:18px;height:18px;fill:none!important;stroke:currentColor}.idx-lazy-main{min-width:0;flex:1;padding-right:44px;cursor:pointer}.idx-lazy-title{font-size:17px;font-weight:800;color:#e9c8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-lazy-status{margin-top:4px;font-size:12px;color:rgba(238,231,244,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.idx-lazy-progress{height:4px;margin-top:8px;background:rgba(206,170,230,.13);border-radius:999px;overflow:hidden}.idx-lazy-progress span{display:block;height:100%;background:linear-gradient(90deg,#c890e8,#8ecbff);border-radius:inherit}",
       ".idx-seek{-webkit-appearance:none;appearance:none;height:36px;background:transparent;accent-color:auto}.idx-seek::-webkit-slider-runnable-track{height:9px;border-radius:999px;background:linear-gradient(90deg,rgba(216,167,255,.85),rgba(130,190,255,.72));box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)}.idx-seek::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;margin-top:-9.5px;border-radius:50%;border:3px solid #fff;background:#c890e8;box-shadow:0 0 0 6px rgba(200,144,232,.20),0 5px 16px rgba(0,0,0,.42)}.idx-seek::-moz-range-track{height:9px;border-radius:999px;background:linear-gradient(90deg,rgba(216,167,255,.85),rgba(130,190,255,.72))}.idx-seek::-moz-range-thumb{width:26px;height:26px;border-radius:50%;border:3px solid #fff;background:#c890e8;box-shadow:0 0 0 6px rgba(200,144,232,.20)}",
-      ".idx-panel{width:min(760px,calc(100vw - 24px));max-width:760px;max-height:min(88dvh,calc(100dvh - 12px));margin:auto auto 8px auto;border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);scrollbar-width:thin}.idx-panel::-webkit-scrollbar{width:6px}.idx-panel::-webkit-scrollbar-thumb{background:rgba(216,167,255,.28);border-radius:999px}.idx-panel-head{top:-14px}.idx-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.idx-field{display:flex;flex-direction:column;gap:5px;min-width:0}.idx-field.idx-wide{grid-column:1/-1}.idx-actions{position:sticky;bottom:-18px;z-index:2;display:flex;justify-content:flex-end;gap:12px;margin:14px -14px -18px;padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(206,170,230,.12);background:linear-gradient(180deg,rgba(12,8,18,.74) 0%,rgba(12,8,18,.985) 34%,rgba(12,8,18,.985) 100%);backdrop-filter:blur(8px)}",
+      ".idx-panel{width:min(760px,calc(100dvw - 24px));max-width:calc(100dvw - 24px);max-height:min(88dvh,calc(100dvh - 12px));margin:auto auto 8px auto;border-top-left-radius:18px;border-top-right-radius:18px;border-bottom-left-radius:0;border-bottom-right-radius:0;background:rgba(12,8,18,.985);scrollbar-width:thin}.idx-panel::-webkit-scrollbar{width:6px}.idx-panel::-webkit-scrollbar-thumb{background:rgba(216,167,255,.28);border-radius:999px}.idx-panel-head{top:-14px}.idx-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;width:100%}.idx-field{display:flex;flex-direction:column;gap:5px;min-width:0}.idx-field.idx-wide{grid-column:1/-1}.idx-actions{position:sticky;bottom:-18px;z-index:2;display:flex;justify-content:flex-end;gap:12px;margin:14px -14px -18px;padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(206,170,230,.12);background:linear-gradient(180deg,rgba(12,8,18,.74) 0%,rgba(12,8,18,.985) 34%,rgba(12,8,18,.985) 100%);backdrop-filter:blur(8px)}",
       ".idx-panel{position:fixed;left:50%;bottom:0;transform:translateX(-50%);height:min(82dvh,760px);max-height:calc(100dvh - 16px);margin:0}.idx-picker{position:fixed;left:50%;bottom:0;transform:translateX(-50%);height:min(68dvh,640px);max-height:calc(100dvh - 96px);margin:0}",
       ".idx-picker,.idx-picker-grid{scrollbar-width:none}.idx-picker::-webkit-scrollbar,.idx-picker-grid::-webkit-scrollbar,.idx-subtitle::-webkit-scrollbar{display:none}.idx-picker-item.is-selected{border-color:#d8a7ff;background:rgba(200,144,232,.20);box-shadow:0 0 0 1px rgba(216,167,255,.24) inset,0 0 18px rgba(200,144,232,.14)}.idx-picker-selected{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:#d8a7ff;color:#160d1f;font-size:12px;font-weight:900;display:none;align-items:center;justify-content:center}.idx-picker-item.is-selected .idx-picker-selected{display:flex}.idx-picker-wave{flex:0 0 auto;width:24px;height:18px;display:none;align-items:center;justify-content:center;gap:2px}.idx-picker-item.is-selected .idx-picker-wave,.idx-picker-item.is-playing .idx-picker-wave{display:flex}.idx-picker-wave i{width:3px;border-radius:999px;background:#d8a7ff;opacity:.85;animation:idx-wave .78s ease-in-out infinite}.idx-picker-wave i:nth-child(2){animation-delay:.12s}.idx-picker-wave i:nth-child(3){animation-delay:.24s}@keyframes idx-wave{0%,100%{height:5px;opacity:.45}50%{height:17px;opacity:1}}",
-      "@media(max-width:520px){.idx-card{padding:14px;border-radius:16px}.idx-info{padding-right:98px}.idx-card-counter{right:56px;top:16px;height:30px;min-width:46px}.idx-panel{width:calc(100vw - 16px);height:min(82dvh,calc(100dvh - 44px));max-height:calc(100dvh - 44px);border-top-left-radius:16px;border-top-right-radius:16px;border-bottom-left-radius:0;border-bottom-right-radius:0}.idx-actions{justify-content:stretch}.idx-actions .idx-btn{flex:1;min-width:0}.idx-controls{gap:10px}.idx-ctrl-sm{width:40px;height:40px}.idx-ctrl-main{width:62px;height:62px}.idx-ctrl-add,.idx-ctrl-delete{width:44px;height:44px}.idx-grid{grid-template-columns:1fr}.idx-voices{grid-template-columns:1fr 1fr}.idx-role-row{grid-template-columns:84px 1fr 26px}.idx-picker{width:calc(100vw - 8px);height:min(62dvh,calc(100dvh - 160px));max-height:calc(100dvh - 160px);padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}.idx-picker-grid{grid-template-columns:1fr 1fr;max-height:34dvh}.idx-picker-item{min-height:50px}.idx-picker-tabs{flex-wrap:nowrap;scrollbar-width:none}.idx-picker-tabs::-webkit-scrollbar{display:none}}"
+      "@media(max-width:520px){.idx-card{padding:14px;border-radius:16px}.idx-info{padding-right:98px}.idx-card-counter{right:56px;top:16px;height:30px;min-width:46px}.idx-panel{width:calc(100dvw - 16px);max-width:calc(100dvw - 16px);height:min(82dvh,calc(100dvh - 44px));max-height:calc(100dvh - 44px);border-top-left-radius:16px;border-top-right-radius:16px;border-bottom-left-radius:0;border-bottom-right-radius:0}.idx-actions{justify-content:stretch}.idx-actions .idx-btn{flex:1;min-width:0}.idx-controls{gap:10px}.idx-ctrl-sm{width:40px;height:40px}.idx-ctrl-main{width:62px;height:62px}.idx-ctrl-add,.idx-ctrl-delete{width:44px;height:44px}.idx-grid{grid-template-columns:minmax(0,1fr)}.idx-voices{grid-template-columns:1fr 1fr}.idx-role-row{grid-template-columns:minmax(58px,76px) minmax(0,1fr) 26px}.idx-role-name{padding-left:7px;padding-right:7px}.idx-voice-btn{padding-left:8px;padding-right:8px}.idx-picker{width:calc(100dvw - 8px);max-width:calc(100dvw - 8px);height:min(62dvh,calc(100dvh - 160px));max-height:calc(100dvh - 160px);padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}.idx-picker-grid{grid-template-columns:1fr 1fr;max-height:34dvh}.idx-picker-item{min-height:50px}.idx-picker-tabs{flex-wrap:nowrap;scrollbar-width:none}.idx-picker-tabs::-webkit-scrollbar{display:none}}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -421,9 +421,8 @@
       if (Number(cfg.repetitionPenalty) === 2 || Number(cfg.repetitionPenalty) === 8 || Number(cfg.repetitionPenalty) === 10) cfg.repetitionPenalty = 1.2;
       if (Number(cfg.speedFactor) === 1.08) cfg.speedFactor = 1.0;
       if (savedVersion < 11) {
-        cfg.llmEndpoint = "http://192.168.8.100:8317/v1";
-        cfg.llmModel = "渡鸦/grok-4.20-fast";
-        if (!cfg.llmApiKey) cfg.llmApiKey = "sk-ming";
+        if (!cfg.llmEndpoint) cfg.llmEndpoint = "http://192.168.8.100:8317/v1";
+        if (!cfg.llmModel) cfg.llmModel = "渡鸦/grok-4.20-fast";
       }
     }
     cfg.configVersion = CONFIG_VERSION;
@@ -637,7 +636,7 @@
   }
   // 每条消息的播放历史持久化：key = "indextts_tracks_<messageId>"。
   // 只存可重建的元信息（cacheKey + voice + mode + offlineKey），不存 blob。
-  // 重新进页面时优先从 IndexedDB 读离线音频；缺失时通过 /cache_audio/{cacheKey} 接上。
+  // 重新进页面时优先从 IndexedDB 读本机缓存音频；缺失时通过 /cache_audio/{cacheKey} 接上。
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
   async function loadTracksForMessage(messageId) {
     if (!messageId) return [];
@@ -748,8 +747,9 @@
   function generationQualityOverrides(mode) {
     mode = String(mode || "balanced").trim();
     if (mode === "fast") return { diffusion_steps: 8, sample_steps: 8, batch_size: 8, parallel_infer: true, prompt_audio_seconds: 6, segment_tokens: 40, first_tokens: 10 };
-    if (mode === "balanced") return { diffusion_steps: 14, sample_steps: 8, batch_size: 8, parallel_infer: true, prompt_audio_seconds: 10, segment_tokens: 60, first_tokens: 18 };
-    return { diffusion_steps: 16, sample_steps: 16, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 12, segment_tokens: 72, first_tokens: 24 };
+    if (mode === "balanced") return { diffusion_steps: 16, sample_steps: 16, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 10, segment_tokens: 64, first_tokens: 20 };
+    if (mode === "ultra") return { diffusion_steps: 32, sample_steps: 32, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 14, segment_tokens: 88, first_tokens: 32 };
+    return { diffusion_steps: 24, sample_steps: 24, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 12, segment_tokens: 80, first_tokens: 28 };
   }
   function stripNullishFields(obj) {
     Object.keys(obj || {}).forEach(function (k) {
@@ -1118,7 +1118,7 @@
     if (hooks.debug) hooks.debug("AudioContext state=" + ctx.state + " sr=" + ctx.sampleRate);
 
     var res;
-    try { res = await fetch(streamUrl); }
+    try { res = await fetch(streamUrl, { cache: "no-store" }); }
     catch (e) { throw new Error("[step:fetch] " + (e && e.message ? e.message : e)); }
     if (!res.ok) throw new Error("[step:fetch] HTTP " + res.status + " " + (await res.text().catch(function(){return"";})));
     hooks.onStateChange && hooks.onStateChange("connected");
@@ -1378,8 +1378,8 @@
 
   async function parseWithLlm(text, cfg, setStatus, context) {
     var llmStart = Date.now();
-    setStatus("步骤 1/3：连接 LLM…");
-    debugLog("🤖 LLM 请求开始: model=" + cfg.llmModel + ", endpoint=" + cfg.llmEndpoint + ", textLen=" + text.length, "#ffd479");
+    setStatus("步骤 1/3：请求后端 LLM 代理…");
+    debugLog("🤖 LLM 代理请求开始: model=" + (cfg.llmModel || "(后端配置)") + ", endpoint=" + (cfg.llmEndpoint || "(后端配置)") + ", textLen=" + text.length, "#ffd479");
     // 把当前角色映射的 role 名作为「已知角色」注入 prompt,让 LLM 输出的 role 字段
     // 跟前端 voicesMap 严格对齐(否则后端归一可能错位)。
     context = context || {};
@@ -1454,21 +1454,21 @@
       "  {\"role\":\"用户\",\"text\":\"别哭。\",\"style\":\"whisper_soft\",\"style_alpha\":0.45}",
       "]}"
     ].join("\n");
-    setStatus("AI 分析中…");
+    setStatus("后端 LLM 分析中…");
     var maxTokens = llmMaxTokensForText(text);
     var parseUrl = cleanBase(cfg.apiBase) + cfg.parseEndpoint;
-    var llmTarget = "LLM endpoint(后端访问): " + cfg.llmEndpoint;
+    var llmTarget = "LLM 访问位置: GPT-SoVITS adapter 后端；后端环境配置优先，前端字段只作兜底。前端 endpoint=" + (cfg.llmEndpoint || "(空)");
     debugLog("🔎 LLM 解析代理: parseUrl=" + parseUrl + ", " + llmTarget, "#ffd479");
     var res;
     try {
-      res = await fetch(parseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text, endpoint: cfg.llmEndpoint, model: cfg.llmModel, api_key: cfg.llmApiKey || "", system_prompt: prompt, temperature: 0.2, timeout: 90, max_tokens: maxTokens }) });
+      res = await fetch(parseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text, endpoint: cfg.llmEndpoint || "", model: cfg.llmModel || "", api_key: cfg.llmApiKey || undefined, system_prompt: prompt, temperature: 0.2, timeout: 90, max_tokens: maxTokens }) });
     } catch (e) {
       throw new Error(formatNetworkError("LLM 解析代理 /parse_text", parseUrl, e, [
         llmTarget,
-        "说明: 这里失败的是浏览器到 IndexTTS 后端 /parse_text 的请求,还没进入 LLM 解析。"
+        "说明: 这里失败的是浏览器/Tavo WebView 到 GPT-SoVITS adapter /parse_text 的请求，后端还没机会访问 LLM。"
       ]));
     }
-    if (!res.ok) throw new Error(formatHttpError("LLM 解析代理 /parse_text", parseUrl, res, await res.text(), [llmTarget]));
+    if (!res.ok) throw new Error(formatHttpError("LLM 解析代理 /parse_text", parseUrl, res, await res.text(), [llmTarget, "说明: /parse_text 已经到达后端；如果响应里有 LLM proxy request failed，就是 adapter 访问 LLM 失败。"]));
     var data;
     try {
       data = await res.json();
@@ -1570,11 +1570,11 @@
         + '<div class="idx-modes"><button class="idx-mode" data-mode="single" type="button"><strong>单音色</strong><span>整段用当前音色</span></button><button class="idx-mode" data-mode="ai8" type="button"><strong>多音色</strong><span>AI 拆旁白/人物</span></button></div>'
         + '<div class="idx-section-title">合成质量</div>'
         + '<div class="idx-grid">'
-          + '<label class="idx-field"><span class="idx-label">合成档位</span><select class="idx-input" data-field="qualityMode"><option value="fast">极速（流式推荐）</option><option value="balanced">平衡</option><option value="expressive">质量优先</option></select></label>'
+          + '<label class="idx-field"><span class="idx-label">合成档位</span><select class="idx-input" data-field="qualityMode"><option value="fast">极速/预览</option><option value="balanced">标准</option><option value="expressive">质量优先</option><option value="ultra">极限质量</option></select></label>'
           + '<label class="idx-field"><span class="idx-label">播放语速</span><input class="idx-input" type="number" min="0.85" max="1.25" step="0.01" data-field="speedFactor" placeholder="1.00"></label>'
         + '</div>'
-        + '<div class="idx-section-title">播放 / 离线</div>'
-        + '<label class="idx-check"><input type="checkbox" data-field="offlineAudioEnabled"><span><strong>保存离线音频</strong><span>已落盘音频存到本机，下次优先放本地。</span></span></label>'
+        + '<div class="idx-section-title">播放缓存</div>'
+        + '<label class="idx-check"><input type="checkbox" data-field="offlineAudioEnabled"><span><strong>保存到本机缓存</strong><span>已保存音频写入本机，下次优先读取本机缓存。</span></span></label>'
         // 单音色模式专属 —— mode==="single" 时显示
         + '<div class="idx-single-only"><div class="idx-section-title">音色选择</div><div class="idx-default-voice"><button class="idx-voice-btn" type="button" data-role="default-voice-btn">选择音色…</button></div></div>'
         // 多音色拆段专属 —— mode==="ai8" 时显示；切换不清空（输入值在 readFields 时已存入 cfg）
@@ -1585,7 +1585,7 @@
           + '<details class="idx-llm-details"><summary>LLM 配置</summary><div class="idx-grid">'
             + '<label class="idx-field idx-wide"><span class="idx-label">LLM 接口地址（写到 /v1 即可，会自动补全 /chat/completions）</span><input class="idx-input" data-field="llmEndpoint" placeholder="http://127.0.0.1:8317/v1"></label>'
             + '<label class="idx-field"><span class="idx-label">LLM 模型</span><input class="idx-input" data-field="llmModel" placeholder="渡鸦/grok-4.20-fast"></label>'
-            + '<label class="idx-field"><span class="idx-label">LLM Key</span><input class="idx-input" type="password" data-field="llmApiKey" placeholder="sk-..."></label>'
+            + '<label class="idx-field"><span class="idx-label">LLM Key（留空则用后端本机配置）</span><input class="idx-input" type="password" data-field="llmApiKey" placeholder="sk-..."></label>'
           + '</div></details>'
           + '<label class="idx-check"><input type="checkbox" data-field="reuseLlmParse"><span><strong>复用 LLM 拆段</strong><span>同一消息只换音色或参数时，不重新请求 LLM。</span></span></label>'
         + '</div>'
@@ -1746,47 +1746,112 @@
         return seg;
       });
     }
+    function splitTextForSynthesis(text, maxChars) {
+      var raw = String(text || "").trim();
+      if (!raw || raw.length <= maxChars) return raw ? [raw] : [];
+      var tokens = raw.match(/[^，,、。！？!?；;…]+[，,、。！？!?；;…]*/g) || [raw];
+      var out = [];
+      var buf = "";
+      function pushBuf() {
+        var v = String(buf || "").trim();
+        if (v) out.push(v);
+        buf = "";
+      }
+      tokens.forEach(function (part) {
+        part = String(part || "").trim();
+        if (!part) return;
+        if (part.length > maxChars + 10) {
+          pushBuf();
+          for (var i = 0; i < part.length; i += maxChars) out.push(part.slice(i, i + maxChars));
+          return;
+        }
+        if (buf && (buf + part).length > maxChars) pushBuf();
+        buf += part;
+      });
+      pushBuf();
+      var merged = [];
+      out.forEach(function (part) {
+        if (!merged.length) { merged.push(part); return; }
+        if (part.length <= 8 && (merged[merged.length - 1] + part).length <= maxChars + 8) merged[merged.length - 1] += part;
+        else merged.push(part);
+      });
+      for (var j = 0; j < merged.length - 1; j++) {
+        if (merged[j].length <= 8 && (merged[j] + merged[j + 1]).length <= maxChars + 8) {
+          merged[j + 1] = merged[j] + merged[j + 1];
+          merged.splice(j, 1);
+          j--;
+        }
+      }
+      return merged.length ? merged : [raw];
+    }
+    function splitSegmentsForSynthesis(segments) {
+      var out = [];
+      (segments || []).forEach(function (seg) {
+        if (!seg || typeof seg !== "object") return;
+        var text = String(seg.text || "").trim();
+        if (!text) return;
+        var maxChars = String(seg.role || "") === "旁白" ? 44 : 30;
+        var parts = splitTextForSynthesis(text, maxChars);
+        if (parts.length > 1) debugLog("✂️ 合成长句拆分: role=" + (seg.role || "旁白") + " " + text.length + "字 -> " + parts.length + "段", "#9ff");
+        parts.forEach(function (part) {
+          var next = Object.assign({}, seg);
+          next.text = part;
+          out.push(next);
+        });
+      });
+      return out;
+    }
     function parseReuseFingerprint(text) {
-      var roles = normalizeRoleVoiceList(cfg.roleVoiceList || [], cfg.currentCharacterName)
-        .map(function (r) { return String((r && r.role) || "").trim(); })
-        .filter(Boolean);
       return JSON.stringify({
-        v: 2,
+        v: 3,
         text: String(text || ""),
         userName: String((context && context.userName) || ""),
         userAliases: normalizedUserAliases(context),
         characterName: String((context && context.characterName) || cfg.currentCharacterName || ""),
-        roles: roles,
         llmEndpoint: String(cfg.llmEndpoint || ""),
         llmModel: String(cfg.llmModel || "")
       });
     }
+    function parseReuseStorageKeys(fingerprint) {
+      var keys = [];
+      function add(k) { if (k && keys.indexOf(k) < 0) keys.push(k); }
+      add("gptsovits_llm_parse_v3_" + parseReuseHash(fingerprint));
+      if (messageId) add("gptsovits_llm_parse_" + parseReuseHash(String(messageId)) + "_" + parseReuseHash(fingerprint));
+      add("gptsovits_llm_parse_" + parseReuseHash("message-" + parseReuseHash(messageText || "")) + "_" + parseReuseHash(fingerprint));
+      return keys;
+    }
     function parseReuseStorageKey(fingerprint) {
-      var owner = messageId ? String(messageId) : "message-" + parseReuseHash(messageText || "");
-      return "gptsovits_llm_parse_" + parseReuseHash(owner) + "_" + parseReuseHash(fingerprint);
+      return parseReuseStorageKeys(fingerprint)[0];
     }
     async function loadReusableSegments(text, context) {
       if (cfg.reuseLlmParse === false) return null;
       var fingerprint = parseReuseFingerprint(text);
-      var key = parseReuseStorageKey(fingerprint);
+      var keys = parseReuseStorageKeys(fingerprint);
       var record = null;
-      try { record = JSON.parse(localStorage.getItem(key) || "null"); } catch (_) {}
-      if (!record) {
-        try { if (window.tavo && typeof tavo.get === "function") record = await tavo.get(key, "chat"); } catch (_) {}
+      var hitKey = "";
+      for (var i = 0; i < keys.length && !record; i++) {
+        var key = keys[i];
+        try { record = JSON.parse(localStorage.getItem(key) || "null"); } catch (_) {}
+        if (!record) {
+          try { if (window.tavo && typeof tavo.get === "function") record = await tavo.get(key, "chat"); } catch (_) {}
+        }
+        if (record) hitKey = key;
       }
       if (!record || record.fingerprint !== fingerprint || !Array.isArray(record.segments) || !record.segments.length) return null;
-      debugLog("♻️ 复用 LLM 拆段 cacheKey=" + key + " segments=" + record.segments.length, "#9f9");
+      debugLog("♻️ 复用 LLM 拆段 cacheKey=" + hitKey + " segments=" + record.segments.length, "#9f9");
       setStatus("复用 LLM 拆段 " + record.segments.length + " 段");
       return normalizeSegmentsForContext(record.segments, context);
     }
     async function saveReusableSegments(text, segments) {
       if (cfg.reuseLlmParse === false || !Array.isArray(segments) || !segments.length) return;
       var fingerprint = parseReuseFingerprint(text);
-      var key = parseReuseStorageKey(fingerprint);
+      var keys = parseReuseStorageKeys(fingerprint);
       var record = { fingerprint: fingerprint, segments: cloneSegments(segments), createdAt: Date.now() };
-      try { localStorage.setItem(key, JSON.stringify(record)); } catch (_) {}
-      try { if (window.tavo && typeof tavo.set === "function") await tavo.set(key, record, "chat"); } catch (_) {}
-      debugLog("💾 保存 LLM 拆段复用 cacheKey=" + key + " segments=" + segments.length, "#9ff");
+      for (var i = 0; i < keys.length; i++) {
+        try { localStorage.setItem(keys[i], JSON.stringify(record)); } catch (_) {}
+        try { if (window.tavo && typeof tavo.set === "function") await tavo.set(keys[i], record, "chat"); } catch (_) {}
+      }
+      debugLog("💾 保存 LLM 拆段复用 cacheKey=" + keys[0] + " segments=" + segments.length, "#9ff");
     }
     async function parseWithOptionalReuse(text, cfg, setStatus, context) {
       var cached = await loadReusableSegments(text, context);
@@ -1891,7 +1956,13 @@
         return true;
       }
       if (track && isSavedTrack(track) && trackPlayableUrl(track)) {
-        startElementAudioFrom(track, pos);
+        if (shouldUseWebAudioForSavedTrack(track)) {
+          playSavedTrack(track, pos, { label: "seek saved", noticeTitle: "跳转播放", noticeDetail: "从 " + formatTime(pos) + " 继续" }).catch(function (e) {
+            debugLog("❌ 保存音频跳转失败: " + (e && e.message ? e.message : e), "#f99");
+          });
+        } else {
+          startElementAudioFrom(track, pos);
+        }
         return true;
       }
       if (track && isLiveTrack(track) && !shouldUseWebAudioForLiveTrack(track) && liveStreamUrlForTrack(track)) {
@@ -1977,10 +2048,48 @@
       var msg = err && err.message ? String(err.message) : String(err || "");
       return name === "NotSupportedError" || /not supported/i.test(msg);
     }
+    function recoverLiveTrackViaWebAudio(track, label, detail) {
+      if (!track || !isLiveTrack(track) || !(track.cacheKey || liveStreamUrlForTrack(track))) return false;
+      var resumeSec = trackResumeSec(track);
+      track.elementAudioUnsupported = true;
+      track.forceWebAudioLive = true;
+      var liveUrl = liveStreamUrlForTrack(track);
+      clearElementAudioSrc();
+      debugLog("⚠️ " + (label || "audio 元素播放实时音频失败") + "，改用 Web Audio" + (detail || ""), "#fc9");
+      if (liveUrl) {
+        playLiveTrack(track, liveUrl, {
+          noticeTitle: "切换播放通道…",
+          noticeDetail: "当前 WebView 不支持 audio 元素播放，改用 Web Audio",
+          waitDetail: "等待后端返回音频",
+          startOffsetSec: resumeSec
+        }).catch(function (e) {
+          debugLog("❌ live audio fallback Web Audio 失败: " + (e && e.message ? e.message : e), "#f99");
+        });
+        return true;
+      }
+      if (track.cacheKey) {
+        pollCacheUpgrade(track, "audio error live fallback");
+        return true;
+      }
+      return false;
+    }
     function handleAudioPlayReject(label, err, fallbackStatus) {
       if (err && err.name === "AbortError") return;
       if (isUnsupportedPlayError(err)) {
         debugLog("⚠️ " + label + " audio.play() 不支持: " + (err && err.message ? err.message : err), "#fc9");
+        var active = currentTrack();
+        if (active && isSavedTrack(active)) {
+          active.elementAudioUnsupported = true;
+          playSavedTrack(active, trackResumeSec(active), {
+            label: "play unsupported fallback",
+            noticeTitle: "切换播放通道…",
+            noticeDetail: "当前 WebView 不支持 audio.play()，改用 Web Audio"
+          }).catch(function (e) {
+            debugLog("❌ audio.play fallback 失败: " + (e && e.message ? e.message : e), "#f99");
+          });
+          return;
+        }
+        if (recoverLiveTrackViaWebAudio(active, label + " audio.play() 不支持", ": " + (err && err.message ? err.message : err))) return;
         setStatus(fallbackStatus || "当前 WebView 不支持 audio 直播，等待 Web Audio/请点播放");
         return;
       }
@@ -2253,12 +2362,12 @@
         track.offlineSize = blob.size;
         setTrackOfflineState(track, "ready");
         if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
-        debugLog("💾 " + (label || "offline") + " 已保存离线音频: " + key + " (" + Math.round(blob.size / 1024) + " KB)", "#9f9");
+      debugLog("💾 " + (label || "offline") + " 已保存本机缓存音频: " + key + " (" + Math.round(blob.size / 1024) + " KB)", "#9f9");
         return true;
       } catch (e) {
         track.offlineWanted = true;
         setTrackOfflineState(track, "failed");
-        debugLog("⚠️ " + (label || "offline") + " 离线保存失败，稍后播放在线音频时补偿: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ " + (label || "offline") + " 本机缓存保存失败，稍后播放在线音频时补偿: " + (e && e.message ? e.message : e), "#fc9");
         if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
         return false;
       } finally {
@@ -2293,16 +2402,28 @@
         track.offlineReady = false;
         track.offlineWanted = false;
         setTrackOfflineState(track, cfg.offlineAudioEnabled ? "missing" : "disabled");
-        debugLog("🗑 已删除离线音频: " + key, "#fc9");
+        debugLog("🗑 已删除本机缓存音频: " + key, "#fc9");
       }
       return ok;
     }
     function shouldUseWebAudioForLiveTrack(track) {
-      if (!(track && track.mode === "ai8" && isLiveTrack(track) && track.streamUrl)) return false;
+      if (!(track && track.mode === "ai8" && isLiveTrack(track) && (track.streamUrl || track.cacheKey))) return false;
+      if (track.forceWebAudioLive || track.elementAudioUnsupported) return true;
+      if (isMobileUA()) return true;
       try {
         if (script && script.src && /[?&]webAudioLive=1\b/.test(script.src)) return true;
       } catch (_) {}
       return false;
+    }
+    function shouldUseWebAudioForSavedTrack(track) {
+      if (!(track && isSavedTrack(track))) return false;
+      if (track.forceElementAudio) return false;
+      if (track.elementAudioUnsupported) return true;
+      try {
+        if (script && script.src && /[?&]webAudioSaved=0\b/.test(script.src)) return false;
+        if (script && script.src && /[?&]webAudioSaved=1\b/.test(script.src)) return true;
+      } catch (_) {}
+      return isMobileUA();
     }
     function shouldUseElementForSavedTrack(track) {
       return isSavedTrack(track);
@@ -2318,8 +2439,10 @@
     function qualityModeLabel(mode) {
       mode = String(mode || "");
       if (mode === "fast") return "极速";
+      if (mode === "balanced") return "标准";
       if (mode === "expressive") return "质量优先";
-      return "平衡";
+      if (mode === "ultra") return "极限质量";
+      return "标准";
     }
     function formatJobMetrics(metrics) {
       if (!metrics) return "";
@@ -2375,7 +2498,9 @@
       } catch (_) { resumeSec = 0; }
       await prepareOfflineAudio(track, "switch saved", { saveMissing: true });
       stopWebAudioPlayback("switch");
-      startElementAudioFrom(track, resumeSec);
+      playSavedTrack(track, resumeSec, { label: "switch saved", noticeTitle: "播放已保存音频", noticeDetail: "从当前进度继续" }).catch(function (e) {
+        debugLog("❌ 切换保存音频失败: " + (e && e.message ? e.message : e), "#f99");
+      });
     }
     function isNetworkStreamError(err) {
       var msg = String((err && err.message) || err || "");
@@ -2667,7 +2792,10 @@
         if (track.mode === "single") {
           if (!track.cacheUrl) track.cacheUrl = cleanBase(cfg.apiBase) + "/cache_audio/" + encodeURIComponent(track.cacheKey);
           var hs = await fetch(track.cacheUrl, { method: "HEAD", cache: "no-store" });
-          if (!hs.ok) return false;
+          if (!hs.ok) {
+            if (hs.status === 404 || hs.status === 410) markTrackCacheMissing(track, label || "single");
+            return false;
+          }
           setTrackState(track, "saved");
           attachCacheAudio(track, { deferElement: true });
           scheduleOfflineAudioSave(track, (label || "single") + " offline", 0);
@@ -2700,10 +2828,218 @@
           setTrackState(track, "failed");
           return true;
         }
+        if (j && j.state === "missing") {
+          markTrackCacheMissing(track, label || "track");
+          return false;
+        }
       } catch (e) {
         debugLog("⚠️ 检查历史音频状态失败: " + (e && e.message ? e.message : e), "#fc9");
       }
       return false;
+    }
+    function markTrackCacheMissing(track, label) {
+      if (!track) return;
+      track.url = "";
+      track.cacheReady = false;
+      track.pendingBlob = false;
+      track.streaming = false;
+      track.error = "历史音频缓存不存在或任务已失效，请点 + 重新生成。";
+      setTrackState(track, "failed");
+      setTrackCacheState(track, "missing");
+      setTrackServerState(track, "failed");
+      setTrackPlaybackState(track, "error");
+      setPlayState("idle");
+      setStatus("历史音频已失效");
+      showTrackNotice(track, "历史音频已失效", "本机 cache 文件不存在，点 + 重新生成");
+      debugLog("⚠️ " + (label || "track") + " cache missing cacheKey=" + (track.cacheKey || ""), "#fc9");
+      if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
+    }
+    async function verifySavedTrackAvailable(track, label) {
+      if (!track || !isSavedTrack(track)) return false;
+      if (cfg.offlineAudioEnabled && track.offlineUrl) return true;
+      if (!track.cacheKey || !track.cacheUrl) return !!trackPlayableUrl(track);
+      if (track.mode === "single") {
+        try {
+          var hs = await fetch(track.cacheUrl, { method: "HEAD", cache: "no-store" });
+          if (hs.ok) return true;
+          if (hs.status === 404 || hs.status === 410) markTrackCacheMissing(track, label || "saved");
+          return false;
+        } catch (e) {
+          debugLog("⚠️ " + (label || "saved") + " HEAD 失败: " + (e && e.message ? e.message : e), "#fc9");
+          return true;
+        }
+      }
+      try {
+        var st = await fetch(cleanBase(cfg.apiBase) + "/tts_dialogue_job_status/" + encodeURIComponent(track.cacheKey), { cache: "no-store" });
+        if (!st.ok) {
+          if (st.status === 404 || st.status === 410) markTrackCacheMissing(track, label || "saved");
+          return false;
+        }
+        var j = await st.json();
+        if (j && j.metrics) track.metrics = j.metrics;
+        if (j && j.sample_rate) track.sampleRate = j.sample_rate;
+        if (j && j.duration_s) track.duration_s = j.duration_s;
+        if (j && j.cache_url) track.cacheUrl = new URL(j.cache_url, cleanBase(cfg.apiBase) + "/").href;
+        if (j && Array.isArray(j.segments_meta) && j.segments_meta.length) {
+          track.segments = j.segments_meta.map(function (s) {
+            return { role: s.role || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
+          });
+        }
+        if (j && j.state === "done" && j.cache_url) {
+          setTrackState(track, "saved");
+          return true;
+        }
+        if (j && (j.state === "missing" || (!j.cached && !j.cache_url && j.state === "pending"))) {
+          markTrackCacheMissing(track, label || "saved");
+          return false;
+        }
+        if (j && j.state === "failed") {
+          track.error = j.error || "服务端生成失败";
+          setTrackState(track, "failed");
+          setTrackCacheState(track, "failed");
+          setStatus("生成失败");
+          showTrackNotice(track, "生成失败", track.error);
+          return false;
+        }
+        setTrackState(track, "live");
+        pollCacheUpgrade(track, (label || "saved") + " recover");
+        setStatus("音频仍在生成中…");
+        showTrackNotice(track, "音频仍在生成中…", "完成后会自动切回历史音频");
+        return false;
+      } catch (e) {
+        debugLog("⚠️ " + (label || "saved") + " 状态确认失败: " + (e && e.message ? e.message : e), "#fc9");
+        return true;
+      }
+    }
+    async function decodedBufferForSavedTrack(track, url, label) {
+      if (track.decodedAudioBuffer && track.decodedAudioBufferUrl === url) return track.decodedAudioBuffer;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) throw new Error("浏览器不支持 Web Audio API");
+      var ctx = PRIMED_CTX || new AC();
+      PRIMED_CTX = ctx;
+      try { if (ctx.state === "suspended") await ctx.resume(); }
+      catch (e) { throw new Error("[step:resume] " + (e && e.message ? e.message : e)); }
+      setStatus(url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…");
+      showTrackNotice(track, url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…", label || "首次读取后拖动进度不会重新请求音频");
+      var res;
+      try { res = await fetch(url, { cache: "force-cache" }); }
+      catch (e) { throw new Error("[step:fetchSaved] " + (e && e.message ? e.message : e)); }
+      if (!res.ok) throw new Error("[step:fetchSaved] HTTP " + res.status);
+      var ab;
+      try { ab = await res.arrayBuffer(); }
+      catch (e) { throw new Error("[step:arrayBufferSaved] " + (e && e.message ? e.message : e)); }
+      var audioBuf;
+      try { audioBuf = await ctx.decodeAudioData(ab.slice(0)); }
+      catch (e) { throw new Error("[step:decodeSaved] " + (e && e.message ? e.message : e)); }
+      track.decodedAudioBuffer = audioBuf;
+      track.decodedAudioBufferUrl = url;
+      track.duration_s = audioBuf.duration || track.duration_s || 0;
+      debugLog("📦 已解码保存音频: " + (url === track.offlineUrl ? "本机缓存" : "服务端缓存") + " duration=" + (audioBuf.duration || 0).toFixed(2) + "s", "#9f9");
+      return audioBuf;
+    }
+    async function playSavedTrackViaDecodedBuffer(track, url, startSec, opts) {
+      opts = opts || {};
+      if (!track || !url) return false;
+      stopWebAudioPlayback("replace");
+      clearElementAudioSrc();
+      var token = ++webAudioPlayToken;
+      var playbackRate = clampNumber(cfg.speedFactor || 1.0, 1.0, 0.85, 1.25);
+      setTrackPlaybackState(track, "loading");
+      setPlayState("loading");
+      setStatus(opts.noticeTitle || "读取已保存音频…");
+      showTrackNotice(track, opts.noticeTitle || "读取已保存音频…", opts.noticeDetail || "准备播放已保存音频");
+      try {
+        var audioBuf = await decodedBufferForSavedTrack(track, url, opts.noticeDetail);
+        if (token !== webAudioPlayToken) return false;
+        var ctx = PRIMED_CTX;
+        try { if (ctx.state === "suspended") await ctx.resume(); } catch (_) {}
+        var source = ctx.createBufferSource();
+        source.buffer = audioBuf;
+        try { source.playbackRate.value = playbackRate; } catch (_) {}
+        var gain = ctx.createGain ? ctx.createGain() : null;
+        if (gain) {
+          gain.gain.value = 1;
+          source.connect(gain);
+          gain.connect(ctx.destination);
+        } else {
+          source.connect(ctx.destination);
+        }
+        var offset = Math.max(0, Math.min(Number(startSec || 0) || 0, Math.max(0, audioBuf.duration - 0.05)));
+        var startCtxTime = ctx.currentTime + 0.035;
+        var stopped = false;
+        webAudioController = {
+          stop: function (reason) {
+            stopped = true;
+            try { source.stop(0); } catch (_) {}
+            try { source.disconnect(); } catch (_) {}
+            try { if (gain) gain.disconnect(); } catch (_) {}
+            markWebAudioStopped(track);
+            clearWebAudioProgressTimer();
+            if (reason && reason !== "replace" && reason !== "switch" && reason !== "silent") {
+              setPlayState("idle");
+              setTrackPlaybackState(track, reason === "pause" ? "paused" : "idle");
+            }
+          },
+          getTimeSec: function () {
+            var pos = offset + Math.max(0, ((ctx.currentTime || 0) - startCtxTime) * playbackRate);
+            return Math.min(audioBuf.duration || pos, pos);
+          }
+        };
+        source.onended = function () {
+          if (stopped || token !== webAudioPlayToken) return;
+          markWebAudioStopped(track);
+          webAudioController = null;
+          clearWebAudioProgressTimer();
+          stopSubtitle();
+          setTrackPlaybackState(track, "ended");
+          setPlayState("idle");
+          setStatus("播放完成");
+          if (track.cacheKey && track.cacheUrl) scheduleOfflineAudioSave(track, "ended cache", 800);
+        };
+        source.start(startCtxTime, offset);
+        setTimeout(function () {
+          if (stopped || token !== webAudioPlayToken) return;
+          track.webAudioPlaying = true;
+          setTrackPlaybackState(track, "playing");
+          setPlayState("playing");
+          setStatus("正在播放：" + trackPlaybackLabel(track));
+          startWebAudioProgress(token, Date.now(), playbackRate, track, offset);
+          startSubtitle(track, function () {
+            if (webAudioController && typeof webAudioController.getTimeSec === "function") return webAudioController.getTimeSec();
+            return offset;
+          });
+        }, Math.max(0, (startCtxTime - (ctx.currentTime || 0)) * 1000 + 45));
+        return true;
+      } catch (e) {
+        if (token !== webAudioPlayToken) return false;
+        markWebAudioStopped(track);
+        webAudioController = null;
+        clearWebAudioProgressTimer();
+        setTrackPlaybackState(track, "error");
+        setPlayState("idle");
+        setStatus("播放失败");
+        var friendly = friendlyPlaybackError(e);
+        setError(friendly);
+        showTrackNotice(track, "播放失败", friendly);
+        debugLog("❌ 保存音频解码播放失败: " + (e && e.message ? e.message : e), "#f99");
+        return false;
+      }
+    }
+    async function playSavedTrack(track, startSec, opts) {
+      opts = opts || {};
+      if (!track) return false;
+      if (cfg.offlineAudioEnabled) await prepareOfflineAudio(track, opts.label || "play saved", { saveMissing: true });
+      if (!(await verifySavedTrackAvailable(track, opts.label || "play saved"))) return false;
+      var url = trackPlayableUrl(track);
+      if (!url) return false;
+      startSec = Math.max(0, Number(startSec || 0) || 0);
+      if (shouldUseWebAudioForSavedTrack(track)) {
+        return playSavedTrackViaDecodedBuffer(track, url, startSec, {
+          noticeTitle: opts.noticeTitle || (startSec > 0 ? "从断点继续播放" : "读取已保存音频…"),
+          noticeDetail: opts.noticeDetail || "手机端使用 Web Audio 播放已保存音频"
+        });
+      }
+      return startElementAudioFrom(track, startSec);
     }
     async function selectTrack(index, autoplay) {
       if (index < 0 || index >= generatedTracks.length) return;
@@ -2723,7 +3059,7 @@
       if (total) total.textContent = "--:--";
       if (state === "live" && track.cacheKey && !track.deleted) {
         setStatus("检查历史音频…");
-        showTrackNotice(track, "检查历史音频…", cfg.offlineAudioEnabled ? "优先检查本机离线音频" : "如果已保存，会切到可拖动音频");
+      showTrackNotice(track, "检查历史音频…", cfg.offlineAudioEnabled ? "优先检查本机缓存音频" : "如果已保存，会切到可拖动音频");
         await refreshTrackFromStatus(track, "select snapshot");
         state = trackState(track);
       }
@@ -2740,6 +3076,13 @@
         return;
       }
       await hydrateOfflineAudio(track, "select");
+      if (state === "saved" && track.cacheKey && !(cfg.offlineAudioEnabled && track.offlineUrl)) {
+        if (!(await verifySavedTrackAvailable(track, "select saved"))) {
+          updateTrackButtons();
+          return;
+        }
+        state = trackState(track);
+      }
       srcUrl = trackPlayableUrl(track);
       debugLog("🎯 selectTrack idx=" + index + " state=" + state + " urlSource=" + (srcUrl === track.offlineUrl ? "offline" : srcUrl === track.url ? "url" : srcUrl === track.cacheUrl ? "cacheUrl" : srcUrl === track.streamUrl ? "streamUrl" : "none") + " src=" + srcUrl, "#9ff");
       if (isLiveTrack(track) && !track.allowStreamPlay && !autoplay) {
@@ -2753,6 +3096,29 @@
         return;
       }
       if (srcUrl) {
+        if (isSavedTrack(track) && shouldUseWebAudioForSavedTrack(track)) {
+          clearElementAudioSrc();
+          var resumeForWebAudio = trackResumeSec(track);
+          var durHintForWebAudio = trackDurationHintSec(track);
+          if (seek) {
+            seek.disabled = !(durHintForWebAudio > 0);
+            seek.value = durHintForWebAudio > 0 ? String(Math.floor(Math.min(resumeForWebAudio, durHintForWebAudio) / durHintForWebAudio * 1000)) : "0";
+          }
+          if (cur) cur.textContent = formatTime(resumeForWebAudio);
+          if (total) total.textContent = durHintForWebAudio > 0 ? formatTime(durHintForWebAudio) : "--:--";
+          if (autoplay) {
+            await playSavedTrack(track, resumeForWebAudio, {
+              label: "select saved",
+              noticeTitle: resumeForWebAudio > 0 ? "从断点继续播放" : "读取已保存音频…",
+              noticeDetail: "手机端使用 Web Audio 播放已保存音频"
+            });
+          } else {
+            setStatus(historyStatusText());
+            showTrackNotice(track, savedTrackLabel(track), "点播放开始，手机端会使用 Web Audio");
+          }
+          updateTrackButtons();
+          return;
+        }
         if (shouldUseWebAudioForLiveTrack(track)) {
           clearElementAudioSrc();
           if (seek) { seek.disabled = true; seek.value = "0"; }
@@ -2827,6 +3193,19 @@
           showTrackNotice(track, "音频已保存", trackHasStreamIssue(track) ? "检测到流式卡顿，可选择切到已保存音频" : "当前流式播放不切换，结束后可重播");
           return true;
         }
+        if (shouldUseWebAudioForSavedTrack(track) && !opts.forceElement) {
+          clearElementAudioSrc();
+          if (opts.autoplay) {
+            playSavedTrack(track, trackResumeSec(track), {
+              label: "cache saved",
+              noticeTitle: "生成完成，正在播放保存音频",
+              noticeDetail: "手机端使用 Web Audio 播放已保存音频"
+            }).catch(function (e) {
+              debugLog("❌ Web Audio 播放 cache 失败: " + (e && e.message ? e.message : e), "#f99");
+            });
+          }
+          return true;
+        }
         try {
           var currentSrc = audio.currentSrc || audio.src || "";
           if (currentSrc !== track.cacheUrl) {
@@ -2878,7 +3257,7 @@
               if (j && j.cache_url) {
                 trackEntry.cacheUrl = new URL(j.cache_url, cleanBase(cfg.apiBase) + "/").href;
               }
-              if (j && Array.isArray(j.segments_meta) && j.segments_meta.length && (!trackEntry.segments || !trackEntry.segments.length)) {
+              if (j && Array.isArray(j.segments_meta) && j.segments_meta.length) {
                 trackEntry.segments = j.segments_meta.map(function (s) {
                   return { role: s.role || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
                 });
@@ -2888,7 +3267,7 @@
                 var autoplaySaved = !!(trackEntry.playSavedWhenReady && currentTrack() === trackEntry);
                 trackEntry.playSavedWhenReady = false;
                 trackEntry.backgroundOnly = false;
-                attachCacheAudio(trackEntry, { forceElement: autoplaySaved, deferElement: trackEntry.webAudioPlaying && !autoplaySaved, autoplay: autoplaySaved });
+                attachCacheAudio(trackEntry, { deferElement: trackEntry.webAudioPlaying && !autoplaySaved, autoplay: autoplaySaved });
                 scheduleOfflineAudioSave(trackEntry, label + " offline", 0);
                 if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
                 debugLog("✅ " + label + " 已落盘，cacheUrl 已写回卡片", "#9f9");
@@ -2912,6 +3291,11 @@
                   stopServerLogPolling();
                 }
                 debugLog("❌ 服务端推理失败: " + (j.error || ""), "#f99");
+                break;
+              }
+              if (j && j.state === "missing") {
+                markTrackCacheMissing(trackEntry, label);
+                done = true;
                 break;
               }
             }
@@ -2993,7 +3377,7 @@
         currentTrackIndex = generatedTracks.length - 1;
         updateTrackButtons();
         await selectTrack(currentTrackIndex, false);
-        debugLog("📂 按需恢复历史 tracks: " + generatedTracks.length + " 段, 未预取离线音频/未轮询落盘", "#9ff");
+        debugLog("📂 按需恢复历史 tracks: " + generatedTracks.length + " 段, 未预取本机缓存音频/未轮询落盘", "#9ff");
         return generatedTracks;
       })().catch(function (e) {
         tracksLoaded = false;
@@ -3111,7 +3495,7 @@
       cfg.intervalMs = Number(getField("intervalMs", cfg.intervalMs || 50) || 50);
       cfg.speedFactor = clampNumber(getField("speedFactor", cfg.speedFactor || 1.0), 1.0, 0.85, 1.25);
       cfg.qualityMode = String(getField("qualityMode", cfg.qualityMode || "balanced") || "balanced").trim();
-      if (["fast", "balanced", "expressive"].indexOf(cfg.qualityMode) < 0) cfg.qualityMode = "balanced";
+      if (["fast", "balanced", "expressive", "ultra"].indexOf(cfg.qualityMode) < 0) cfg.qualityMode = "balanced";
       cfg.offlineAudioEnabled = getCheckedField("offlineAudioEnabled", cfg.offlineAudioEnabled);
       try { audio.playbackRate = cfg.speedFactor; } catch (_) {}
       // cfg.roleVoiceList 由 renderRoleList 实时维护(addRoleRow/setRowVoice 等),
@@ -3577,6 +3961,8 @@
     var pickerPrevEl   = first(pickerEl, '[data-role="picker-prev"]');
     var pickerNextEl   = first(pickerEl, '[data-role="picker-next"]');
     var pickerState = { rowIdx: -1, tab: "", search: "", page: 1, pageSize: 12, returnPanel: false, panelScrollTop: 0 };
+    var pickerPreviewAudio = null;
+    var pickerPreviewVoice = "";
     function setLayerHidden(el, hidden) {
       if (!el) return;
       try {
@@ -3593,6 +3979,7 @@
     }
     function setPickerHidden(hidden) { setLayerHidden(pickerEl, hidden); }
     function closeVoicePickerForPlayback() {
+      stopPickerPreview();
       if (pickerEl) {
         closeDialog(pickerEl);
         setPickerHidden(true);
@@ -3733,6 +4120,7 @@
       renderPickerGrid();
     }
     function closeVoicePicker() {
+      stopPickerPreview();
       if (pickerEl) {
         closeDialog(pickerEl);
         setPickerHidden(true);
@@ -3745,6 +4133,64 @@
       }
       pickerState.rowIdx = -1;
       pickerState.returnPanel = false;
+    }
+    function updatePickerPreviewClasses() {
+      try {
+        $all(pickerGridEl, '.idx-picker-item').forEach(function (item) {
+          item.classList.toggle('is-playing', !!pickerPreviewVoice && item.dataset.voice === pickerPreviewVoice);
+        });
+      } catch (_) {}
+    }
+    function stopPickerPreview() {
+      pickerPreviewVoice = "";
+      if (pickerPreviewAudio) {
+        try { pickerPreviewAudio.pause(); } catch (_) {}
+        try { pickerPreviewAudio.removeAttribute("src"); pickerPreviewAudio.load(); } catch (_) {}
+      }
+      updatePickerPreviewClasses();
+    }
+    function previewPickerVoice(voiceName) {
+      voiceName = String(voiceName || "").trim();
+      if (!voiceName) return;
+      if (!pickerPreviewAudio) {
+        try {
+          pickerPreviewAudio = document.createElement("audio");
+          pickerPreviewAudio.preload = "none";
+          pickerPreviewAudio.addEventListener("ended", function () { pickerPreviewVoice = ""; updatePickerPreviewClasses(); });
+          pickerPreviewAudio.addEventListener("error", function () {
+            debugLog("⚠️ 音色试听失败: " + voiceName, "#fc9");
+            pickerPreviewVoice = "";
+            updatePickerPreviewClasses();
+          });
+        } catch (e) {
+          debugLog("⚠️ 当前 WebView 不支持音色试听 audio: " + (e && e.message ? e.message : e), "#fc9");
+          return;
+        }
+      }
+      if (pickerPreviewVoice === voiceName && !pickerPreviewAudio.paused) {
+        stopPickerPreview();
+        return;
+      }
+      pickerPreviewVoice = voiceName;
+      updatePickerPreviewClasses();
+      try {
+        pickerPreviewAudio.pause();
+        pickerPreviewAudio.src = cleanBase(cfg.apiBase) + "/voice_preview?name=" + encodeURIComponent(voiceName) + "&t=" + Date.now();
+        pickerPreviewAudio.currentTime = 0;
+        var p = pickerPreviewAudio.play();
+        if (p && typeof p.catch === "function") {
+          p.catch(function (e) {
+            debugLog("⚠️ 音色试听 play() 失败: " + (e && e.message ? e.message : e), "#fc9");
+            pickerPreviewVoice = "";
+            updatePickerPreviewClasses();
+          });
+        }
+        setStatus("试听音色：" + voiceName);
+      } catch (e) {
+        debugLog("⚠️ 音色试听失败: " + (e && e.message ? e.message : e), "#fc9");
+        pickerPreviewVoice = "";
+        updatePickerPreviewClasses();
+      }
     }
     function pickerSubdirs() {
       var set = {};
@@ -3797,14 +4243,14 @@
       pickerGridEl.innerHTML = page.map(function (v) {
         var sd = v.subdir || "";
         var selected = v.name === selectedVoice;
-        return '<div class="idx-picker-item' + (selected ? ' is-selected' : '') + '" data-voice="' + escapeHtml(v.name) + '" title="选用此音色">'
+        return '<div class="idx-picker-item' + (selected ? ' is-selected' : '') + '" data-voice="' + escapeHtml(v.name) + '" title="试听此音色">'
           + '<div class="idx-picker-item-info">'
             + '<span class="idx-picker-item-name">' + escapeHtml(v.name.split("/").pop()) + '</span>'
             + (sd ? '<span class="idx-picker-item-sub">' + escapeHtml(sd) + '</span>' : '')
           + '</div>'
           + '<span class="idx-picker-wave" aria-hidden="true"><i></i><i></i><i></i></span>'
           + '<span class="idx-picker-selected" aria-hidden="true">✓</span>'
-          + '<button class="idx-picker-apply" type="button" data-action="apply" title="选用此音色" aria-label="选用">✓</button>'
+          + '<button class="idx-picker-apply" type="button" data-action="apply" title="应用此音色" aria-label="应用">✓</button>'
           + '</div>';
       }).join("") || '<div style="grid-column:1/-1;padding:20px;text-align:center;color:rgba(238,231,244,.5);font-size:12px">没有匹配的音色</div>';
       $all(pickerGridEl, '.idx-picker-item').forEach(function (item) {
@@ -3820,16 +4266,18 @@
             setRowVoice(pickerState.rowIdx, voiceName);
             saveConfig(cfg, characterId).catch(function(){});
           }
+          stopPickerPreview();
           closeVoicePicker();
         }
-        // 点 item 主体 = 直接选中。旧版点卡片会试听参考音频，容易跟正文播放串声。
+        // 点 item 主体 = 试听；只有点右侧 ✓ 才应用到默认音色/角色映射。
         on(item, 'click', function (e) {
           if (e.target && e.target.closest && e.target.closest('[data-action="apply"]')) return;
           e.preventDefault();
-          applyVoice();
+          previewPickerVoice(voiceName);
         });
         on(apply, 'click', function (e) { e.preventDefault(); e.stopPropagation(); applyVoice(); });
       });
+      updatePickerPreviewClasses();
       if (pickerPageEl) pickerPageEl.textContent = filtered.length ? (pickerState.page + ' / ' + totalPages + ' · 共 ' + filtered.length + ' 条') : '无结果';
       if (pickerPrevEl) pickerPrevEl.disabled = pickerState.page <= 1;
       if (pickerNextEl) pickerNextEl.disabled = pickerState.page >= totalPages;
@@ -3946,6 +4394,13 @@
         if (!existingTrack) return;
         if (existingTrack.webAudioPlaying || isElementPlayingTrackStream(existingTrack) || (elementAudioBelongsToTrack(existingTrack) && !audio.paused && !audio.ended)) {
           if (isSavedTrack(existingTrack)) {
+            if (existingTrack.webAudioPlaying) {
+              existingTrack.pausedByUser = true;
+              stopWebAudioPlayback("pause");
+              setStatus("已暂停");
+              showTrackNotice(existingTrack, "已暂停", "点播放从当前位置继续");
+              return;
+            }
             try {
               existingTrack.lastElementSec = Math.max(0, Number(audio.currentTime || 0) || 0);
               audio.pause();
@@ -3966,6 +4421,14 @@
         if (shouldUseElementForSavedTrack(existingTrack)) {
           await prepareOfflineAudio(existingTrack, "play", { saveMissing: true });
           var existingUrl = trackPlayableUrl(existingTrack);
+          if (shouldUseWebAudioForSavedTrack(existingTrack)) {
+            await playSavedTrack(existingTrack, trackResumeSec(existingTrack), {
+              label: "play saved",
+              noticeTitle: trackResumeSec(existingTrack) > 0 ? "从断点继续播放" : "读取已保存音频…",
+              noticeDetail: "手机端使用 Web Audio 播放已保存音频"
+            });
+            return;
+          }
           var audioUrl = audio.currentSrc || audio.src || "";
           if (existingUrl && !elementAudioBelongsToTrack(existingTrack) && audioUrl !== existingUrl) {
             startElementAudioFrom(existingTrack, trackResumeSec(existingTrack));
@@ -3981,7 +4444,11 @@
           if (existingTrack.cacheKey && await refreshTrackFromStatus(existingTrack, "play snapshot")) {
             if (shouldUseElementForSavedTrack(existingTrack)) {
               await prepareOfflineAudio(existingTrack, "play saved", { saveMissing: true });
-              startElementAudioFrom(existingTrack, trackResumeSec(existingTrack));
+              await playSavedTrack(existingTrack, trackResumeSec(existingTrack), {
+                label: "play snapshot saved",
+                noticeTitle: "播放已保存音频",
+                noticeDetail: "生成已完成，切到保存音频"
+              });
               return;
             }
           }
@@ -4063,12 +4530,11 @@
         if (cfg.mode === "ai8") {
           setStatus("AI 分析中…");
           showTrackNotice(placeholder, "AI 分析中…", "正在拆分旁白、人物和声腔");
-          if (!cfg.llmEndpoint || !cfg.llmModel) throw new Error("多音色模式需要填写 LLM 接口地址和模型。");
           var t0 = Date.now();
           debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━", "#fff");
           debugLog("🎬 多音色生成开始 (text=" + messageText.length + " 字)", "#fff");
           startServerLogPolling(base);
-          var segments = await parseWithOptionalReuse(messageText, cfg, setStatus, context);
+          var segments = splitSegmentsForSynthesis(await parseWithOptionalReuse(messageText, cfg, setStatus, context));
           if (placeholder && placeholder.deleted) throw Object.assign(new Error("生成已取消"), { name: "AbortError" });
           var roleCounts = {}; segments.forEach(function (s) { roleCounts[s.role] = (roleCounts[s.role] || 0) + 1; });
           var roleSummary = Object.keys(roleCounts).map(function (r) { return r + "×" + roleCounts[r]; }).join(", ");
@@ -4148,10 +4614,10 @@
             setTrackState(trackEntry, "saved");
             await prepareOfflineAudio(trackEntry, "cached hit", { saveMissing: true });
             setStatus("已有音频，正在播放");
-            showTrackNotice(trackEntry, trackEntry.offlineUrl ? "本地离线音频" : "已有音频", trackEntry.offlineUrl ? "已从 IndexedDB 读取" : "已加载音频，支持拖动");
+            showTrackNotice(trackEntry, trackEntry.offlineUrl ? "本机缓存音频" : "已有音频", trackEntry.offlineUrl ? "已从 IndexedDB 读取" : "已加载音频，支持拖动");
             setPlayState("loading");
-            debugLog(trackEntry.offlineUrl ? "⚡ 命中本地离线音频，直接播放" : "⚡ 命中服务端缓存，直接 audio.src 播放", "#9f9");
-            startElementAudioFrom(trackEntry, 0);
+            debugLog(trackEntry.offlineUrl ? "⚡ 命中本机缓存音频，直接播放" : "⚡ 命中服务端缓存，准备播放", "#9f9");
+            await playSavedTrack(trackEntry, 0, { label: "cached hit", noticeTitle: "已有音频，正在播放", noticeDetail: trackEntry.offlineUrl ? "已从 IndexedDB 读取" : "已从服务端缓存读取" });
             return;
           }
           if (jobInfo.live && streamUrl) {
@@ -4214,7 +4680,7 @@
             setStatus(singleJob.cached ? "已有单音色音频" : "单音色音频已保存");
             showTrackNotice(
               currentTrack(),
-              singleJob.cached ? (singleTrack.offlineUrl ? "本地离线音频" : "已有单音色音频") : "单音色音频已保存",
+              singleJob.cached ? (singleTrack.offlineUrl ? "本机缓存音频" : "已有单音色音频") : "单音色音频已保存",
               "点播放开始，可拖动进度条"
             );
             setPlayState("idle");
@@ -4308,6 +4774,18 @@
     function tryResumeOrPauseInGesture() {
       try {
         var t = currentTrack();
+        if (t && t.webAudioPlaying) {
+          t.pausedByUser = true;
+          try {
+            if (webAudioController && typeof webAudioController.getTimeSec === "function") {
+              t.lastWebAudioSec = Math.max(0, Number(webAudioController.getTimeSec()) || 0);
+            }
+          } catch (_) {}
+          stopWebAudioPlayback("pause");
+          setStatus("已暂停");
+          showTrackNotice(t, "已暂停", "点播放从当前位置继续");
+          return true;
+        }
         if (!t || !elementAudioBelongsToTrack(t)) return false;
         if (!(audio.currentSrc || audio.src) || audio.ended) return false;
         if (audio.paused) {
@@ -4431,6 +4909,21 @@
       try {
         if (audio.error) detail = " code=" + audio.error.code + (audio.error.message ? " message=" + audio.error.message : "");
       } catch (_) {}
+      if (active && isSavedTrack(active)) {
+        active.elementAudioUnsupported = true;
+        var savedResumeSec = trackResumeSec(active);
+        debugLog("⚠️ audio 元素播放保存音频失败，改用 Web Audio" + detail, "#fc9");
+        clearElementAudioSrc();
+        playSavedTrack(active, savedResumeSec, {
+          label: "audio error fallback",
+          noticeTitle: "切换播放通道…",
+          noticeDetail: "当前 WebView 不支持 audio 元素播放，改用 Web Audio"
+        }).catch(function (e) {
+          debugLog("❌ audio fallback Web Audio 失败: " + (e && e.message ? e.message : e), "#f99");
+        });
+        return;
+      }
+      if (recoverLiveTrackViaWebAudio(active, "audio 元素播放实时音频失败", detail)) return;
       if (active) setTrackPlaybackState(active, "error");
       setPlayState("idle");
       setStatus("播放失败");

@@ -46,3 +46,6 @@ prompts/library/**/*.jpg
 prompts/library/**/*.jpeg
 prompts/library/**/*.url
 prompts/library/**/声腔切片报告.json
+
+# Local debug artifacts: emulator/real-device screenshots, chrome layer-probe profiles, adapter log tails (~174MB, not version-worthy)
+dev_tools/tavo_debug/

@@ -4,6 +4,11 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $logDir = Join-Path $root "outputs\logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
+$privateLlmConfig = Join-Path $root "local_private\gsv_tavo_llm.ps1"
+if (Test-Path -Path $privateLlmConfig) {
+  . $privateLlmConfig
+}
+
 $python = Join-Path $root ".venvs\official\Scripts\python.exe"
 if (-not (Test-Path -Path $python)) {
   $python = "python"

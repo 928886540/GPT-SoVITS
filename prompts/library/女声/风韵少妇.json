@@ -16,7 +16,8 @@
     "speed_factor": 1.0,
     "fragment_interval": 0.3,
     "overlap_length": 2,
-    "min_chunk_length": 16
+    "min_chunk_length": 16,
+    "post_gain_db": 9.0
   },
   "notes": "prompt_text 来自旧 IndexTTS2/Leon_api/dev_tools/volink_replace.py 的风韵少妇参考文本。需后续人工试听校对是否与当前 mp3 完全逐字一致。"
 }

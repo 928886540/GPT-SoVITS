@@ -7,6 +7,14 @@
 用户准备切到 `D:\apiWorkSpace\GPT-SoVITS\Leon_api` 并重启 Codex。新会话需要直接接着做 GPT-SoVITS 官方版验证。
 
 核心目标不是公网服务，也不是作者托管 API。
+## 最近真实 Tavo 进度
+
+- 2026-06-01 已拿到雷电模拟器真实截图和 UI 树：`dev_tools/tavo_debug/tavo_screen.png`、`dev_tools/tavo_debug/tavo_window.xml`。
+- 真实页面还停在正则/加载器链路，界面可见 `正则`、`应用`、`GPTSoVITS_TTS_Loader`。
+- 最新注入规则版本：`static/tavo_regex_gptsovits_loader.json` 里的 `v=2028881907`，loader 版本 `20260601-lan-webview-layer-v17`。
+- 当前真实端证据目录：`dev_tools/tavo_debug/`，局域网日志：`outputs/logs/gsv_tavo_adapter_lan.out.log`。
+- 2026-06-01 后续修复已落代码：移动端多音色 live 直接 Web Audio；已保存音频首次解码后复用 `AudioBuffer`，拖进度不再重拉；LLM 拆段复用不再被角色映射变化打断；长对白合成前拆短；`女声/风韵少妇` 加 `post_gain_db=9.0`；设置文案 `极致/离线` 改为 `极限质量`。
+- 吞字证据：cache `outputs/cache/c23aca2bd05f294a1a0bf8152395886d9e4bbcc9.wav/json`；Whisper 输出在 `reports/whisper_cache_c23aca2bd05f294a1a0bf8152395886d9e4bbcc9_20260601/`，确认第 20 段漏掉 `白产品经理，你今晚在公司`。
 
 目标是做一个本地可分发产品包，让社区用户拿到文件后在自己机器上运行：
 
