@@ -1,7 +1,7 @@
 // GPT-SoVITS Tavo runtime part: 48_settings_fields.js
 // Role: settings field helpers and readFields.
 // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script.
-    function findInWidget(sel) { return $(root, sel) || $(panel, sel); }
+    function findInWidget(sel) { return (panel && panel.querySelector ? panel.querySelector(sel) : null) || $(root, sel); }
     function field(name) { return findInWidget('[data-field="' + name + '"]'); }
     // IME-safe setField：用户正在输入或中文输入法组词时，不覆盖 input.value，
     // 否则搜狗/微软等 IME 的候选词会被清掉，导致打不进字。

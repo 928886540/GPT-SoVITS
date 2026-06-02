@@ -44,6 +44,28 @@
 3. 待真实 Tavo 回归：当前公网正则必须刷新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923` 并重新渲染消息；点击懒加载卡片后应请求 `tavo.runtime.js`、manifest、21 个 parts 和 CSS。
 4. 如果新版真实 Tavo 报错变成 `LLM parse failed` / `auth_unavailable` / endpoint/model/key 问题，说明 `/parse_text` 已经到后端，下一步查 LLM adapter 配置，不再查 Tavo fetch。
 
+## BUG-027 LLM 拆段复用和设置同步（2026-06-02 23:45 +08:00）
+
+用户指出：勾选“复用 LLM 拆段”后，不应该再检查 LLM 配置是否可用；保存设置后必须立刻使用页面当前 endpoint/model/key，不能继续拿旧配置。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881924`。
+- Loader 版本 `20260602-sovits-llm-reuse-v34`，runtime parts/manifest `20260602-sovits-llm-reuse-v16`。
+- `static/tavo.runtime.parts/32_llm_reuse_helpers.js`：LLM 拆段复用 fingerprint 升到 v4，只按消息正文、用户身份、角色身份匹配，不再包含 `llmEndpoint` / `llmModel`。命中复用时直接返回 segments，不访问 `/parse_text`。
+- 同文件兼容旧 v3 记录：扫描旧 `gptsovits_llm_parse_*` localStorage 记录时，匹配正文/用户/角色并忽略 endpoint/model。
+- `static/tavo.runtime.parts/48_settings_fields.js`：设置字段读取优先当前打开的 panel，避免读到 root 里的旧字段。
+
+已验证：
+
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 拼接 21 parts 后 `new Function` 通过
+- `python -m py_compile gsv_tavo_adapter.py`
+- 代理公网验证：`/static/tavo.js?v=2028881924` 返回 `20260602-sovits-llm-reuse-v34`；manifest 返回 `20260602-sovits-llm-reuse-v16`；part 32 有 `v: 4`；part 48 的 `findInWidget()` 优先 panel。
+
+待真实 Tavo 回归：同一消息已有拆段缓存时，即使 LLM provider 不可用或模型已切换，也必须显示“复用 LLM 拆段”，adapter 日志不能出现新的 `POST /parse_text`。保存设置后下一次生成日志里的 endpoint/model 必须是页面当前值。
+
 ## Runtime Manifest Phase 1 交接（2026-06-02 20:36 +08:00）
 
 触发原因：上一个 Codex 会话在 runtime 架构升级中途上下文炸掉。用户要求给下一个 Codex 留清楚交接。

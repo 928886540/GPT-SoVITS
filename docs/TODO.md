@@ -18,6 +18,7 @@
 - 把真实 Tavo 正则更新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923`，重启 adapter/Cloudflare Tunnel 后复测：AR 动态 runtime loader、移动端 live 直走 Web Audio、懒加载播放首点能继续播放历史、加载完整播放器不出现裸 HTML 闪屏、音符按钮每次创建新音频 cache key、保存音频 seek 不重拉、补角色后 LLM 拆段复用、设置页不再出现 `极致/离线`。
 - 注意 runtime loader 是从入口脚本 `src` 派生同源静态资源 base，不是外网专用；如果真实 Tavo 正则切回 LAN loader，同一套动态 loader 应自动使用 LAN origin，不允许再维护一套外网专用分支。
 - 单独回归 BUG-024 `/parse_text`：新版前端应通过 XHR `text/plain;charset=UTF-8` POST 请求 `/parse_text`；adapter 日志必须出现 `POST /parse_text`。若返回 `LLM parse failed` / `auth_unavailable`，继续查 LLM 配置，不再查 Tavo AR fetch。
+- 回归 BUG-027：正则更新到 `v=2028881924` 后，同一消息已有拆段缓存时，切换/清空 LLM endpoint/model/key 也必须复用拆段，不得请求 `/parse_text`；保存设置后下一次生成必须使用页面当前 LLM 配置。
 - 用同文本重新生成新 cache，核对 `白产品经理，你今晚在公司到底给她灌了多少啊？` 不再吞字；比较 `女声/风韵少妇` 与旁白电平，确认 `post_gain_db=9.0` 是否合适。
 - iPhone 14 Pro 真机回归 BUG-004/014/015：设置页和选择音色页都必须是中等固定高度，底部圆角可见，不能显示成一条长窄面板或接近全屏长面板；选择音色页一页 10 个；点边缘/右上/空白不能误关闭；从设置页进入 `选择音色` 后，点 picker `X` 必须回到设置页；点 `日日新`、`全部` 等分类 tab 不能触发外部关闭。
 

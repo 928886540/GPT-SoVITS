@@ -119,6 +119,13 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 ## 普通模式 / 智能模式回归
 
+## BUG-027 LLM 拆段复用回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881924`，loader 版本 `20260602-sovits-llm-reuse-v34`，runtime `20260602-sovits-llm-reuse-v16`。
+- 同一消息已有 LLM 拆段缓存时，把 LLM endpoint/model/key 改成不可用值后再次点生成，必须显示“复用 LLM 拆段”，adapter 日志不能出现新的 `POST /parse_text`。
+- 在设置页修改 LLM endpoint/model/key 后保存，下一次非复用生成的 debug 日志必须显示页面当前 endpoint/model，不能继续使用旧配置。
+- 如果复用未命中，才允许请求 `/parse_text`；这时后端 LLM 错误应按 endpoint/model/key 单独处理。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。

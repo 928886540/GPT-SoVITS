@@ -3,14 +3,26 @@
 // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script.
     function parseReuseFingerprint(text) {
       return JSON.stringify({
-        v: 3,
+        v: 4,
         text: String(text || ""),
         userName: String((context && context.userName) || ""),
         userAliases: normalizedUserAliases(context),
-        characterName: String((context && context.characterName) || cfg.currentCharacterName || ""),
-        llmEndpoint: String(cfg.llmEndpoint || ""),
-        llmModel: String(cfg.llmModel || "")
+        characterName: String((context && context.characterName) || cfg.currentCharacterName || "")
       });
+    }
+    function parseReuseRecordMatches(record, fingerprint, text) {
+      if (!record || !Array.isArray(record.segments) || !record.segments.length) return false;
+      if (record.fingerprint === fingerprint) return true;
+      try {
+        var oldFp = JSON.parse(String(record.fingerprint || "{}"));
+        var newFp = JSON.parse(fingerprint);
+        if (String(oldFp.text || "") !== String(text || "")) return false;
+        if (String(oldFp.userName || "") !== String(newFp.userName || "")) return false;
+        if (String(oldFp.characterName || "") !== String(newFp.characterName || "")) return false;
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
     function parseReuseStorageKeys(fingerprint) {
       var keys = [];
@@ -37,7 +49,25 @@
         }
         if (record) hitKey = key;
       }
-      if (!record || record.fingerprint !== fingerprint || !Array.isArray(record.segments) || !record.segments.length) return null;
+      if (!parseReuseRecordMatches(record, fingerprint, text)) {
+        record = null;
+        hitKey = "";
+      }
+      if (!record) {
+        try {
+          for (var j = 0; j < localStorage.length && !record; j++) {
+            var scanKey = localStorage.key(j);
+            if (!/^gptsovits_llm_parse_/.test(String(scanKey || ""))) continue;
+            var scanRecord = null;
+            try { scanRecord = JSON.parse(localStorage.getItem(scanKey) || "null"); } catch (_) {}
+            if (parseReuseRecordMatches(scanRecord, fingerprint, text)) {
+              record = scanRecord;
+              hitKey = scanKey;
+            }
+          }
+        } catch (_) {}
+      }
+      if (!record) return null;
       debugLog("♻️ 复用 LLM 拆段 cacheKey=" + hitKey + " segments=" + record.segments.length, "#9f9");
       setStatus("复用 LLM 拆段 " + record.segments.length + " 段");
       return normalizeSegmentsForContext(record.segments, context);

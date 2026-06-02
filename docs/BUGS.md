@@ -371,3 +371,15 @@ Root cause: 架构判断错误。Tavo AR 的正确边界是单入口脚本注入
 Fix: 已撤回 iframe bridge/RPC/bundle 方向。当前保留 `static/tavo.js -> static/tavo.runtime.js -> static/tavo.runtime.manifest.json -> 21 个 runtime parts -> eval`。正则入口升到 `v=2028881923`，loader `20260602-sovits-xhr-post-v33`，runtime manifest/parts `20260602-sovits-xhr-post-v15`。`adapterFetch()` 回到原生 `fetch(url, init)`，adapter JSON 创建请求通过 `adapterJsonPost()` 以 XHR text/plain POST 发送。
 
 Guard: 真实 Tavo 点击懒加载卡片后，应看到 `GET /static/tavo.runtime.js?...`、`GET /static/tavo.runtime.manifest.json?...`、21 个 `GET /static/tavo.runtime.parts/*.js?...` 和 CSS skin；不应请求 `tavo.runtime.bundle.js`，不应创建 iframe，不应出现 RPC/WebSocket/JSONP。完整播放器仍必须等 `window.__gptsovits_tavo_runtime_ready` resolve 后再隐藏懒加载卡片。
+
+## BUG-027: LLM 拆段复用仍检查 LLM 配置且设置保存后使用旧模型
+
+Status: fixed in code, needs real Tavo regression
+
+Repro: 用户真实 Tavo 中勾选“复用 LLM 拆段”后，已有拆段应直接复用，但前端仍请求 `/parse_text`；当旧 LLM provider 返回 `auth_unavailable` 时，复用路径也报 LLM 不可用。用户修改 LLM 模型/endpoint 后，生成请求仍显示旧 `endpoint=http://127.0.0.1:8317/v1`、旧 `model=渡鸦/grok-4.20-fast`。
+
+Root cause: 当前 `parseReuseFingerprint()` 把 `llmEndpoint` 和 `llmModel` 写进复用 fingerprint，用户换模型会导致旧拆段缓存失配，进而重新请求 LLM。设置读取也可能优先从当前 widget/root 里拿到旧字段，而不是当前打开的设置 panel 字段。
+
+Fix: `static/tavo.runtime.parts/32_llm_reuse_helpers.js` 的 LLM 拆段复用 fingerprint 升到 v4，只按消息正文、用户身份、角色身份匹配，不再包含 endpoint/model/key；命中复用时直接返回 segments，绝不调用 `/parse_text`。同时兼容旧 v3 localStorage 记录，扫描 `gptsovits_llm_parse_*` 时忽略 endpoint/model。`static/tavo.runtime.parts/48_settings_fields.js` 的字段读取改成优先当前打开的 panel，保存/生成前同步页面当前值到 `cfg`。版本升到正则 `v=2028881924`、loader `20260602-sovits-llm-reuse-v34`、runtime `20260602-sovits-llm-reuse-v16`。
+
+Guard: 同一消息已有 LLM 拆段缓存时，即使 LLM endpoint/model/key 为空、不可用或换成新模型，也必须显示“复用 LLM 拆段”，adapter 日志不能出现新的 `POST /parse_text`。保存设置后，下一次生成日志里的 endpoint/model 必须是页面当前值。
