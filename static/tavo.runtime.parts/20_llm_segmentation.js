@@ -46,7 +46,7 @@
     debugLog("🔎 LLM 解析代理: parseUrl=" + parseUrl + ", " + llmTarget, "#ffd479");
     var res;
     try {
-      res = await fetch(parseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text, endpoint: cfg.llmEndpoint || "", model: cfg.llmModel || "", api_key: cfg.llmApiKey || undefined, system_prompt: prompt, temperature: 0.2, timeout: 90, max_tokens: maxTokens }) });
+      res = await adapterFetch(parseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text, endpoint: cfg.llmEndpoint || "", model: cfg.llmModel || "", api_key: cfg.llmApiKey || undefined, system_prompt: prompt, temperature: 0.2, timeout: 90, max_tokens: maxTokens }) });
     } catch (e) {
       throw new Error(formatNetworkError("LLM 解析代理 /parse_text", parseUrl, e, [
         llmTarget,

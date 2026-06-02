@@ -397,10 +397,10 @@
       var base = cleanBase(cfg.apiBase);
       try {
         if (track.cacheKey) {
-          await fetch(base + "/tts_dialogue_stream_job/" + encodeURIComponent(track.cacheKey), { method: "DELETE" }).catch(function () {});
-          await fetch(base + "/cache/" + encodeURIComponent(track.cacheKey), { method: "DELETE" }).catch(function () {});
+          await adapterFetch(base + "/tts_dialogue_stream_job/" + encodeURIComponent(track.cacheKey), { method: "DELETE" }).catch(function () {});
+          await adapterFetch(base + "/cache/" + encodeURIComponent(track.cacheKey), { method: "DELETE" }).catch(function () {});
         } else if (track.deleteUrl) {
-          await fetch(track.deleteUrl, { method: "DELETE" }).catch(function () {});
+          await adapterFetch(track.deleteUrl, { method: "DELETE" }).catch(function () {});
         }
       } catch (e) {
         debugLog("⚠️ 删除服务端关联缓存失败: " + (e && e.message ? e.message : e), "#fc9");

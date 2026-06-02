@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>sovits fetch bridge</title>
+</head>
+<body>
+<script>
+;(function () {
+  "use strict";
+
+  function normalizeHeaders(value) {
+    var out = {};
+    if (!value) return out;
+    if (Array.isArray(value)) {
+      value.forEach(function (pair) {
+        if (pair && pair.length >= 2) out[String(pair[0])] = String(pair[1]);
+      });
+      return out;
+    }
+    if (typeof value === "object") {
+      Object.keys(value).forEach(function (key) { out[key] = String(value[key]); });
+    }
+    return out;
+  }
+
+  function responseHeaders(res) {
+    var out = [];
+    try {
+      res.headers.forEach(function (value, key) { out.push([key, value]); });
+    } catch (_) {}
+    return out;
+  }
+
+  function reply(source, id, payload) {
+    try {
+      source.postMessage(Object.assign({ sovitsFetchBridge: 1, id: id }, payload || {}), "*");
+    } catch (_) {}
+  }
+
+  window.addEventListener("message", function (ev) {
+    var msg = ev && ev.data;
+    if (!msg || msg.sovitsFetchBridge !== 1 || !msg.id || !ev.source) return;
+    Promise.resolve().then(async function () {
+      var target = new URL(String(msg.url || ""), location.href);
+      if (target.origin !== location.origin) {
+        throw new Error("bridge target outside origin: " + target.origin);
+      }
+      var method = String(msg.method || "GET").toUpperCase();
+      var init = {
+        method: method,
+        headers: normalizeHeaders(msg.headers),
+        cache: msg.cache || "no-store"
+      };
+      if (msg.body != null && method !== "GET" && method !== "HEAD") init.body = String(msg.body);
+      var res = await fetch(target.href, init);
+      var body = await res.text();
+      reply(ev.source, msg.id, {
+        ok: true,
+        status: res.status,
+        statusText: res.statusText || "",
+        headers: responseHeaders(res),
+        body: body
+      });
+    }).catch(function (e) {
+      reply(ev.source, msg.id, {
+        ok: false,
+        status: 0,
+        statusText: "",
+        error: e && e.message ? e.message : String(e || "bridge fetch failed")
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

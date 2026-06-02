@@ -135,7 +135,7 @@
     return body;
   }
   async function createSingleStreamJob(base, cfg, text, force) {
-    var res = await fetch(cleanBase(base) + "/tts_stream_job", {
+    var res = await adapterFetch(cleanBase(base) + "/tts_stream_job", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(singleBody(cfg, text, force))
@@ -153,7 +153,7 @@
   }
 
   async function createDialogueStreamJob(base, body) {
-    var res = await fetch(cleanBase(base) + "/tts_dialogue_stream_job", {
+    var res = await adapterFetch(cleanBase(base) + "/tts_dialogue_stream_job", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
