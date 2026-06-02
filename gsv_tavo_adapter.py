@@ -65,6 +65,8 @@ JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
 JOB_QUEUE: queue.Queue[tuple[str, dict[str, Any], dict[str, Optional[dict[str, Any]]]]] = queue.Queue()
 WORKER_STARTED = False
+MIN_REF_AUDIO_S = 3.0
+MAX_REF_AUDIO_S = 10.0
 
 
 class ProfileSaveRequest(BaseModel):
@@ -102,6 +104,8 @@ class DialogueStreamRequest(BaseModel):
     parallel_infer: Optional[bool] = None
     text_split_method: Optional[str] = None
     aux_ref_audio_paths: list[str] = Field(default_factory=list)
+    bypass_cache: bool = False
+    request_id: str = ""
 
 
 class SingleStreamRequest(BaseModel):
@@ -118,6 +122,7 @@ class SingleStreamRequest(BaseModel):
     parallel_infer: Optional[bool] = None
     text_split_method: Optional[str] = None
     bypass_cache: bool = False
+    request_id: str = ""
 
 
 @APP.get("/health")
@@ -333,7 +338,13 @@ async def create_single_job(request: SingleStreamRequest) -> dict[str, Any]:
     if profile is None:
         raise HTTPException(status_code=400, detail=f"voice profile not found: {voice_name}")
     payload = _single_request_to_dialogue_payload(request, voice_name)
+    if request.bypass_cache:
+        payload["request_id"] = _bypass_cache_request_id(request.request_id)
     profiles = {"default": profile, "旁白": profile}
+    try:
+        _validate_payload_voice_profiles(payload, profiles)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     cache_payload = {"kind": "gptsovits_single_v1", "request": payload, "profiles": profiles}
     cache_key = snapshot_cache.make_cache_key(cache_payload)
     cached = False if request.bypass_cache else snapshot_cache.get_cached_audio(cache_key) is not None
@@ -372,11 +383,17 @@ async def delete_single_cache(text: str = "", ref_audio_path: str = "") -> dict[
 @APP.post("/tts_dialogue_stream_job")
 async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
     _ensure_worker_started()
-    payload = request.model_dump()
+    payload = request.model_dump(exclude={"bypass_cache", "request_id"})
+    if request.bypass_cache:
+        payload["request_id"] = _bypass_cache_request_id(request.request_id)
     profiles = {role: voice_library.get_voice_profile(name) for role, name in payload.get("voices", {}).items()}
+    try:
+        _validate_payload_voice_profiles(payload, profiles)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     cache_payload = {"kind": "gptsovits_dialogue_v1", "request": payload, "profiles": profiles}
     cache_key = snapshot_cache.make_cache_key(cache_payload)
-    cached = snapshot_cache.get_cached_audio(cache_key) is not None
+    cached = False if request.bypass_cache else snapshot_cache.get_cached_audio(cache_key) is not None
     if cached:
         with JOBS_LOCK:
             JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, "segments_meta": []}
@@ -597,6 +614,14 @@ def _enqueue_cache_job_locked(cache_key: str) -> int:
     return position
 
 
+def _bypass_cache_request_id(value: Any) -> str:
+    token = str(value or "").strip()
+    if not token:
+        token = f"server-{time.time_ns()}"
+    token = "".join(ch for ch in token if ch.isprintable()).strip()
+    return (token or f"server-{time.time_ns()}")[:160]
+
+
 def _single_request_to_dialogue_payload(request: SingleStreamRequest, voice_name: str) -> dict[str, Any]:
     sample_steps = request.sample_steps if request.sample_steps is not None else request.diffusion_steps
     return {
@@ -635,6 +660,129 @@ def _apply_pcm_gain(pcm: bytes, sample_width: int, gain_db: float) -> bytes:
     return audioop.mul(pcm, sample_width, factor)
 
 
+def _validate_payload_voice_profiles(
+    payload: dict[str, Any],
+    profiles: dict[str, Optional[dict[str, Any]]],
+) -> None:
+    segments = _normalize_segments(payload.get("segments") or [])
+    if not segments:
+        raise ValueError("segments is empty")
+    checked: set[str] = set()
+    for segment in segments:
+        profile = _profile_for_segment(payload, profiles, segment)
+        name = str(profile.get("name") or profile.get("ref_audio_path") or "").strip()
+        if name in checked:
+            continue
+        _validate_voice_profile_ready(profile)
+        checked.add(name)
+
+
+def _validate_voice_profile_ready(profile: dict[str, Any]) -> None:
+    name = str(profile.get("name") or "").strip() or "(unnamed)"
+    ref_audio_path = str(profile.get("ref_audio_path") or "").strip()
+    prompt_text = str(profile.get("prompt_text") or "").strip()
+    if not ref_audio_path:
+        raise ValueError(f"音色 {name!r} 缺少 ref_audio_path")
+    if not prompt_text:
+        raise ValueError(f"音色 {name!r} 缺少 prompt_text；GPT-SoVITS 音色必须有参考音频逐字稿")
+    path = Path(ref_audio_path)
+    if not path.is_absolute():
+        path = ROOT / path
+    if not path.is_file():
+        raise ValueError(f"音色 {name!r} 的参考音频不存在: {path.as_posix()}")
+    duration_s = _audio_duration_seconds(path)
+    if duration_s is None:
+        return
+    if duration_s < MIN_REF_AUDIO_S or duration_s > MAX_REF_AUDIO_S:
+        raise ValueError(
+            f"音色 {name!r} 的参考音频时长 {duration_s:.2f}s，不在 GPT-SoVITS 要求的 "
+            f"{MIN_REF_AUDIO_S:.0f}-{MAX_REF_AUDIO_S:.0f}s 范围内；请更换或裁剪 ref_audio_path: {path.as_posix()}"
+        )
+
+
+def _audio_duration_seconds(path: Path) -> Optional[float]:
+    suffix = path.suffix.lower()
+    if suffix == ".wav":
+        try:
+            with wave.open(str(path), "rb") as wav:
+                rate = wav.getframerate()
+                frames = wav.getnframes()
+            return frames / float(rate) if rate else None
+        except (wave.Error, OSError, EOFError):
+            return None
+    if suffix == ".mp3":
+        return _mp3_duration_seconds(path)
+    return None
+
+
+def _mp3_duration_seconds(path: Path) -> Optional[float]:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    if not data:
+        return None
+    pos = 0
+    if len(data) >= 10 and data[:3] == b"ID3":
+        size = (
+            ((data[6] & 0x7F) << 21)
+            | ((data[7] & 0x7F) << 14)
+            | ((data[8] & 0x7F) << 7)
+            | (data[9] & 0x7F)
+        )
+        pos = 10 + size
+    bitrates = {
+        (3, 3): [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448],
+        (3, 2): [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384],
+        (3, 1): [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+        (2, 3): [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256],
+        (2, 2): [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+        (2, 1): [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+        (0, 3): [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256],
+        (0, 2): [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+        (0, 1): [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+    }
+    sample_rates = {
+        3: [44100, 48000, 32000],
+        2: [22050, 24000, 16000],
+        0: [11025, 12000, 8000],
+    }
+    frames = 0
+    duration = 0.0
+    while pos + 4 <= len(data):
+        if data[pos] != 0xFF or (data[pos + 1] & 0xE0) != 0xE0:
+            pos += 1
+            continue
+        header = int.from_bytes(data[pos : pos + 4], "big")
+        version = (header >> 19) & 0x03
+        layer = (header >> 17) & 0x03
+        bitrate_idx = (header >> 12) & 0x0F
+        sample_idx = (header >> 10) & 0x03
+        padding = (header >> 9) & 0x01
+        if version == 1 or layer == 0 or bitrate_idx in {0, 15} or sample_idx == 3:
+            pos += 1
+            continue
+        bitrate_kbps = bitrates.get((version, layer), [])[bitrate_idx]
+        sample_rate = sample_rates.get(version, [])[sample_idx]
+        if not bitrate_kbps or not sample_rate:
+            pos += 1
+            continue
+        if layer == 3:
+            frame_size = int(((12 * bitrate_kbps * 1000) / sample_rate + padding) * 4)
+            samples = 384
+        else:
+            coeff = 144 if (version == 3 or layer == 2) else 72
+            frame_size = int((coeff * bitrate_kbps * 1000) / sample_rate + padding)
+            samples = 1152 if (version == 3 or layer == 2) else 576
+        if frame_size <= 0:
+            pos += 1
+            continue
+        duration += samples / float(sample_rate)
+        frames += 1
+        pos += frame_size
+    return duration if frames else None
+
+
 def _synthesize_dialogue_to_cache(
     cache_key: str,
     payload: dict[str, Any],
@@ -643,6 +791,7 @@ def _synthesize_dialogue_to_cache(
     segments = _normalize_segments(payload.get("segments") or [])
     if not segments:
         raise ValueError("segments is empty")
+    _validate_payload_voice_profiles(payload, profiles)
 
     pcm_parts: list[bytes] = []
     segments_meta: list[dict[str, Any]] = []
@@ -726,6 +875,7 @@ def _stream_dialogue_to_cache(
     segments = _normalize_segments(payload.get("segments") or [])
     if not segments:
         raise ValueError("segments is empty")
+    _validate_payload_voice_profiles(payload, profiles)
 
     pcm_parts: list[bytes] = []
     segments_meta: list[dict[str, Any]] = []

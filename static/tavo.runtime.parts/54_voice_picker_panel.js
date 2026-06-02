@@ -1,7 +1,7 @@
 // GPT-SoVITS Tavo runtime part: 54_voice_picker_panel.js
 // Role: settings role rows, voice picker state, preview, paging, and picker guards.
 // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script.
-    var pickerState = { rowIdx: -1, tab: "", search: "", page: 1, pageSize: 12, returnPanel: false, panelScrollTop: 0 };
+    var pickerState = { rowIdx: -1, tab: "", search: "", page: 1, pageSize: 10, returnPanel: false, panelScrollTop: 0 };
     var pickerPreviewAudio = null;
     var pickerPreviewVoice = "";
     function setLayerHidden(el, hidden) {
@@ -127,7 +127,7 @@
       pickerState.tab = "";
       pickerState.search = "";
       pickerState.page = 1;
-      pickerState.pageSize = (window.matchMedia && window.matchMedia("(max-width:520px)").matches) ? 8 : 12;
+      pickerState.pageSize = 10;
       pickerState.returnPanel = isDialogOpen(panel);
       pickerState.panelScrollTop = panel ? Number(panel.scrollTop || 0) : 0;
       if (pickerSearchEl) pickerSearchEl.value = "";
@@ -307,55 +307,22 @@
     ['pointerup', 'touchend', 'mouseup', 'click'].forEach(function (type) {
       if (pickerCloseBtn) pickerCloseBtn.addEventListener(type, handlePickerClose, true);
     });
-    function pickerEventPoint(e) {
-      var p = e;
-      try {
-        if (e && e.touches && e.touches.length) p = e.touches[0];
-        else if (e && e.changedTouches && e.changedTouches.length) p = e.changedTouches[0];
-      } catch (_) {}
-      return { x: Number((p && p.clientX) || 0), y: Number((p && p.clientY) || 0) };
-    }
-    function stopPickerEvent(e) {
+    function keepPickerEventInside(e) {
       if (!e) return;
-      try { e.preventDefault(); } catch (_) {}
       try { e.stopPropagation(); } catch (_) {}
-      try { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); } catch (_) {}
     }
-    function pointInPickerCloseHotspot(e) {
-      if (!pickerEl || !isDialogOpen(pickerEl)) return false;
-      try {
-        var r = pickerEl.getBoundingClientRect();
-        var p = pickerEventPoint(e);
-        return p.x >= r.right - 84 && p.x <= r.right + 16 && p.y >= r.top - 16 && p.y <= r.top + 86;
-      } catch (_) { return false; }
-    }
-    function installPickerDocumentGuard() {
+    function installPickerEventGuard() {
       if (!pickerEl || pickerEl.__idxPickerDocumentGuardInstalled) return;
       pickerEl.__idxPickerDocumentGuardInstalled = true;
-      ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(function (type) {
-        document.addEventListener(type, function (e) {
-          if (!pickerEl || !isDialogOpen(pickerEl)) return;
-          var target = e && e.target;
-          var insidePicker = !!(target && target.closest && target.closest('.idx-picker') === pickerEl);
-          if (!pickerState.returnPanel && !isDialogOpen(panel)) {
-            stopPickerEvent(e);
-            closeVoicePickerForPlayback();
-            try { console.warn('[GPT-SoVITS TAVO] closed illegal voice picker before event passthrough'); } catch (_) {}
-            return;
-          }
-          if (pointInPickerCloseHotspot(e)) {
-            stopPickerEvent(e);
-            closeVoicePicker();
-            return;
-          }
-          if (!insidePicker && pickerState.returnPanel) {
-            stopPickerEvent(e);
-            closeVoicePicker();
-          }
-        }, true);
-      });
+      // No outside-click close: iOS Tavo can retarget tab/search taps as outside.
+      // Keep picker controls working, then stop bubbling to the host page.
+      try {
+        ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(function (type) {
+          pickerEl.addEventListener(type, keepPickerEventInside, false);
+        });
+      } catch (_) {}
     }
-    installPickerDocumentGuard();
+    installPickerEventGuard();
     on(pickerSearchEl, 'input', function () { pickerState.search = pickerSearchEl.value || ""; pickerState.page = 1; renderPickerGrid(); });
     on(pickerPrevEl, 'click', function () { if (pickerState.page > 1) { pickerState.page--; renderPickerGrid(); } });
     on(pickerNextEl, 'click', function () { pickerState.page++; renderPickerGrid(); });

@@ -21,28 +21,23 @@
         d.open = false;
       } catch (_) {}
     }
-    function stopLayerEvent(e) {
+    function keepLayerEventInside(e) {
       if (!e) return;
-      try { e.preventDefault(); } catch (_) {}
       try { e.stopPropagation(); } catch (_) {}
-      try { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); } catch (_) {}
     }
-    function installLayerDocumentGuard() {
+    function installLayerEventGuard() {
       if (root.__idxLayerDocumentGuardInstalled) return;
       root.__idxLayerDocumentGuardInstalled = true;
-      ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(function (type) {
-        document.addEventListener(type, function (e) {
-          var target = e && e.target;
-          if (!target || !target.closest) return;
-          if (pickerEl && isDialogOpen(pickerEl)) return;
-          if (!panel || !isDialogOpen(panel)) return;
-          if (target.closest('.idx-panel') === panel) return;
-          stopLayerEvent(e);
-          closeDialog(panel);
-        }, true);
-      });
+      // iOS Tavo WebView 会在 dialog/body 重挂载、视觉视口偏移或 retargeting 时，
+      // 把面板内部点击误判成外部点击。设置页不再支持“点外部关闭”，只允许
+      // 明确点 × 或保存关闭；冒泡阶段拦截，避免挡掉按钮/输入框自己的事件。
+      try {
+        ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(function (type) {
+          if (panel) panel.addEventListener(type, keepLayerEventInside, false);
+        });
+      } catch (_) {}
     }
-    installLayerDocumentGuard();
+    installLayerEventGuard();
     on(gear, 'click', async function (ev) {
       ev.preventDefault(); ev.stopPropagation();
       if (isDialogOpen(panel)) closeDialog(panel);
@@ -279,6 +274,5 @@
     knownHistoryCount = messageId ? localHistoryCountForMessage(messageId) : 0;
     setStatus(noTrackStatusText());
     showNoTrackNotice();
-    if (knownHistoryCount > 0) ensureTracksLoaded().catch(function () { initializeHistoryCount().catch(function () {}); });
-    else initializeHistoryCount().catch(function () {});
+    initializeHistoryCount().catch(function () {});
   }

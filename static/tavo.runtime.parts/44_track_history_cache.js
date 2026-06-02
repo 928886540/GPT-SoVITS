@@ -316,7 +316,10 @@
       ensureTrackStates(restored);
       return restored;
     }
-    async function ensureTracksLoaded() {
+    async function ensureTracksLoaded(opts) {
+      opts = opts || {};
+      var selectRestored = opts.selectRestored !== false;
+      var statusOnEmpty = opts.statusOnEmpty !== false;
       if (tracksLoaded) return generatedTracks;
       if (tracksLoading) return tracksLoading;
       tracksLoading = (async function () {
@@ -324,9 +327,11 @@
         knownHistoryCount = saved && saved.length ? saved.length : 0;
         tracksLoaded = true;
         if (!saved || !saved.length) {
-          updateTrackButtons();
-          setStatus(noTrackStatusText());
-          showNoTrackNotice();
+          if (statusOnEmpty) {
+            updateTrackButtons();
+            setStatus(noTrackStatusText());
+            showNoTrackNotice();
+          }
           return generatedTracks;
         }
         var base = cleanBase(cfg.apiBase);
@@ -336,8 +341,12 @@
         });
         currentTrackIndex = generatedTracks.length - 1;
         updateTrackButtons();
-        await selectTrack(currentTrackIndex, false);
-        debugLog("📂 按需恢复历史 tracks: " + generatedTracks.length + " 段, 未预取本机缓存音频/未轮询落盘", "#9ff");
+        if (selectRestored) {
+          await selectTrack(currentTrackIndex, false);
+          debugLog("📂 按需恢复历史 tracks: " + generatedTracks.length + " 段, 未预取本机缓存音频/未轮询落盘", "#9ff");
+        } else {
+          debugLog("📂 仅恢复历史 tracks 元数据: " + generatedTracks.length + " 段, 未选择/未读取历史音频", "#9ff");
+        }
         return generatedTracks;
       })().catch(function (e) {
         tracksLoaded = false;

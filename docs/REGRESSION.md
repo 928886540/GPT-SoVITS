@@ -51,9 +51,18 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 任一 part 加载失败时，控制台必须出现 `[GPT-SoVITS TAVO runtime loader]` 错误，不应静默失败。
 - 拆分后消息卡片、设置页、音色选择器、历史音频和生成流程行为应与拆分前一致。
 
+## Runtime Manifest 回归
+
+- Phase 1 之后，`static/tavo.runtime.js` 不应再把硬编码 `PARTS` 数组作为唯一模块来源；模块列表应来自 `static/tavo.runtime.manifest.json`。
+- `/static/tavo.runtime.manifest.json` 必须返回 200，Content-Type 必须是 JSON 或可被浏览器按 JSON 解析。
+- manifest 必须包含 `schema`、`runtimeVersion`、`mode`、`modules`；每个 module 必须有唯一 `id`、`file`、`depends`。
+- loader 必须能检测重复 module id、缺失依赖和循环依赖，并在控制台打印 `[GPT-SoVITS TAVO runtime loader]` 错误。
+- 正常 manifest 下，21 个旧 parts 仍应按依赖拓扑顺序拼接执行，真实 Tavo 行为应与 ordered array 版本一致。
+- 如果 manifest 请求失败，loader 可以回退内置 ordered list，但必须打印 warning；真实 Tavo 回归没通过前不能进入 Phase 2。
+
 ## 2026-06-01 真实端回归新增
 
-- 更新正则到当前 `static/tavo.js` 版本（目前 `v=2028881910`）后，移动 WebView 多音色 live 首次播放不应先报 `element audio.play() 不支持`；首路径应直接是 Web Audio。
+- 更新正则到当前 `static/tavo.js` 版本（目前 `v=2028881916`）后，移动 WebView 多音色 live 首次播放不应先报 `element audio.play() 不支持`；首路径应直接是 Web Audio。
 - 勾选“保存到本机缓存”后，同一条已保存音频首次播放完成解码，再连续拖动进度条；日志不应重复请求同一 `/cache_audio/{key}` 或 `/tts_dialogue_stream_job/{key}`。
 - LLM 拆段缺角色失败后，补角色映射再点生成；第二次必须命中“复用 LLM 拆段”，不能重新请求 `/parse_text`。
 - 设置页合成档位必须显示 `极限质量`，不能出现 `极致/离线`。
@@ -63,8 +72,23 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 - 在真实 Tavo/LDPlayer 上重新触发多音色 live stream，必须记录新的 `cache_key`、角色映射、voice profile、`sample_steps`、`batch_size`、Tavo 控制台日志和 adapter log tail。
 - 成功路径：`/tts_dialogue_job_status/<cache_key>` 最终必须返回 `state=done`、`cached=true`，且 `outputs/cache/<cache_key>.wav` / `.json` 存在。
+- Profile 前置失败路径：如果实际会用到的 voice profile 参考音频不在 3-10 秒内，POST `/tts_dialogue_stream_job` 必须直接返回 400 和明确错误，例如 `音色 '男声/霸道青年' 的参考音频时长 1.61s，不在 GPT-SoVITS 要求的 3-10s 范围内`；不能创建 live job，不能启动 Web Audio 后才表现成 `IncompleteRead`。
 - 失败路径：如果官方 GPT-SoVITS 上游断流，新 key 必须返回 `state=failed` 和明确错误；`outputs/logs/gsv_tavo_adapter_lan.out.log` 必须出现 `[gsv_adapter] dialogue_stream_failed`，错误应包含 segment index/role/text preview 以及 official stream 读取到的 bytes/chunks。
 - 不要用旧 key `eda219ac41c210002f57480cab469d26fc163d6f` 验证本条；adapter 重启后旧内存 job 丢失，返回 `missing` 是预期状态。
+
+## BUG-019 音符新建音频回归
+
+- 更新真实 Tavo 正则到 `v=2028881916` 后，同一条消息连续点两次音符/新增按钮：两次都必须 POST 新 TTS job，并返回不同的 `cache_key`。
+- 勾选“复用 LLM 拆段”时，第二次可以复用 parse 结果，但不能复用旧 TTS 音频；`/tts_dialogue_stream_job` 不应因为同 payload 返回旧 cache 的 `cached=true`。
+- 打开已有历史的消息卡片时，不应自动选择/读取历史音频；只显示历史条数和“可恢复上次音频”提示。
+- 播放按钮、上一条、下一条仍可读取历史音频；音符按钮只追加新音频，不把当前 track 切回旧历史。
+- 单音色强制新建也要检查：同文本连续点音符应返回不同 cache key，不能命中同一个 IndexedDB offline key。
+
+## BUG-020 懒加载播放器过渡回归
+
+- 更新真实 Tavo 正则到 `v=2028881916` 后，首次点懒加载播放键时，懒加载卡片必须保持到 CSS skin 加载完成，不能出现未套样式的白色方块按钮、裸 range/input 或无卡片背景的中间态。
+- 有历史音频时，首次点懒加载播放键应继续触发完整播放器的播放路径；不能只打开播放器停在“可恢复上次音频”。
+- Tavo 控制台若出现 `UI skin CSS 加载失败` 或 `UI skin CSS 等待超时`，必须记录 URL 和截图，优先查 `/static/tavo.ui.skin.default.css?skin_v=...` 是否 200。
 
 ## 普通模式 / 智能模式回归
 
@@ -75,7 +99,8 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 ## iPhone 14 Pro 真机弹层回归
 
-- 设置页必须在 iPhone 14 Pro 真机 Tavo WebView 内保持稳定宽度，不能显示成一条很长的窄面板，不能横向撑开。
+- 设置页和音色选择器必须在 iPhone 14 Pro 真机 Tavo WebView 内保持稳定宽度和中等固定高度，不能显示成一条很长的窄面板，不能横向撑开，不能接近全屏长面板。
+- 两个弹层底部圆角必须可见，不能贴死屏幕底部导致看起来像长条；选择音色页一页显示 10 个音色项。
 - 设置页打开后，点面板边缘、右上附近、滚动区空白处不能误关闭；只有设置页自己的 `×` 或保存按钮能关闭设置页。
 - 从设置页进入 `选择音色` 后，点音色选择器右上 `X` 只能关闭当前音色选择层，并返回上一层设置页，不能直接回播放器。
 - 音色选择器内点分类 tab，例如 `日日新`、`全部`，以及搜索框、音色卡片、右侧 `√`，都不能被 document 外部点击守卫误判为外部点击。

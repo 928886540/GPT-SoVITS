@@ -108,8 +108,21 @@
   function singleDeleteUrl(base, cfg, text) {
     return cleanBase(base) + "/cache_tts_single?" + singleParams(cfg, text).toString();
   }
+  function generationRequestId(kind) {
+    var rnd = "";
+    try {
+      var c = window.crypto || window.msCrypto;
+      if (c && c.getRandomValues) {
+        var a = new Uint32Array(2);
+        c.getRandomValues(a);
+        rnd = a[0].toString(36) + a[1].toString(36);
+      }
+    } catch (_) {}
+    if (!rnd) rnd = Math.random().toString(36).slice(2);
+    return String(kind || "tts") + "-" + Date.now().toString(36) + "-" + rnd;
+  }
   function singleBody(cfg, text, force) {
-    return Object.assign({
+    var body = Object.assign({
       text: text,
       ref_audio_path: cfg.defaultVoice,
       top_p: cfg.topP,
@@ -118,6 +131,8 @@
       repetition_penalty: cfg.repetitionPenalty,
       bypass_cache: !!force
     }, generationQualityOverrides(cfg.qualityMode));
+    if (force) body.request_id = generationRequestId("single");
+    return body;
   }
   async function createSingleStreamJob(base, cfg, text, force) {
     var res = await fetch(cleanBase(base) + "/tts_stream_job", {
@@ -166,6 +181,12 @@
   var PRIMED_CTX = null;
   var PRIMED_UNLOCK_SOURCE = null;
   function primeAudioContext() {
+    if (!PRIMED_CTX) {
+      try {
+        var pre = window.__gptsovits_tavo_preprimed_audio_context;
+        if (pre && typeof pre.createBufferSource === "function") PRIMED_CTX = pre;
+      } catch (_) {}
+    }
     if (PRIMED_CTX) {
       try { if (PRIMED_CTX.state === "suspended") PRIMED_CTX.resume(); } catch (_) {}
       return PRIMED_CTX;

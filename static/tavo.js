@@ -4,7 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260601-lan-webview-layer-v20";
+  var LOADER_VERSION = "20260602-ios-layer-v26";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -83,6 +83,31 @@
   function armTapGuard(ms) {
     installGlobalTapGuard();
     try { window[TAP_GUARD_KEY] = Date.now() + Math.max(800, Number(ms || 0) || 0); } catch (_) {}
+  }
+  function primeRuntimeAudioContext() {
+    try {
+      var ctx = window.__gptsovits_tavo_preprimed_audio_context;
+      if (ctx) {
+        try { if (ctx.state === "suspended") ctx.resume(); } catch (_) {}
+        return ctx;
+      }
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+      try { ctx.resume(); } catch (_) {}
+      try {
+        var rate = ctx.sampleRate || 44100;
+        var buf = ctx.createBuffer(1, Math.max(1, Math.floor(rate * 0.025)), rate);
+        var data = buf.getChannelData(0);
+        if (data && data.length) data[0] = 0.0005;
+        var src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch (_) {}
+      window.__gptsovits_tavo_preprimed_audio_context = ctx;
+      return ctx;
+    } catch (_) { return null; }
   }
 
   function closeAccidentalPicker() {
@@ -290,11 +315,11 @@
         if (btn) btn.click();
       }).catch(function (e) { try { console.error("[GPT-SoVITS TAVO loader]", e && e.message ? e.message : e); } catch (_) {} });
     }
-    on($(root, '[data-role="lazy-play"]'), "pointerdown", function () { armTapGuard(1600); });
-    on($(root, '[data-role="lazy-play"]'), "touchstart", function () { armTapGuard(1600); });
+    on($(root, '[data-role="lazy-play"]'), "pointerdown", function () { armTapGuard(1600); primeRuntimeAudioContext(); });
+    on($(root, '[data-role="lazy-play"]'), "touchstart", function () { armTapGuard(1600); primeRuntimeAudioContext(); });
     on($(root, '[data-role="lazy-open"]'), "pointerdown", function () { armTapGuard(1600); });
     on($(root, '[data-role="lazy-open"]'), "touchstart", function () { armTapGuard(1600); });
-    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); armTapGuard(1800); mountRuntime(""); });
+    on($(root, '[data-role="lazy-play"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); armTapGuard(1800); primeRuntimeAudioContext(); route('[data-role="play"]'); });
     on($(root, '[data-role="lazy-open"]'), "click", function (ev) { ev.preventDefault(); ev.stopPropagation(); armTapGuard(1800); mountRuntime(""); });
     on($(root, '[data-role="lazy-open"]'), "keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); mountRuntime(""); } });
   } catch (e) {

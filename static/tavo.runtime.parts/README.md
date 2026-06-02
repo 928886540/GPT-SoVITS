@@ -4,6 +4,8 @@
 
 The fragments are intentionally behavior-equivalent slices of the previous monolithic runtime. They are not standalone scripts yet.
 
+The next architecture step is documented in `../../docs/RUNTIME_MODULARIZATION.md`. Do not keep mechanically splitting files. Phase 1 should move the ordered list into `static/tavo.runtime.manifest.json` and make the loader manifest-driven while preserving the current concatenated-closure runtime behavior.
+
 Order:
 
 1. `00_base_config_storage.js` - bootstrap, debug logging, storage primitives, shared base helpers.

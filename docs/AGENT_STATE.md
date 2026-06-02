@@ -1,12 +1,184 @@
 # Agent State
 
-更新时间：2026-06-01 23:20 +08:00
+更新时间：2026-06-02 20:36 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## Runtime Manifest Phase 1 交接（2026-06-02 20:36 +08:00）
+
+触发原因：上一个 Codex 会话在 runtime 架构升级中途上下文炸掉。用户要求给下一个 Codex 留清楚交接。
+
+当前真实状态：
+
+- Phase 0 文档已落盘：`docs/RUNTIME_MODULARIZATION.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/TODO.md`、`docs/REGRESSION.md`、`static/tavo.runtime.parts/README.md` 都已串上 manifest/module registry 路线。
+- Phase 1 代码已实现：新增 `static/tavo.runtime.manifest.json`；`static/tavo.runtime.js` 已从 manifest 读取 21 个 modules，校验 schema/id/file/depends，拓扑排序后并行 fetch parts，再按拓扑顺序拼接旧闭包执行。
+- 当前仍是 `mode: ordered-fragments`，不是 Phase 2 真 module registry；parts 之间仍共享闭包变量。不要把它误判成已经完全解耦。
+- 保留了 `FALLBACK_PARTS` 作为 manifest 加载失败时的回退，并打印 `[GPT-SoVITS TAVO runtime loader] manifest fallback` warning。
+- 版本已对齐到：正则 `v=2028881916`，loader `20260602-ios-layer-v26`，runtime parts/manifest `20260602-ios-layer-v9`。
+
+本地验证已通过：
+
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 校验：21 个 modules 文件存在、依赖可拓扑排序、拼接后 `new Function(src)` 通过，runtimeVersion=`20260602-ios-layer-v9`
+- `python -m py_compile gsv_tavo_adapter.py`
+- `git diff --check` 通过，仅有 Git 的 LF/CRLF 工作区提示
+- key 扫描无命中：未发现 `sk-...` 或 `GSV_TAVO_LLM_API_KEY=` 明文赋值
+
+下一步：
+
+1. 不要进入 Phase 2，不要迁 UI 真模块，不要改生成/播放/cache 业务逻辑。
+2. 先重启/确认 adapter 静态服务，检查 `/static/tavo.runtime.manifest.json`、`/static/tavo.runtime.js`、21 个 parts 和 CSS 都返回 200。
+3. 在真实 Tavo 正则里刷新到 `v=2028881916`。
+4. 真实 Tavo/雷电回归：点击懒加载卡片后应先加载 manifest，再加载 21 个 parts 和 CSS；播放器、设置页、音色选择器、BUG-019 音符新建音频、BUG-020 懒加载首点播放都要复测。
+5. 真实 Tavo 回归不过，只修 loader/manifest/静态路由；不要继续扩大架构迁移。
+
+当前工作区仍有大量未提交改动，先跑 `git status --short`，不要回退 BUG-018/019/020 和 runtime 拆分成果。
+
+## Runtime 模块化升级文档（2026-06-02 11:00 +08:00）
+
+用户明确要求：不要只口头说架构升级，先写文档，避免升级到一半上下文中断后没人能接。
+
+已完成 Phase 0 文档落盘：
+
+- 新增 `docs/RUNTIME_MODULARIZATION.md`：写清当前 ordered-fragments 问题、目标架构、非目标、Phase 0-4 迁移步骤、每阶段完成标准、失败回滚和中断接手规则。
+- `docs/ARCHITECTURE.md`：runtime 拆分计划追加 manifest/module registry 迁移入口。
+- `docs/DECISIONS.md`：新增 DEC-009，接受 manifest/module registry 路线，不继续机械切片。
+- `docs/TODO.md`：P0/P1 追加 Phase 1 下一步。
+- `docs/REGRESSION.md`：新增 Runtime Manifest 回归项。
+- `static/tavo.runtime.parts/README.md`：注明当前 parts 仍不是 standalone module，下一步按 `docs/RUNTIME_MODULARIZATION.md` 做 manifest loader。
+
+当前事实更新：此段记录的是 11:00 的 Phase 0 状态。20:36 已进入 Phase 1，本文件顶部为准。
+
+历史下一步记录：11:00 时的计划是新增 `static/tavo.runtime.manifest.json` 并改 loader。20:36 已完成 Phase 1 本地实现，后续以本文件顶部交接为准。
+
+## BUG-020 懒加载过渡裸 HTML 与首点播放（2026-06-02 09:22 +08:00）
+
+用户截图显示：加载完整播放器过渡时，播放器露出未套 CSS 的裸 HTML（白色方块按钮、裸 slider/input、无卡片背景）；同时历史音频显示可恢复，但首次点懒加载播放没有延续到真实播放。
+
+已改：
+
+- `static/tavo.runtime.parts/05_message_text_config.js`：`ensureStyle()` 现在返回 CSS skin 加载 Promise，成功/失败/超时都会 resolve，并打印失败/超时日志。
+- `static/tavo.runtime.parts/68_mount_boot.js`：runtime 启动时 `await ensureStyle()` 后才 `mountFull()`，避免完整播放器先于 CSS 显示。
+- `static/tavo.js`：懒加载播放键在 `pointerdown/touchstart/click` 里预创建并解锁 AudioContext，存到 `window.__gptsovits_tavo_preprimed_audio_context`；点击不再只 `mountRuntime("")`，而是路由到完整播放器 `[data-role="play"]`。
+- `static/tavo.runtime.parts/10_tts_jobs_audio_stream.js`：`primeAudioContext()` 会接管 loader 预解锁的 AudioContext。
+- 缓存版本已 bump：正则 `v=2028881915`，loader `20260602-ios-layer-v25`，runtime parts query `20260602-ios-layer-v8`。
+
+已验证：
+
+- `node --check static\tavo.js` 通过。
+- `node --check static\tavo.runtime.js` 通过。
+- 21 个 runtime parts 拼接后 `new Function(parts)` 通过。
+- `python -m py_compile gsv_tavo_adapter.py` 通过。
+- `git diff --check` 通过，仅有 LF/CRLF 工作区提示。
+- key 扫描无命中。
+- 9880 `/health` 正常；服务端静态已返回 loader `20260602-ios-layer-v25`、runtime parts `20260602-ios-layer-v8`、`SKIN_READY_PROMISE` 和 `await ensureStyle()`。
+
+下一步：真实 Tavo 正则刷新到 `v=2028881915`，确认首次点懒加载播放不再露裸 HTML，且有历史音频时会继续进入播放路径。
+
+## BUG-019 音符按钮必须新建音频（2026-06-02 08:58 +08:00）
+
+用户反馈：点音符/新增按钮应该始终创建新音频，不应该先读取或复用历史音频；“复用”只允许复用 LLM 拆段，不允许复用旧 TTS 音频 cache。
+
+已改：
+
+- `static/tavo.runtime.parts/62_dialog_audio_events.js`：播放器挂载后不再自动 `ensureTracksLoaded()` 选择历史音频，只初始化历史条数提示；播放/上一条/下一条仍会按需读取历史。
+- `static/tavo.runtime.parts/44_track_history_cache.js`：`ensureTracksLoaded(opts)` 支持只恢复历史 tracks 元数据，不选择、不检查、不读取旧音频。
+- `static/tavo.runtime.parts/60_generate_mount_boot.js`：`generate(true)` 先停止旧播放，只用历史元数据保留旧卡片列表，然后创建新占位卡；智能模式请求带 `bypass_cache=true` 和新的 `request_id`。
+- `static/tavo.runtime.parts/10_tts_jobs_audio_stream.js`：单音色强制新建请求也带新的 `request_id`。
+- `gsv_tavo_adapter.py`：single/dialogue 请求都支持 `request_id`；只有 `bypass_cache=true` 时才把 `request_id` 写进 cache payload 生成新 cache key，普通缓存 key 不变。dialogue 强制新建不再命中旧音频 cache。
+- 缓存版本后续已在 BUG-020 中 bump 到：正则 `v=2028881915`，loader `20260602-ios-layer-v25`，runtime parts query `20260602-ios-layer-v8`。
+
+已验证：
+
+- `node --check static\tavo.js` 通过。
+- `node --check static\tavo.runtime.js` 通过。
+- 21 个 runtime parts 拼接后 `new Function(parts)` 通过。
+- `python -m py_compile gsv_tavo_adapter.py` 通过。
+- 本地 cache key 检查通过：普通 dialogue payload key 稳定；同 payload 带不同 `request_id` 时生成不同 key。
+- 已重启 adapter，当前 9880 Uvicorn PID `13592`；`/health` 正常。BUG-020 版本 bump 后已确认服务端静态版本返回 loader `20260602-ios-layer-v25`、runtime parts `20260602-ios-layer-v8`。
+- 接口烟测通过：同 payload 仅改 `request_id` POST `/tts_dialogue_stream_job`，返回 `86301def66e92067552c37a78b16bfbcf0f9dcff` 和 `182a16b04e02a90887a2631719536b6462cb347f`，均为 `cached=false/state=deferred_stream/distinct=true`；未 GET 拉流，已 DELETE 清理这两个烟测 job。
+
+下一步：在真实 Tavo 正则里改到 `v=2028881915`，点音符验证每次都产生新 cache key；播放按钮再单独验证能恢复历史音频。
+
+## BUG-004/014/015 高度与圆角三次修正（2026-06-02 08:45 +08:00）
+
+用户真机反馈上一版设置页“还是一样，特别长”，说明 `82vh` 虽然固定但仍接近全屏，不符合“与播放器卡片同量级、固定高度”的目标。随后用户继续指出选择音色页也要固定高度，且底部没有圆角会第一眼看成仍是长条。
+
+已改：
+
+- `static/tavo.ui.skin.default.css`：设置页固定高度，宽屏 `560px`，iPhone 窄屏 `520px`；选择音色页固定高度，宽屏 `520px`，iPhone 窄屏 `500px`。
+- 两个弹层都改成四角圆角，并从贴死 `bottom:0` 改成 `bottom:max(8px, env(safe-area-inset-bottom,0px))`，让底部圆角可见。
+- picker grid 不再用 `vh` 限高，随固定弹层内部 flex 占满剩余空间并内部滚动。
+- `static/tavo.runtime.parts/54_voice_picker_panel.js`：选择音色页分页改成每页 10 个。
+- `static/tavo.js`：loader 版本升到 `20260602-ios-layer-v23`，确保 CSS `skin_v` 更新。
+- `static/tavo.runtime.js`：runtime parts query 升到 `20260602-ios-layer-v6`，确保 picker page size 更新。
+- `static/tavo_regex_gptsovits_loader.json`：正则脚本 URL 升到 `v=2028881913`。
+
+下一步：必须在 Tavo 正则里把脚本 URL 改到 `v=2028881913`，再让用户/iPhone 14 Pro 真机确认设置页和选择音色页的高度、底部圆角、分页数量是否符合预期。
+
+## BUG-004/014/015 代码收尾（2026-06-02 01:09 +08:00）
+
+已接着 Claude 未完的建议修 iPhone 弹层线，当前仍未 commit。
+
+已改：
+
+- `static/tavo.ui.skin.default.css`：移除设置面板/音色选择器的 `dvw/dvh`、`left:50%`、`translateX` 布局风险；改为左右安全区 inset + `vw/vh` 的固定贴底 sheet。设置面板固定高度、底部对齐、内部滚动，避免 iPhone Tavo WebView 中变成长窄条。
+- `static/tavo.runtime.parts/62_dialog_audio_events.js`：设置页不再支持外部点击关闭，只允许明确点设置页 `×` 或保存关闭。面板内部事件在冒泡阶段 stop propagation，避免捕获阶段挡掉按钮/输入框自己的事件。
+- `static/tavo.runtime.parts/54_voice_picker_panel.js`：音色选择器不再用外部点击关闭；picker `X` / 应用继续走 `closeVoicePicker()`，返回上一层设置页并恢复滚动位置；`closeVoicePickerForPlayback()` 不用于普通 picker `X`。
+- 缓存版本已 bump：正则 `v=2028881913`，loader `20260602-ios-layer-v23`，runtime parts query `20260602-ios-layer-v6`。
+
+已验证：
+
+- `node --check static\tavo.js` 通过。
+- `node --check static\tavo.runtime.js` 通过。
+- 21 个 runtime parts 拼接后 `new Function(parts)` 通过。
+- `python -m py_compile gsv_tavo_adapter.py` 通过。
+- `git diff --check` 通过，只有 Git 的 LF/CRLF 工作区提示。
+- `static/` 下已无旧前端版本号、`dvw/dvh`、`left:50%` 或 `translateX`。
+- LDPlayer 被动烟测通过：模拟器侧可 fetch `http://192.168.8.100:9880/static/tavo.js?v=2028881911`，内容显示 `LOADER_VERSION="20260602-ios-layer-v21"`；CSS `skin_v=20260602-ios-layer-v21` 也返回 200。证据：`dev_tools/tavo_debug/tavo_js_fetch_20260602_011316.txt`、`dev_tools/tavo_debug/adapter_log_tail_20260602_011316.txt`、`dev_tools/tavo_debug/emulator_screen_20260602_011316.png`。
+- 当前 LDPlayer 截图仍显示旧的 BUG-018 失败历史卡片，这是历史状态，不代表本轮 iPhone 弹层回归已完成。
+
+下一步：
+
+1. 在真实 Tavo 正则里把脚本 URL 改到 `v=2028881913`。
+2. 用 iPhone 14 Pro 真机或等效 iOS WebView 回归 BUG-004/014/015：设置页尺寸、外部误触、picker tab/search/item/apply/X 和返回设置页层级。
+3. LDPlayer 只能做加载/基础交互烟测，不能替代 iPhone 结论。
+
+## BUG-018 真实回归结果（2026-06-02 00:44 +08:00）
+
+已用真实 Tavo/LDPlayer 重新触发多音色 live stream，拿到新 key `34f2b685f300e080e4a139f6ea1d83450b5ef67f`（为打破 deterministic cache，当时临时把播放语速从 `1` 改成 `1.01`；已在 Tavo 设置页改回 `1` 并保存）。
+
+结论：
+
+- 前端 Web Audio 首路径没坏：JS 控制台显示 `AudioContext state=running`、WAV header 已解析、播放时钟已启动。
+- adapter 可观测性补丁有效：`/tts_dialogue_job_status/34f2...` 返回 `state=failed`，不是 `missing`；保留了 0-4 段 partial `segments_meta`；`outputs/cache/34f2...wav/json` 不存在。
+- adapter 日志出现 `[gsv_adapter] dialogue_stream_failed`，第 5 段 role=`用户`，voice=`男声/霸道青年`，错误为 `official API stream incomplete after 0 bytes/0 chunks`。
+- 官方 GPT-SoVITS `9881` 错误日志坐实根因：`OSError: 参考音频在3~10秒范围外，请更换！`。
+- `prompts/library/男声/霸道青年.mp3` 实测约 `1.61s`（本地 parser 约 `1.69s`，同样低于 3 秒），用户听感也确认“只有一秒多”。
+
+已做新代码改动（未 commit）：
+
+- `gsv_tavo_adapter.py` 增加生成前 voice profile 校验：创建 single/dialogue job 前，遍历实际会用到的角色音色，检查 `ref_audio_path`、`prompt_text` 和参考音频时长；MP3/WAV 可直接量时长。
+- 非法参考音频现在直接 400，例如：`音色 '男声/霸道青年' 的参考音频时长 1.69s，不在 GPT-SoVITS 要求的 3-10s 范围内`，不再进入官方流式接口后表现为 `IncompleteRead`。
+- `docs/BUGS.md`、`docs/REGRESSION.md` 已同步更新 BUG-018 根因和前置失败回归规则。
+
+已验证：
+
+- `python -m py_compile gsv_tavo_adapter.py` 通过。
+- 本地 duration parser：`男声/霸道青年.mp3` 约 `1.692s`、`男声/羞涩青年.mp3` 约 `2.088s`、`女声/旁白.mp3` 约 `3.024s`。
+- 用 `dev_tools/start_adapter_lan.ps1` 重启 adapter，`/health` 返回 ok，Uvicorn PID `14428`。
+- 最小 POST `/tts_dialogue_stream_job` 使用 `用户 -> 男声/霸道青年` 时，已直接返回 HTTP 400 和明确时长错误。
+
+下一步：
+
+1. 给 `男声/霸道青年` 更换或重新制作 3-10 秒参考音频，并保证 `prompt_text` 是逐字稿；否则它不能作为 GPT-SoVITS 可用音色。
+2. 同类短参考也要处理：当前扫描发现 `男声/羞涩青年.mp3` 约 2 秒，`女声/旁白.mp3` 约 2.94 秒，也低于官方下限或非常贴边。
+3. 替换有效音色后，再做真实 Tavo 多音色生成成功路径回归，确认最终 `state=done`、cache WAV/JSON 落盘。
 
 ## 重开 Codex 交接快照（2026-06-01）
 
@@ -49,7 +221,7 @@
 - `static/tavo.js` 保持唯一 Tavo 正则入口，懒加载卡片仍是第一屏。
 - `static/tavo.runtime.js` 是小 loader，点击懒加载后按顺序 fetch 21 个 `static/tavo.runtime.parts/*.js` 并拼接执行。
 - `static/tavo.ui.skin.default.css` 是默认皮肤，runtime 启动后才加载。
-- 当前版本号：正则 `v=2028881910`，loader `20260601-lan-webview-layer-v20`，parts query `20260601-split-runtime-v4`。
+- 当前版本号：正则 `v=2028881913`，loader `20260602-ios-layer-v23`，parts query `20260602-ios-layer-v6`。
 
 当前未提交范围（`git status --short`）：
 
@@ -75,7 +247,7 @@
 
 1. 先读 `AGENTS.md`、`README.md` 和 docs 入口文件。
 2. 执行 `git status --short`，不要回退当前未提交拆分成果。
-3. 不要继续机械切文件；下一步应做真实 Tavo/雷电回归，确认 `v=2028881910` 能加载 21 个 parts 和 CSS skin。
+3. 不要继续机械切文件；下一步应做真实 Tavo/雷电/iPhone 回归，确认 `v=2028881913` 能加载 21 个 parts 和 CSS skin，并验证 BUG-004/014/015。
 4. 回归通过后再考虑 commit；commit 前复跑上述验证和 key 扫描。
 5. 功能线继续时优先处理：普通/智能模式半成品，或 iPhone 弹层 BUG-004/014/015/016。不要把两条线混成一个补丁。
 
@@ -96,7 +268,7 @@
 - 2026-06-01 已在改 bug 前创建并推送还原点：`bec4cbd 整理 docs 文档体系并固化 Tavo 真实端修复快照`，远端为 `origin/master`。提交前确认 `local_private` 被忽略，key 扫描未发现真实 key，`dev_tools/tavo_debug/` 约 174MB 真机/调试缓存已排除，不推公开仓库。
 - 2026-06-01 已拿到雷电模拟器真实截图和 UI 树：`dev_tools/tavo_debug/tavo_screen.png`、`dev_tools/tavo_debug/tavo_window.xml`。
 - 当前抓到的页面仍在正则/加载器链路，界面里能看到 `正则`、`应用` 和 `GPTSoVITS_TTS_Loader`，说明这轮是在真实 Tavo 里检查注入规则，而不是 mock 页面。
-- 最新注入规则版本是 `static/tavo_regex_gptsovits_loader.json` 里的 `v=2028881910`，loader 版本 `20260601-lan-webview-layer-v20`。
+- 最新注入规则版本是 `static/tavo_regex_gptsovits_loader.json` 里的 `v=2028881913`，loader 版本 `20260602-ios-layer-v23`。
 - 2026-06-01 用户真实测试暴露 5 个问题：移动 WebView 流式先走 `<audio>` 失败、保存到本机缓存后 seek 仍重拉、补角色后 LLM 拆段未复用、`女声/风韵少妇` 小声且长对白吞字、`极致/离线` 文案误导。
 - 已做代码修复：移动端多音色 live 直接 Web Audio；已保存音频首次解码后复用 `AudioBuffer`；LLM 复用 fingerprint 去掉角色映射；长 segment 合成前按标点拆短；`女声/风韵少妇` 增加 `post_gain_db=9.0`；档位文案改为 `极限质量`。
 - 证据：最新 cache `outputs/cache/c23aca2bd05f294a1a0bf8152395886d9e4bbcc9.wav/json`，Whisper 输出在 `reports/whisper_cache_c23aca2bd05f294a1a0bf8152395886d9e4bbcc9_20260601/`，确认原第 20 段吞掉 `白产品经理，你今晚在公司`。
@@ -130,7 +302,7 @@
 - `static/tavo.runtime.js`
 - `static/tavo.runtime.parts/`
 
-代码改动包括 `static/tavo.js`、`static/tavo.runtime.js`、`static/tavo.runtime.parts/` 和 `static/tavo.ui.skin.default.css`。`static/tavo.js` 现在会等待 `window.__gptsovits_tavo_runtime_ready`，保证 runtime parts 加载/执行完成后再隐藏懒加载卡片；`static/tavo.runtime.js` 负责 fetch parts 并按原闭包执行。当前缓存版本：`static/tavo_regex_gptsovits_loader.json` 用 `v=2028881910`，`LOADER_VERSION=20260601-lan-webview-layer-v20`，runtime parts query 为 `20260601-split-runtime-v4`。
+代码改动包括 `static/tavo.js`、`static/tavo.runtime.js`、`static/tavo.runtime.parts/` 和 `static/tavo.ui.skin.default.css`。`static/tavo.js` 现在会等待 `window.__gptsovits_tavo_runtime_ready`，保证 runtime parts 加载/执行完成后再隐藏懒加载卡片；`static/tavo.runtime.js` 负责 fetch parts 并按原闭包执行。当前缓存版本：`static/tavo_regex_gptsovits_loader.json` 用 `v=2028881913`，`LOADER_VERSION=20260602-ios-layer-v23`，runtime parts query 为 `20260602-ios-layer-v6`。
 
 ## 流程补充
 

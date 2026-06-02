@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "runtimeVersion": "20260602-ios-layer-v9",
+  "mode": "ordered-fragments",
+  "skin": {
+    "default": "tavo.ui.skin.default.css"
+  },
+  "modules": [
+    { "id": "base", "file": "tavo.runtime.parts/00_base_config_storage.js", "phase": "bootstrap", "depends": [] },
+    { "id": "message-config", "file": "tavo.runtime.parts/05_message_text_config.js", "phase": "bootstrap", "depends": ["base"] },
+    { "id": "tts-audio-stream", "file": "tavo.runtime.parts/10_tts_jobs_audio_stream.js", "phase": "core", "depends": ["message-config"] },
+    { "id": "llm-segmentation", "file": "tavo.runtime.parts/20_llm_segmentation.js", "phase": "core", "depends": ["tts-audio-stream"] },
+    { "id": "ui-templates", "file": "tavo.runtime.parts/25_ui_templates.js", "phase": "ui", "depends": ["llm-segmentation"] },
+    { "id": "player-shell", "file": "tavo.runtime.parts/30_player_shell.js", "phase": "ui", "depends": ["ui-templates"] },
+    { "id": "llm-reuse", "file": "tavo.runtime.parts/32_llm_reuse_helpers.js", "phase": "core", "depends": ["player-shell"] },
+    { "id": "element-audio-controls", "file": "tavo.runtime.parts/34_element_audio_controls.js", "phase": "audio", "depends": ["llm-reuse"] },
+    { "id": "track-state-offline", "file": "tavo.runtime.parts/36_track_state_offline.js", "phase": "tracks", "depends": ["element-audio-controls"] },
+    { "id": "saved-prompt-stream", "file": "tavo.runtime.parts/38_saved_prompt_stream_helpers.js", "phase": "audio", "depends": ["track-state-offline"] },
+    { "id": "playback-cache", "file": "tavo.runtime.parts/40_playback_cache.js", "phase": "audio", "depends": ["saved-prompt-stream"] },
+    { "id": "saved-playback-cache", "file": "tavo.runtime.parts/42_saved_playback_cache.js", "phase": "audio", "depends": ["playback-cache"] },
+    { "id": "track-history-cache", "file": "tavo.runtime.parts/44_track_history_cache.js", "phase": "tracks", "depends": ["saved-playback-cache"] },
+    { "id": "settings-fields", "file": "tavo.runtime.parts/48_settings_fields.js", "phase": "settings", "depends": ["track-history-cache"] },
+    { "id": "settings-voice-picker", "file": "tavo.runtime.parts/50_settings_voice_picker.js", "phase": "settings", "depends": ["settings-fields"] },
+    { "id": "voice-subtitle-media", "file": "tavo.runtime.parts/52_voice_subtitle_media.js", "phase": "media", "depends": ["settings-voice-picker"] },
+    { "id": "voice-picker-panel", "file": "tavo.runtime.parts/54_voice_picker_panel.js", "phase": "ui", "depends": ["voice-subtitle-media"] },
+    { "id": "live-pause", "file": "tavo.runtime.parts/58_live_pause_helper.js", "phase": "audio", "depends": ["voice-picker-panel"] },
+    { "id": "generate-flow", "file": "tavo.runtime.parts/60_generate_mount_boot.js", "phase": "generate", "depends": ["live-pause"] },
+    { "id": "dialog-audio-events", "file": "tavo.runtime.parts/62_dialog_audio_events.js", "phase": "events", "depends": ["generate-flow"] },
+    { "id": "mount-boot", "file": "tavo.runtime.parts/68_mount_boot.js", "phase": "mount", "depends": ["dialog-audio-events"] }
+  ]
+}

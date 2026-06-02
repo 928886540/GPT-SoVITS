@@ -4,10 +4,14 @@
       await refreshCharacterConfig({ skipIfEditing: true });
       readFields(); await saveConfig(cfg, characterId); setError("");
       if (!messageText) { setError("当前消息没有可朗读正文。"); return; }
+      if (force) {
+        try { audio.pause(); } catch (_) {}
+        stopWebAudioPlayback("new-generation");
+      }
       try {
-        await ensureTracksLoaded();
+        await ensureTracksLoaded(force ? { selectRestored: false, statusOnEmpty: false } : null);
       } catch (e) {
-        setError("历史音频读取失败: " + (e && e.message ? e.message : String(e)));
+        setError((force ? "历史记录读取失败: " : "历史音频读取失败: ") + (e && e.message ? e.message : String(e)));
         return;
       }
       // 已有卡片时，播放按钮只做"播放/暂停/选当前卡片"，不生成新音频。
@@ -171,6 +175,11 @@
           }
           debugLog("🎙️ 音色映射: " + JSON.stringify(voicesMap), "#ffd479");
           body = Object.assign({ segments: segments, voices: voicesMap, performance_mode: cfg.qualityMode || "balanced", interval_ms: cfg.intervalMs, top_p: cfg.topP, top_k: cfg.topK, temperature: cfg.temperature, repetition_penalty: cfg.repetitionPenalty, speed_factor: clampNumber(cfg.speedFactor || 1.0, 1.0, 0.85, 1.25) }, generationQualityOverrides(cfg.qualityMode));
+          if (force) {
+            body.bypass_cache = true;
+            body.request_id = generationRequestId("dialogue");
+            debugLog("🎵 新建 dialogue 音频 request_id=" + body.request_id, "#9ff");
+          }
           var ttsStart = Date.now();
           var jobInfo;
           var ttsTimer = setInterval(function () {

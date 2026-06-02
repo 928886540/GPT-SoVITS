@@ -110,14 +110,40 @@
     catch (_) { return url; }
   }
 
+  var SKIN_READY_PROMISE = null;
   function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
+    var existing = document.getElementById(STYLE_ID);
+    if (existing) {
+      if (existing.dataset && existing.dataset.idxSkinReady === "1") return Promise.resolve(true);
+      return SKIN_READY_PROMISE || Promise.resolve(true);
+    }
+    if (SKIN_READY_PROMISE) return SKIN_READY_PROMISE;
     var link = document.createElement("link");
     link.id = STYLE_ID;
     link.rel = "stylesheet";
     link.href = scriptAssetUrl("tavo.ui.skin.default.css") + "?skin_v=" + encodeURIComponent(String((window.__gptsovits_tavo_loader_version || CONFIG_VERSION)));
-    link.onerror = function () { debugLog("❌ UI skin CSS 加载失败: " + link.href, "#f99"); };
+    SKIN_READY_PROMISE = new Promise(function (resolve) {
+      var done = false;
+      function finish(ok) {
+        if (done) return;
+        done = true;
+        try { link.dataset.idxSkinReady = ok ? "1" : "0"; } catch (_) {}
+        resolve(!!ok);
+      }
+      link.onload = function () { finish(true); };
+      link.onerror = function () {
+        debugLog("❌ UI skin CSS 加载失败: " + link.href, "#f99");
+        finish(false);
+      };
+      setTimeout(function () {
+        if (!done) {
+          debugLog("⚠️ UI skin CSS 等待超时，先显示播放器: " + link.href, "#fc9");
+          finish(false);
+        }
+      }, 1800);
+    });
     document.head.appendChild(link);
+    return SKIN_READY_PROMISE;
   }
 
   async function getConfig() {

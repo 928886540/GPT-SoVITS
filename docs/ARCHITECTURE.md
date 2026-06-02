@@ -68,7 +68,9 @@ Tavo 原文
 - `static/tavo.runtime.parts/68_mount_boot.js`
 - `static/tavo.ui.skin.default.css`
 
-当前 parts 是按顺序拼接执行的闭包片段，目的是先降低单文件 token 成本并减少并行冲突。第二步已把 message/text/config 从 bootstrap 里拆出，抽离 CSS 和第一批 HTML 模板，并继续把播放、track/cache、设置、picker、生成和事件绑定按函数边界拆小。`tavo.ui.skin.default.css` 承载默认皮肤，`25_ui_templates.js` 承载主 shell、懒加载 shell、字幕、角色行和 picker 小模板。下一阶段再把这些闭包片段整理成真正独立 UI/API 模块，并允许按需替换 UI/skin JS。
+当前 parts 是按顺序拼接执行的闭包片段，目的是先降低单文件 token 成本并减少并行冲突。第二步已把 message/text/config 从 bootstrap 里拆出，抽离 CSS 和第一批 HTML 模板，并继续把播放、track/cache、设置、picker、生成和事件绑定按函数边界拆小。`tavo.ui.skin.default.css` 承载默认皮肤，`25_ui_templates.js` 承载主 shell、懒加载 shell、字幕、角色行和 picker 小模板。
+
+当前 Phase 1 已把 `static/tavo.runtime.js` 改为 manifest/config 驱动的 ordered-fragments loader：loader 读取 `static/tavo.runtime.manifest.json`，校验依赖并拓扑排序，再 fetch 21 个旧 parts 拼接闭包执行。它已经不再只靠硬编码数组决定模块列表，但还不是 Phase 2 的真 module registry；parts 之间仍共享闭包变量。下一步先做真实 Tavo/雷电回归，通过后再逐步迁到 module registry / UI skin 可替换 / 业务模块 API。中途如果会话中断，以 `docs/RUNTIME_MODULARIZATION.md` 的阶段状态和回滚规则为准。
 
 拆分建议按职责推进：
 

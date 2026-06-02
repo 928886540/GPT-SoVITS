@@ -34,7 +34,7 @@
   }
 
   try {
-    ensureStyle();
+    await ensureStyle();
     removeLegacyGlobalGear();
     if (script && script.dataset.indexttsMounted === "1") return;
     if (script) script.dataset.indexttsMounted = "1";

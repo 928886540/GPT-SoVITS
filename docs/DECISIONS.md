@@ -64,3 +64,18 @@ Status: accepted, first physical split implemented
 第一版采用行为等价的物理拆分：`static/tavo.runtime.js` 只负责懒加载 `static/tavo.runtime.parts/*.js`，parts 拼接后仍按原闭包执行。这样先解决单文件过大、token 消耗和并行冲突问题，不先重写业务逻辑。
 
 已继续抽出 `static/tavo.runtime.parts/05_message_text_config.js`、`static/tavo.ui.skin.default.css` 和 `static/tavo.runtime.parts/25_ui_templates.js`，并把 runtime 继续按函数边界拆到 21 个 parts。当前仍保持行为等价，不改普通/智能模式、不改弹层/播放器 bug 逻辑。后续再把 UI templates/skin 从闭包片段升级成可替换 UI API。
+
+## DEC-009: runtime 升级为 manifest/module registry，而不是继续机械切片
+
+Status: accepted, Phase 1 locally implemented
+
+当前 21 个 runtime parts 已由 `static/tavo.runtime.manifest.json` 声明模块列表和依赖，`static/tavo.runtime.js` 读取 manifest、校验并拓扑排序后仍拼接成一个闭包执行。Phase 1 已把“模块列表和顺序”从硬编码数组迁到配置，但还没有真正消除闭包共享依赖，也不方便后续替换 UI/skin。
+
+后续按 `docs/RUNTIME_MODULARIZATION.md` 分阶段推进：
+
+- Phase 1：已新增 `static/tavo.runtime.manifest.json`，让 loader 从 manifest 读取模块列表、依赖和版本，并拓扑排序后仍以 ordered-fragments 方式执行，业务行为不变；真实 Tavo 回归待做。
+- Phase 2：引入轻量 module registry，允许新模块用 `define/require` 注册能力，同时兼容旧闭包片段。
+- Phase 3：UI/skin 由 manifest 配置，默认 skin 行为不变，后续可新增可替换 UI。
+- Phase 4：逐步把 TTS jobs、audio、tracks、settings、voice picker、generate flow 迁成显式 API。
+
+约束：不引入 bundler，不假设 Tavo WebView 支持 ES module，不一次性重写业务逻辑；每阶段必须能回退到上一阶段并完成真实 Tavo 回归。
