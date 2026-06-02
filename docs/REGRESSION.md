@@ -90,6 +90,12 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 有历史音频时，首次点懒加载播放键应继续触发完整播放器的播放路径；不能只打开播放器停在“可恢复上次音频”。
 - Tavo 控制台若出现 `UI skin CSS 加载失败` 或 `UI skin CSS 等待超时`，必须记录 URL 和截图，优先查 `/static/tavo.ui.skin.default.css?skin_v=...` 是否 200。
 
+## BUG-021 懒加载后音色选择器回归
+
+- 更新真实 Tavo 正则到 `v=2028881917` 后，点击懒加载卡片打开完整播放器，不点播放生成，立即点设置齿轮再点任一音色按钮。
+- 音色选择器应保持打开；不能出现 picker 短暂打开后 50-500ms 内被关闭，且设置页也消失的状态。
+- 本地 CDP narrow smoke 应看到 `.idx-picker[open]` 在 click 后至少 1s 仍为 true，manifest 仍加载 21 个 modules。
+
 ## 普通模式 / 智能模式回归
 
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。

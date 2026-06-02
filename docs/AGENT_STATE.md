@@ -1,6 +1,6 @@
 # Agent State
 
-更新时间：2026-06-02 20:36 +08:00
+更新时间：2026-06-02 21:08 +08:00
 
 ## 当前目标
 
@@ -38,6 +38,33 @@
 5. 真实 Tavo 回归不过，只修 loader/manifest/静态路由；不要继续扩大架构迁移。
 
 当前工作区仍有大量未提交改动，先跑 `git status --short`，不要回退 BUG-018/019/020 和 runtime 拆分成果。
+
+## BUG-021 懒加载后 picker 被误关（2026-06-02 21:08 +08:00）
+
+push 后继续 Phase 1 mock/CDP 回归时发现：manifest loader 在浏览器内正常加载，控制台出现 `manifest ordered-fragments 20260602-ios-layer-v9 21 modules`，但旧 CDP smoke 在音色选择器步骤失败。
+
+已定位：
+
+- narrow CDP trace 证明：点音色按钮后 `.idx-picker` 同步打开，随后 50ms 内被关闭；设置页也已经关闭。
+- 根因是 `static/tavo.js` 的 `closeAccidentalPicker()` 在 runtime ready 后延迟清理所有 `.idx-picker[open]`，没有区分 stale picker 和 runtime 明确打开的 picker。
+
+已改：
+
+- `static/tavo.js`：`closeAccidentalPicker()` 遇到 `data-open="1"` 的 active picker 直接跳过，只清理 stale picker。
+- 版本已 bump：正则 `v=2028881917`，loader `20260602-ios-layer-v27`，runtime parts/manifest 仍是 `20260602-ios-layer-v9`。
+- `docs/BUGS.md` 新增 BUG-021；`docs/REGRESSION.md` 新增对应回归项。
+
+已验证：
+
+- `node --check static\tavo.js` 通过。
+- `node --check static\tavo.runtime.js` 通过。
+- `python -m py_compile gsv_tavo_adapter.py` 通过。
+- `git diff --check` 通过，仅有 Git 的 LF/CRLF 工作区提示。
+- key 扫描无命中。
+- `http://127.0.0.1:9880/static/tavo.js?v=2028881917` 返回 `LOADER_VERSION = "20260602-ios-layer-v27"`。
+- narrow CDP smoke 通过：点击懒加载打开播放器 -> 设置齿轮 -> 点音色按钮后，picker 在 sync/microtask/50ms/300ms/1100ms 均保持 `.idx-picker[open] = true`；manifest 请求存在，21 个 parts 请求存在。
+
+下一步：提交并 push BUG-021 小修版本；之后再跑完整 `dev_tools/tavo_webui_smoke_cdp.mjs` 或进入真实 Tavo/雷电回归。完整 smoke 会触发真实 TTS job，跑之前注意是否允许产生新的 `outputs/cache`。
 
 ## Runtime 模块化升级文档（2026-06-02 11:00 +08:00）
 

@@ -295,3 +295,15 @@ Root cause: 当前代码在 `static/tavo.runtime.parts/68_mount_boot.js` 里 `en
 Fix: `static/tavo.runtime.parts/05_message_text_config.js` 的 `ensureStyle()` 改为返回 CSS skin 加载 Promise，成功/失败/超时都有明确结果；`static/tavo.runtime.parts/68_mount_boot.js` 在 `await ensureStyle()` 后才创建完整播放器，避免裸 HTML 闪现。`static/tavo.js` 的懒加载播放键在 `pointerdown/touchstart/click` 中预创建并解锁 AudioContext，保存到 `window.__gptsovits_tavo_preprimed_audio_context`，并把点击路由到完整播放器的 play 按钮；`static/tavo.runtime.parts/10_tts_jobs_audio_stream.js` 的 `primeAudioContext()` 会接管这个预解锁 ctx。
 
 Guard: 更新正则到 `v=2028881916` 后，首次点懒加载播放键时，懒加载卡片应保持到 CSS skin 加载完成再切完整播放器，不能露出裸按钮/裸 range/input。若存在历史音频，首次点懒加载播放键应继续进入完整播放器播放路径，不能只打开播放器停在“可恢复上次音频”。
+
+## BUG-021: 懒加载后快速打开音色选择器会被误关闭
+
+Status: fixed in code, narrow CDP passed, needs real Tavo regression
+
+Repro: 本地 CDP narrow smoke：点击懒加载卡片只打开播放器，不点播放生成；马上点设置齿轮，再点可见音色按钮。trace 显示 `.idx-picker` 在 click 同步阶段已 `open/data-open=1`，但 50ms 后变成 `aria-hidden=true` 且 `open` 被移除，设置页也已关闭。
+
+Root cause: `static/tavo.js` 的懒加载收尾会调用 `closeAccidentalPicker()`，并在 runtime ready 后安排 `0/80/220/520ms` 多次清理。该函数无条件关闭所有 `.idx-picker[open]`，会把用户明确打开且带 `data-open="1"` 的合法 picker 当成懒加载误触残留关掉。
+
+Fix: `closeAccidentalPicker()` 现在跳过 `data-open="1"` 的 active runtime picker，只清理没有 runtime open 标记的 stale picker。正则版本升到 `v=2028881917`，loader 升到 `20260602-ios-layer-v27`。
+
+Guard: CDP narrow smoke 已通过：懒加载打开播放器 -> 设置齿轮 -> 点音色按钮后，`.idx-picker[open]` 在 sync/microtask/50ms/300ms/1100ms 都保持 true，不再被 loader 的 delayed cleanup 关闭；真实 Tavo 中设置页进入选择音色也不能被懒加载 tap guard 误关。

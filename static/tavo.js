@@ -4,7 +4,7 @@
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
   var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260602-ios-layer-v26";
+  var LOADER_VERSION = "20260602-ios-layer-v27";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -113,6 +113,7 @@
   function closeAccidentalPicker() {
     try {
       $all(document, ".idx-picker[open]").forEach(function (picker) {
+        if (picker && picker.getAttribute && picker.getAttribute("data-open") === "1") return;
         try { if (typeof picker.close === "function") picker.close(); else picker.removeAttribute("open"); }
         catch (_) { try { picker.removeAttribute("open"); } catch (__) {} }
         try { picker.removeAttribute("open"); } catch (_) {}
