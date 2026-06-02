@@ -378,8 +378,8 @@ Status: fixed in code, needs real Tavo regression
 
 Repro: 用户真实 Tavo 中勾选“复用 LLM 拆段”后，已有拆段应直接复用，但前端仍请求 `/parse_text`；当旧 LLM provider 返回 `auth_unavailable` 时，复用路径也报 LLM 不可用。用户修改 LLM 模型/endpoint 后，生成请求仍显示旧 `endpoint=http://127.0.0.1:8317/v1`、旧 `model=渡鸦/grok-4.20-fast`。
 
-Root cause: 当前 `parseReuseFingerprint()` 把 `llmEndpoint` 和 `llmModel` 写进复用 fingerprint，用户换模型会导致旧拆段缓存失配，进而重新请求 LLM。设置读取也可能优先从当前 widget/root 里拿到旧字段，而不是当前打开的设置 panel 字段。
+Root cause: 当前 `parseReuseFingerprint()` 把 `llmEndpoint` 和 `llmModel` 写进复用 fingerprint，用户换模型会导致旧拆段缓存失配，进而重新请求 LLM。设置读取也可能优先从当前 widget/root 里拿到旧字段，而不是当前打开的设置 panel 字段。2026-06-02 模拟器复测继续出现旧模型，是因为 adapter `/parse_text` 使用 `LLM_MODEL or request.model`，后端环境变量会覆盖 Tavo 页面保存的模型；页面字段保存成功也不会生效。
 
-Fix: `static/tavo.runtime.parts/32_llm_reuse_helpers.js` 的 LLM 拆段复用 fingerprint 升到 v4，只按消息正文、用户身份、角色身份匹配，不再包含 endpoint/model/key；命中复用时直接返回 segments，绝不调用 `/parse_text`。同时兼容旧 v3 localStorage 记录，扫描 `gptsovits_llm_parse_*` 时忽略 endpoint/model。`static/tavo.runtime.parts/48_settings_fields.js` 的字段读取改成优先当前打开的 panel，保存/生成前同步页面当前值到 `cfg`。版本升到正则 `v=2028881924`、loader `20260602-sovits-llm-reuse-v34`、runtime `20260602-sovits-llm-reuse-v16`。
+Fix: `static/tavo.runtime.parts/32_llm_reuse_helpers.js` 的 LLM 拆段复用 fingerprint 升到 v4，只按消息正文、用户身份、角色身份匹配，不再包含 endpoint/model/key；命中复用时直接返回 segments，绝不调用 `/parse_text`。同时兼容旧 v3 localStorage 记录，扫描 `gptsovits_llm_parse_*` 时忽略 endpoint/model。`static/tavo.runtime.parts/48_settings_fields.js` 的字段读取改成优先当前打开的 panel，保存/生成前同步页面当前值到 `cfg`。版本升到正则 `v=2028881924`、loader `20260602-sovits-llm-reuse-v34`、runtime `20260602-sovits-llm-reuse-v16`。`gsv_tavo_adapter.py` 的 `/parse_text` 改为 request endpoint/model/api_key 优先，后端 env 只做兜底；Tavo 页面当前配置必须能覆盖本机默认 env。
 
-Guard: 同一消息已有 LLM 拆段缓存时，即使 LLM endpoint/model/key 为空、不可用或换成新模型，也必须显示“复用 LLM 拆段”，adapter 日志不能出现新的 `POST /parse_text`。保存设置后，下一次生成日志里的 endpoint/model 必须是页面当前值。
+Guard: 同一消息已有 LLM 拆段缓存时，即使 LLM endpoint/model/key 为空、不可用或换成新模型，也必须显示“复用 LLM 拆段”，adapter 日志不能出现新的 `POST /parse_text`。保存设置后，下一次生成日志里的 endpoint/model 必须是页面当前值；`/llm_config` 只能表示 env default，不能说明 env 会覆盖页面请求。

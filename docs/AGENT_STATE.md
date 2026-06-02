@@ -55,6 +55,7 @@
 - `static/tavo.runtime.parts/32_llm_reuse_helpers.js`：LLM 拆段复用 fingerprint 升到 v4，只按消息正文、用户身份、角色身份匹配，不再包含 `llmEndpoint` / `llmModel`。命中复用时直接返回 segments，不访问 `/parse_text`。
 - 同文件兼容旧 v3 记录：扫描旧 `gptsovits_llm_parse_*` localStorage 记录时，匹配正文/用户/角色并忽略 endpoint/model。
 - `static/tavo.runtime.parts/48_settings_fields.js`：设置字段读取优先当前打开的 panel，避免读到 root 里的旧字段。
+- `gsv_tavo_adapter.py`：`/parse_text` 改为 Tavo 请求里的 endpoint/model/api_key 优先，后端 env 只做兜底。之前后端 `LLM_MODEL or request.model` 会覆盖 Tavo 页面保存的模型，这是本轮真实断点。
 
 已验证：
 
@@ -63,8 +64,10 @@
 - manifest 拼接 21 parts 后 `new Function` 通过
 - `python -m py_compile gsv_tavo_adapter.py`
 - 代理公网验证：`/static/tavo.js?v=2028881924` 返回 `20260602-sovits-llm-reuse-v34`；manifest 返回 `20260602-sovits-llm-reuse-v16`；part 32 有 `v: 4`；part 48 的 `findInWidget()` 优先 panel。
+- 2026-06-02 23:31 重启 adapter 后，直接 POST `/parse_text`，请求指定 `model=liangjie/grok-4.1`，返回 `200 OK` segments；`/llm_config` 仍显示 env 默认旧模型，但 `request_overrides_env=true`。
+- 2026-06-02 23:35 真实 LDPlayer/Tavo 点击音符新建后，adapter 日志显示 `192.168.8.100 ... POST /parse_text HTTP/1.1 200 OK`，说明 Tavo AR -> adapter -> LLM 解析链路已通。下一跳 `/tts_dialogue_stream_job` 返回 `400 Bad Request`，原因是 `400个火爆音色/AD学姐.mp3` 参考音频约 `1.63s`，不满足 GPT-SoVITS 3-10 秒要求。
 
-待真实 Tavo 回归：同一消息已有拆段缓存时，即使 LLM provider 不可用或模型已切换，也必须显示“复用 LLM 拆段”，adapter 日志不能出现新的 `POST /parse_text`。保存设置后下一次生成日志里的 endpoint/model 必须是页面当前值。
+待真实 Tavo 回归：同一消息已有拆段缓存时，即使 LLM provider 不可用或模型已切换，也必须显示“复用 LLM 拆段”，adapter 日志不能出现新的 `POST /parse_text`。保存设置后下一次生成日志里的 endpoint/model 必须是页面当前值。LLM parse 链路当前已过；若继续失败，优先查实际 voice profile 参考音频时长。
 
 ## Runtime Manifest Phase 1 交接（2026-06-02 20:36 +08:00）
 

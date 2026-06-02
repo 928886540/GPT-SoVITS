@@ -154,7 +154,8 @@ async def llm_config() -> dict[str, Any]:
         "endpoint": LLM_ENDPOINT,
         "model": LLM_MODEL,
         "api_key_configured": bool(LLM_API_KEY),
-        "source": "env" if (LLM_ENDPOINT or LLM_MODEL or LLM_API_KEY) else "request",
+        "source": "env-default" if (LLM_ENDPOINT or LLM_MODEL or LLM_API_KEY) else "request",
+        "request_overrides_env": True,
     }
 
 
@@ -306,9 +307,9 @@ async def append_usage(request: UsageLogRequest) -> dict[str, int]:
 @APP.post("/parse_text")
 async def parse_text(http_request: Request) -> dict[str, Any]:
     request = await _parse_request_model(http_request, ParseTextRequest)
-    endpoint = LLM_ENDPOINT or (request.endpoint or "").strip()
-    model = LLM_MODEL or (request.model or "").strip()
-    api_key = LLM_API_KEY or (request.api_key or "").strip()
+    endpoint = (request.endpoint or "").strip() or LLM_ENDPOINT
+    model = (request.model or "").strip() or LLM_MODEL
+    api_key = (request.api_key or "").strip() or LLM_API_KEY
     if not endpoint:
         raise HTTPException(status_code=400, detail="LLM endpoint is not configured. Set GSV_TAVO_LLM_ENDPOINT on the adapter or fill LLM endpoint in Tavo.")
     if not model:
