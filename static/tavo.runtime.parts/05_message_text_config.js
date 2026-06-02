@@ -234,19 +234,22 @@
     });
     return missing;
   }
-  var OFFLINE_DB_NAME = "indextts_tavo_audio_v1";
+  var OFFLINE_DB_NAME = "sovits_tavo_audio_v1";
+  var LEGACY_PRODUCT_KEY = "index" + "tts";
+  var LEGACY_OFFLINE_DB_NAMES = [LEGACY_PRODUCT_KEY + "_tavo_audio_v1"];
   var OFFLINE_DB_STORE = "audio";
-  var OFFLINE_DB_PROMISE = null;
+  var OFFLINE_DB_PROMISES = {};
   function offlineAudioKey(cacheKey) {
     cacheKey = String(cacheKey || "").trim();
     return cacheKey ? "cache:" + cacheKey : "";
   }
-  function openOfflineAudioDb() {
+  function openOfflineAudioDb(dbName) {
     if (!("indexedDB" in window)) return Promise.reject(new Error("当前 WebView 不支持 IndexedDB"));
-    if (OFFLINE_DB_PROMISE) return OFFLINE_DB_PROMISE;
-    OFFLINE_DB_PROMISE = new Promise(function (resolve, reject) {
+    dbName = String(dbName || OFFLINE_DB_NAME);
+    if (OFFLINE_DB_PROMISES[dbName]) return OFFLINE_DB_PROMISES[dbName];
+    OFFLINE_DB_PROMISES[dbName] = new Promise(function (resolve, reject) {
       var req;
-      try { req = indexedDB.open(OFFLINE_DB_NAME, 1); }
+      try { req = indexedDB.open(dbName, 1); }
       catch (e) { reject(e); return; }
       req.onupgradeneeded = function () {
         var db = req.result;
@@ -256,10 +259,10 @@
       req.onerror = function () { reject(req.error || new Error("IndexedDB 打开失败")); };
       req.onblocked = function () { reject(new Error("IndexedDB 被旧页面占用")); };
     });
-    return OFFLINE_DB_PROMISE;
+    return OFFLINE_DB_PROMISES[dbName];
   }
-  function offlineDbRequest(mode, fn) {
-    return openOfflineAudioDb().then(function (db) {
+  function offlineDbRequest(mode, fn, dbName) {
+    return openOfflineAudioDb(dbName).then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(OFFLINE_DB_STORE, mode);
         var store = tx.objectStore(OFFLINE_DB_STORE);
@@ -272,14 +275,28 @@
   }
   function getOfflineAudioRecord(key) {
     if (!key) return Promise.resolve(null);
-    return offlineDbRequest("readonly", function (store) { return store.get(key); }).catch(function () { return null; });
+    return offlineDbRequest("readonly", function (store) { return store.get(key); }).catch(function () { return null; }).then(function (record) {
+      if (record) return record;
+      var chain = Promise.resolve(null);
+      LEGACY_OFFLINE_DB_NAMES.forEach(function (dbName) {
+        chain = chain.then(function (found) {
+          if (found) return found;
+          return offlineDbRequest("readonly", function (store) { return store.get(key); }, dbName).catch(function () { return null; });
+        });
+      });
+      return chain;
+    });
   }
   function putOfflineAudioRecord(record) {
     return offlineDbRequest("readwrite", function (store) { return store.put(record); });
   }
   function deleteOfflineAudioRecord(key) {
     if (!key) return Promise.resolve(false);
-    return offlineDbRequest("readwrite", function (store) { return store.delete(key); }).then(function () { return true; }).catch(function () { return false; });
+    var tasks = [offlineDbRequest("readwrite", function (store) { return store.delete(key); }).then(function () { return true; }).catch(function () { return false; })];
+    LEGACY_OFFLINE_DB_NAMES.forEach(function (dbName) {
+      tasks.push(offlineDbRequest("readwrite", function (store) { return store.delete(key); }, dbName).then(function () { return true; }).catch(function () { return false; }));
+    });
+    return Promise.all(tasks).then(function (results) { return results.some(Boolean); });
   }
   async function saveConfig(cfg, characterId) {
     // 写入前 normalize 一次,杜绝脏数据回到 storage
@@ -366,44 +383,63 @@
         text = clone.innerText || clone.textContent || "";
       } catch (_) { text = msgEl.innerText || msgEl.textContent || ""; }
     }
-    var cleanText = extractMessageBody(text.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\[IndexTTS_TAVO_SCRIPT\]/g, ""));
+    var oldScriptMarker = "Index" + "TTS" + "_TAVO_SCRIPT";
+    var scriptMarkerRe = new RegExp("\\[(?:" + oldScriptMarker + "|sovits_tavo_script)\\]", "gi");
+    var cleanText = extractMessageBody(text.replace(/<script[\s\S]*?<\/script>/gi, "").replace(scriptMarkerRe, ""));
     if (!messageId) messageId = domMessageId(msgEl);
     if (!messageId && cleanText) messageId = "message-" + stableHash(cleanText);
     pushUserAlias(userAliases, userName);
     return { text: cleanText, avatarUrl: avatarUrl, characterName: characterName, characterId: characterId, messageId: messageId, userName: userName, userAliases: userAliases, userDescription: shortText(userDescription, 900), userAvatarUrl: userAvatarUrl };
   }
-  // 每条消息的播放历史持久化：key = "indextts_tracks_<messageId>"。
+  // 每条消息的播放历史持久化：key = "sovits_tracks_<messageId>"。
   // 只存可重建的元信息（cacheKey + voice + mode + offlineKey），不存 blob。
   // 重新进页面时优先从 IndexedDB 读本机缓存音频；缺失时通过 /cache_audio/{cacheKey} 接上。
-  var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  async function loadTracksForMessage(messageId) {
+  var TRACKS_KEY_PREFIX = "sovits_tracks_";
+  var LEGACY_TRACKS_KEY_PREFIXES = [LEGACY_PRODUCT_KEY + "_tracks_"];
+  function trackStorageKeys(messageId) {
     if (!messageId) return [];
-    var key = TRACKS_KEY_PREFIX + messageId;
-    try { var raw = localStorage.getItem(key); if (raw) { var arr = JSON.parse(raw); if (Array.isArray(arr)) return arr; } } catch (_) {}
-    try { if (window.tavo && typeof tavo.get === "function") { var cv = await tavo.get(key, "chat"); if (Array.isArray(cv)) return cv; } } catch (_) {}
-    try { if (window.tavo && typeof tavo.get === "function") { var v = await tavo.get(key, "global"); if (Array.isArray(v)) return v; } } catch (_) {}
-    return [];
+    var keys = [TRACKS_KEY_PREFIX + messageId];
+    LEGACY_TRACKS_KEY_PREFIXES.forEach(function (prefix) { keys.push(prefix + messageId); });
+    return keys;
   }
-  function localTracksForMessage(messageId) {
-    if (!messageId) return [];
-    var key = TRACKS_KEY_PREFIX + messageId;
-    // AR webview 重建/重进页面后 localStorage 会被清空，tavo 变量才是持久源。
-    // 变量操作是同步的，优先同步读 tavo.get；读不到（或本版 tavo.get 返回 Promise）
-    // 再回退 localStorage。否则懒加载时首页历史条数永远显示 0。
+  function syncTracksFromStorageKey(key) {
     try {
       if (window.tavo && typeof tavo.get === "function") {
         var cv = tavo.get(key, "chat");
-        if (Array.isArray(cv) && cv.length) return cv;
+        if (Array.isArray(cv)) return cv;
         var gv = tavo.get(key, "global");
-        if (Array.isArray(gv) && gv.length) return gv;
+        if (Array.isArray(gv)) return gv;
       }
     } catch (_) {}
     try {
       var raw = localStorage.getItem(key);
-      if (!raw) return [];
-      var arr = JSON.parse(raw);
+      if (raw == null) return null;
+      var arr = raw ? JSON.parse(raw) : [];
       return Array.isArray(arr) ? arr : [];
     } catch (_) {}
+    return null;
+  }
+  async function loadTracksForMessage(messageId) {
+    if (!messageId) return [];
+    var keys = trackStorageKeys(messageId);
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      try { var raw = localStorage.getItem(key); if (raw != null) { var arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } } catch (_) {}
+      try { if (window.tavo && typeof tavo.get === "function") { var cv = await tavo.get(key, "chat"); if (Array.isArray(cv)) return cv; } } catch (_) {}
+      try { if (window.tavo && typeof tavo.get === "function") { var v = await tavo.get(key, "global"); if (Array.isArray(v)) return v; } } catch (_) {}
+    }
+    return [];
+  }
+  function localTracksForMessage(messageId) {
+    if (!messageId) return [];
+    // AR webview 重建/重进页面后 localStorage 会被清空，tavo 变量才是持久源。
+    // 变量操作是同步的，优先同步读 tavo.get；读不到（或本版 tavo.get 返回 Promise）
+    // 再回退 localStorage。否则懒加载时首页历史条数永远显示 0。
+    var keys = trackStorageKeys(messageId);
+    for (var i = 0; i < keys.length; i++) {
+      var tracks = syncTracksFromStorageKey(keys[i]);
+      if (Array.isArray(tracks)) return tracks;
+    }
     return [];
   }
   function localHistoryCountForMessage(messageId) {

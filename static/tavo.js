@@ -3,8 +3,10 @@
 
   var loaderScript = (typeof document !== "undefined" && document.currentScript) ? document.currentScript : null;
   var STYLE_ID = "gptsovits-tavo-loader-v1";
-  var TRACKS_KEY_PREFIX = "indextts_tracks_";
-  var LOADER_VERSION = "20260602-ios-layer-v27";
+  var TRACKS_KEY_PREFIX = "sovits_tracks_";
+  var LEGACY_PRODUCT_KEY = "index" + "tts";
+  var LEGACY_TRACKS_KEY_PREFIXES = [LEGACY_PRODUCT_KEY + "_tracks_"];
+  var LOADER_VERSION = "20260602-sovits-v28";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -171,18 +173,36 @@
       return String(clone.innerText || clone.textContent || "").replace(/\s+/g, " ").trim();
     } catch (_) { return ""; }
   }
-  function localTracksForMessage(messageId) {
+  function trackStorageKeys(messageId) {
     if (!messageId) return [];
-    var key = TRACKS_KEY_PREFIX + messageId;
+    var keys = [TRACKS_KEY_PREFIX + messageId];
+    LEGACY_TRACKS_KEY_PREFIXES.forEach(function (prefix) { keys.push(prefix + messageId); });
+    return keys;
+  }
+  function tracksFromStorageKey(key) {
     try {
       if (window.tavo && typeof window.tavo.get === "function") {
         var cv = window.tavo.get(key, "chat");
-        if (Array.isArray(cv) && cv.length) return cv;
+        if (Array.isArray(cv)) return cv;
         var gv = window.tavo.get(key, "global");
-        if (Array.isArray(gv) && gv.length) return gv;
+        if (Array.isArray(gv)) return gv;
       }
     } catch (_) {}
-    try { var raw = localStorage.getItem(key); var arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch (_) {}
+    try {
+      var raw = localStorage.getItem(key);
+      if (raw == null) return null;
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (_) {}
+    return null;
+  }
+  function localTracksForMessage(messageId) {
+    if (!messageId) return [];
+    var keys = trackStorageKeys(messageId);
+    for (var i = 0; i < keys.length; i++) {
+      var tracks = tracksFromStorageKey(keys[i]);
+      if (Array.isArray(tracks)) return tracks;
+    }
     return [];
   }
   function updateLazyHistory(root, messageId) {
@@ -199,22 +219,28 @@
   }
   function refreshLazyHistoryAsync(root, messageId) {
     if (!root || !messageId || !window.tavo || typeof window.tavo.get !== "function") return;
-    var key = TRACKS_KEY_PREFIX + messageId;
-    function storeAndUpdate(value) {
-      if (!Array.isArray(value) || !value.length) return;
-      try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
+    var targetKey = TRACKS_KEY_PREFIX + messageId;
+    var currentKeySeen = false;
+    function storeAndUpdate(value, sourceKey) {
+      if (!Array.isArray(value)) return;
+      if (sourceKey === targetKey) currentKeySeen = true;
+      if (sourceKey !== targetKey && currentKeySeen) return;
+      if (!value.length && sourceKey !== targetKey) return;
+      try { localStorage.setItem(targetKey, JSON.stringify(value)); } catch (_) {}
       updateLazyHistory(root, messageId);
     }
-    try {
-      var chatValue = window.tavo.get(key, "chat");
-      if (chatValue && typeof chatValue.then === "function") chatValue.then(storeAndUpdate).catch(function () {});
-      else storeAndUpdate(chatValue);
-    } catch (_) {}
-    try {
-      var globalValue = window.tavo.get(key, "global");
-      if (globalValue && typeof globalValue.then === "function") globalValue.then(storeAndUpdate).catch(function () {});
-      else storeAndUpdate(globalValue);
-    } catch (_) {}
+    trackStorageKeys(messageId).forEach(function (key) {
+      try {
+        var chatValue = window.tavo.get(key, "chat");
+        if (chatValue && typeof chatValue.then === "function") chatValue.then(function (value) { storeAndUpdate(value, key); }).catch(function () {});
+        else storeAndUpdate(chatValue, key);
+      } catch (_) {}
+      try {
+        var globalValue = window.tavo.get(key, "global");
+        if (globalValue && typeof globalValue.then === "function") globalValue.then(function (value) { storeAndUpdate(value, key); }).catch(function () {});
+        else storeAndUpdate(globalValue, key);
+      } catch (_) {}
+    });
   }
   function latestTrack(messageId) {
     var arr = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); });

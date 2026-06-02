@@ -94,7 +94,7 @@ manifest 第一版示例：
 ```json
 {
   "schema": 1,
-  "runtimeVersion": "20260602-ios-layer-v9",
+  "runtimeVersion": "20260602-sovits-v10",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"
@@ -136,7 +136,7 @@ manifest 第一版示例：
 
 当前已完成：
 
-- `static/tavo.runtime.manifest.json` 已新增，声明 21 个旧 parts 的 `id`、`file`、`phase`、`depends`，`runtimeVersion=20260602-ios-layer-v9`。
+- `static/tavo.runtime.manifest.json` 已新增，声明 21 个旧 parts 的 `id`、`file`、`phase`、`depends`，`runtimeVersion=20260602-sovits-v10`。
 - `static/tavo.runtime.js` 已实现 manifest fetch、schema/module/file/depends 校验、拓扑排序、并行 fetch parts、按拓扑顺序拼接旧闭包执行。
 - manifest 加载失败时会回退内置 ordered list，并打印 warning。
 - 本地 `node --check`、manifest 21 modules 拼接 `new Function`、`python -m py_compile`、`git diff --check`、key 扫描已通过。

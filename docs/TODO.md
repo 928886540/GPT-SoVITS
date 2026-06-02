@@ -3,7 +3,7 @@
 ## P0
 
 - 重开 Codex 后第一步：读 `AGENTS.md`、`README.md`、`docs/AGENT_STATE.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/BUGS.md`、`docs/TODO.md`、`docs/REGRESSION.md`，再跑 `git status --short`。不要回退当前未提交 runtime 拆分成果。
-- 先做真实 Tavo/雷电回归：当前正则已 bump 到 `v=2028881917`，需要在 Tavo 正则里刷新版本号，再确认 manifest、21 个 runtime parts、CSS skin、播放器、设置页、音色选择器、懒加载首点播放和音符新建音频都加载/交互正常。
+- 先做真实 Tavo/雷电回归：当前正则已 bump 到 `v=2028881918`，入口为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881918`，需要在 Tavo 正则里刷新版本号，再确认 manifest、21 个 runtime parts、CSS skin、播放器、设置页、音色选择器、懒加载首点播放和音符新建音频都加载/交互正常。
 - 把 README 拆分后的 `docs/` 作为后续唯一活跃状态入口维护。
 - 检查当前未提交 Tavo 代码改动，不要回退用户已有修改。
 - 处理并行工作线冲突：Claude 线负责 `BUG-004/014/015/016` 的设置页、弹层、播放器；Codex 线负责“普通模式/智能模式”、普通模式三音色配置、正文清洗和规则拆段。改同一文件前必须先看 `git status --short` 和 `git diff -- static/tavo.runtime.js`。
@@ -15,7 +15,7 @@
 - 继续收尾 `BUG-018`：真实 Tavo/LDPlayer 已拿到新 key `34f2b685f300e080e4a139f6ea1d83450b5ef67f`，确认失败时状态接口返回 `state=failed` 且日志出现 `[gsv_adapter] dialogue_stream_failed`。根因是 `男声/霸道青年.mp3` 只有约 1.6 秒，低于官方 GPT-SoVITS 参考音频 3-10 秒要求。下一步要更换/重做 `男声/霸道青年` 的 3-10 秒参考音频和逐字稿，或先把 Tavo 用户音色映射改到合法男声音色后复测成功路径。
 - 用真实 Tavo 验证播放器按钮：保留上一条/下一条，移除可见 10 秒 seek UI。
 - 复测局域网手机播放 `audio error code=4` 和 `audio.play() 不支持`。
-- 把真实 Tavo 正则更新到 `v=2028881917`，重启 adapter 后复测：manifest loader、移动端 live 直走 Web Audio、懒加载播放首点能继续播放历史、加载完整播放器不出现裸 HTML 闪屏、音符按钮每次创建新音频 cache key、保存音频 seek 不重拉、补角色后 LLM 拆段复用、设置页不再出现 `极致/离线`，runtime parts 和 CSS skin 都能在点击懒加载卡片后加载。
+- 把真实 Tavo 正则更新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881918`，重启 adapter/Cloudflare Tunnel 后复测：manifest loader、移动端 live 直走 Web Audio、懒加载播放首点能继续播放历史、加载完整播放器不出现裸 HTML 闪屏、音符按钮每次创建新音频 cache key、保存音频 seek 不重拉、补角色后 LLM 拆段复用、设置页不再出现 `极致/离线`，runtime parts 和 CSS skin 都能在点击懒加载卡片后加载。
 - 用同文本重新生成新 cache，核对 `白产品经理，你今晚在公司到底给她灌了多少啊？` 不再吞字；比较 `女声/风韵少妇` 与旁白电平，确认 `post_gain_db=9.0` 是否合适。
 - iPhone 14 Pro 真机回归 BUG-004/014/015：设置页和选择音色页都必须是中等固定高度，底部圆角可见，不能显示成一条长窄面板或接近全屏长面板；选择音色页一页 10 个；点边缘/右上/空白不能误关闭；从设置页进入 `选择音色` 后，点 picker `X` 必须回到设置页；点 `日日新`、`全部` 等分类 tab 不能触发外部关闭。
 

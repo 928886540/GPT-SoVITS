@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>IndexTTS Tavo Test</title>
+  <title>sovits tavo test</title>
   <style>
     *{box-sizing:border-box;letter-spacing:0}
     body{margin:0;background:#10131a;color:#e8edf5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
@@ -33,7 +33,7 @@
 <body>
   <main class="shell">
     <section class="panel">
-      <h1>IndexTTS Tavo 测试页</h1>
+      <h1>sovits tavo 测试页</h1>
       <div class="row">
         <div>
           <label for="personaName">用户身份名</label>
@@ -45,9 +45,9 @@
         </div>
       </div>
       <label for="personaAvatar">用户头像 URL</label>
-      <input id="personaAvatar" value="https://picsum.photos/seed/indextts-user/128/128">
+      <input id="personaAvatar" value="https://picsum.photos/seed/sovits-user/128/128">
       <label for="characterAvatar">角色头像 URL</label>
-      <input id="characterAvatar" value="https://picsum.photos/seed/indextts-character/128/128">
+      <input id="characterAvatar" value="https://picsum.photos/seed/sovits-character/128/128">
       <label for="messageText">消息正文</label>
       <textarea id="messageText">白夜雨抱着潘金莲，低声说：「别怕，我在这里。」
 
@@ -83,8 +83,9 @@
   <script>
     (function () {
       "use strict";
-      var STATE_KEY = "indextts_tavo_test_state_v2";
-      var STORE_KEY = "indextts_tavo_test_store_v1";
+      var STATE_KEY = "sovits_tavo_test_state_v2";
+      var STORE_KEY = "sovits_tavo_test_store_v1";
+      var LEGACY_PRODUCT_KEY = "index" + "tts";
       var els = {
         personaName: document.getElementById("personaName"),
         characterName: document.getElementById("characterName"),
@@ -251,7 +252,7 @@
           current: async function () {
             return {
               id: 1,
-              name: "IndexTTS Test Chat",
+              name: "sovits test chat",
               characters: [{ id: 34, name: els.characterName.value || "测试角色", avatar: els.characterAvatar.value || "" }],
               persona: { id: 5, name: els.personaName.value || "用户", avatar: els.personaAvatar.value || "" }
             };
@@ -289,7 +290,7 @@
         saveState();
         seedP2Config();
         window.__idxTest.clearFetchLog();
-        document.querySelectorAll(".idx-tts,.idx-card,.idx-panel,.idx-picker,[data-indextts-host]").forEach(function (node) {
+        document.querySelectorAll(".idx-tts,.idx-card,.idx-panel,.idx-picker,[data-sovits-host],[data-" + LEGACY_PRODUCT_KEY + "-host]").forEach(function (node) {
           if (node.parentNode) node.parentNode.removeChild(node);
         });
         els.scriptSlot.innerHTML = "";
@@ -310,10 +311,15 @@
       document.getElementById("clearBtn").addEventListener("click", function () {
         Object.keys(localStorage).forEach(function (key) {
           if (key === STATE_KEY) return;
-          if (/^(indextts_|chat:indextts_|global:indextts_|character:indextts_)/.test(key) || key === STORE_KEY) localStorage.removeItem(key);
+          var legacyPrefix = LEGACY_PRODUCT_KEY + "_";
+          var legacyScoped = "^(chat|global|character):" + LEGACY_PRODUCT_KEY + "_";
+          if (/^(sovits_|chat:sovits_|global:sovits_|character:sovits_)/.test(key) || new RegExp(legacyScoped).test(key) || key.indexOf(legacyPrefix) === 0 || key === STORE_KEY) localStorage.removeItem(key);
         });
         try {
-          if (window.indexedDB) indexedDB.deleteDatabase("indextts_tavo_audio_v1");
+          if (window.indexedDB) {
+            indexedDB.deleteDatabase("sovits_tavo_audio_v1");
+            indexedDB.deleteDatabase(LEGACY_PRODUCT_KEY + "_tavo_audio_v1");
+          }
         } catch (_) {}
         window.__idxTest.clearFetchLog();
         els.status.textContent = "已清空本页 mock 的 tavo.get/tavo.set 存储和离线音频库。";

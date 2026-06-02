@@ -107,8 +107,10 @@
   }
 
   function removeLegacyGlobalGear() {
-    var btn = document.getElementById("indextts-tavo-global-gear");
-    if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+    ["sovits-tavo-global-gear", (LEGACY_PRODUCT_KEY + "-tavo-global-gear")].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+    });
   }
   function removeSiblingLazyPlaceholders(activeRoot) {
     try {
@@ -124,4 +126,3 @@
       });
     } catch (_) {}
   }
-

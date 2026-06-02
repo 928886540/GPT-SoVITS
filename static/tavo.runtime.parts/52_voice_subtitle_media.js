@@ -163,13 +163,13 @@
       if (!navigator.mediaSession || typeof MediaMetadata === "undefined") return;
       try {
         var ms = navigator.mediaSession;
-        var charName = (context && context.characterName) ? context.characterName : (cfg.defaultVoice || "IndexTTS");
+        var charName = (context && context.characterName) ? context.characterName : (cfg.defaultVoice || "sovits");
         var artSrc = avatarForRole(speakerRole || lastSpeakerRole || "");
         var artType = mediaArtworkType(artSrc) || "image/png";
         ms.metadata = new MediaMetadata({
           title: (currentText ? String(currentText).slice(0, 60) : charName),
           artist: charName,
-          album: "IndexTTS",
+          album: "sovits",
           artwork: [
             { src: artSrc, sizes: "512x512", type: artType },
             { src: artSrc, sizes: "1024x1024", type: artType },

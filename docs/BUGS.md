@@ -310,14 +310,26 @@ Guard: CDP narrow smoke 已通过：懒加载打开播放器 -> 设置齿轮 -> 
 
 ## BUG-022: 真实 Tavo 仍加载旧 HTTPS 脚本导致 /parse_text 请求不到 adapter
 
-Status: open, config/update required
+Status: corrected diagnosis, config/update required
 
-Repro: 真实 Tavo 控制台报错：`LLM 解析代理 /parse_text 请求没有到达后端`，请求 URL 为 `https://index-tts.928886540.xyz/parse_text`，浏览器错误 `TypeError: Load failed`，脚本来源为 `https://index-tts.928886540.xyz/static/tavo.js?v=2028821788`。
+Repro: 真实 Tavo 控制台报错：`LLM 解析代理 /parse_text 请求没有到达后端`，浏览器错误 `TypeError: Load failed`；脚本来源仍是旧 HTTPS 子域名且 `v=2028821788`，不是当前仓库版本。
 
-Evidence: 当前仓库 `static/tavo_regex_gptsovits_loader.json` 已是 LAN URL：`http://192.168.8.100:9880/static/tavo.js?v=2028881917`。本机和 LAN adapter `/health` 都返回 ok：`127.0.0.1:9880`、`192.168.8.100:9880`。本机 curl 访问 `https://index-tts.928886540.xyz/static/tavo.js?v=2028821788` 和 `/parse_text` 均被连接重置。说明真实 Tavo 没加载当前 LAN 正则版本，而是仍使用旧 HTTPS/旧版本脚本。
+Evidence: 用户确认旧 HTTPS 地址是刻意映射的外网地址，不是“无效域名”。2026-06-02 已重启任务计划 `CF Tunnel`，`https://sovits.928886540.xyz/health` 返回 `200` 且 body 为 `{"status":"ok","engine":"gptsovits-adapter"}`。因此之前“旧 HTTPS 域名不可用”的判断不成立；应以 Tavo WebView 实际加载的脚本来源、正则缓存和当前新子域名为准。
 
-Root cause: Tavo 真实端正则配置未刷新到当前 `v=2028881917` 的 LAN loader，导致前端 `cfg.apiBase` / script origin 指向不可达或已过期的 `https://index-tts.928886540.xyz`。失败发生在 Tavo WebView 到 adapter 的浏览器请求阶段，后端还没机会访问 LLM。
+Root cause: 真实 Tavo 仍在使用旧子域名/旧 `v=` 的脚本来源，或 WebView 内部渲染/正则缓存没有刷新到当前入口。失败发生在 Tavo WebView 到 adapter `/parse_text` 的浏览器请求阶段，后端还没机会访问 LLM。外网映射本身已经证明可用。
 
-Fix: 在真实 Tavo 正则里把脚本 URL 改成当前 LAN loader：`http://192.168.8.100:9880/static/tavo.js?v=2028881917`，保存/应用规则后回到真实聊天消息重新渲染。若必须使用 HTTPS 域名，则需要先保证该域名能稳定反代到本机 adapter，并且 `/health`、`/static/tavo.js`、`/parse_text` 从手机/Tavo WebView 可访问；当前观察到该 HTTPS 域名不可用。
+Fix: 当前正则入口改为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881918`；loader 版本升到 `20260602-sovits-v28`；runtime parts 版本升到 `20260602-sovits-v10`。保存/应用 Tavo 正则后，必须回到真实聊天消息重新渲染，不能只改仓库 JSON。
 
-Guard: 真实 Tavo 控制台脚本来源必须显示 `http://192.168.8.100:9880/static/tavo.js?v=2028881917` 或另一个已验证可达的 adapter URL；点击生成前先确认 `/health` 和 `/static/tavo.runtime.manifest.json` 从同源可达。不能用 `https://index-tts.928886540.xyz/static/tavo.js?v=2028821788` 继续验证当前版本。
+Guard: 真实 Tavo 控制台脚本来源必须显示 `https://sovits.928886540.xyz/static/tavo.js?v=2028881918`。点击生成前确认同源 `/health`、`/static/tavo.runtime.manifest.json`、`/static/tavo.runtime.js` 和 `/parse_text` 可达；如果控制台仍显示旧子域名或旧 `v=2028821788`，先清正则/消息渲染缓存，不继续查 LLM。
+
+## BUG-023: 旧品牌命名和旧子域名残留
+
+Status: patched in code, needs real Tavo regression
+
+Repro: 用户要求把旧 `index` 系列命名改成小写 `sovits`，并把外网映射子域名切到 `sovits.928886540.xyz`。运行时代码、测试页和活跃文档里仍残留旧产品名、旧 storage key、旧 IndexedDB 名、旧 data attr、旧 MediaSession 文案和旧正则入口。
+
+Root cause: 当前 Tavo runtime 是从旧产品链路迁移来的，部分 UI/存储/测试页标识只做了 GPT-SoVITS 产品层替换，没有统一收口为 `sovits` 命名。正则入口也仍以 LAN 或旧子域名为主，无法匹配用户新的 Cloudflare Tunnel 子域名。
+
+Fix: 正则入口改为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881918`；loader/runtime 版本同步 bump。运行时新写入 `sovits_tracks_*` 和 `sovits_tavo_audio_v1`，并保留旧 key/旧 IndexedDB 的读取兼容，避免历史播放记录和本机离线音频直接丢失。测试页和 active runtime 文案/console/MediaSession/data attr 改成小写 `sovits`。
+
+Guard: 活跃代码/活跃文档不应出现旧品牌文案；允许历史报告、旧对比资料和旧 voice profile provenance 保留。真实 Tavo 正则必须加载 `sovits.928886540.xyz` 且历史音频仍能显示/恢复。

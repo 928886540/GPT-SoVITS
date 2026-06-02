@@ -95,10 +95,10 @@
     // IME 组词期间不覆盖输入值（搜狗/微软拼音等）。事件委托到 panel 上，覆盖所有 data-field 输入。
     try {
       panel.addEventListener('compositionstart', function (e) {
-        if (e.target && e.target.dataset && e.target.dataset.field) e.target.__indexttsComposing = true;
+        if (e.target && e.target.dataset && e.target.dataset.field) e.target.__sovitsComposing = true;
       }, true);
       panel.addEventListener('compositionend', function (e) {
-        if (e.target && e.target.dataset && e.target.dataset.field) e.target.__indexttsComposing = false;
+        if (e.target && e.target.dataset && e.target.dataset.field) e.target.__sovitsComposing = false;
       }, true);
     } catch (_) {}
     on(first(panel, '[data-role="reload"]'), 'click', function () {

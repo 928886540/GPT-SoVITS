@@ -92,15 +92,22 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 ## BUG-021 懒加载后音色选择器回归
 
-- 更新真实 Tavo 正则到 `v=2028881917` 后，点击懒加载卡片打开完整播放器，不点播放生成，立即点设置齿轮再点任一音色按钮。
+- 更新真实 Tavo 正则到 `v=2028881918` 后，点击懒加载卡片打开完整播放器，不点播放生成，立即点设置齿轮再点任一音色按钮。
 - 音色选择器应保持打开；不能出现 picker 短暂打开后 50-500ms 内被关闭，且设置页也消失的状态。
 - 本地 CDP narrow smoke 应看到 `.idx-picker[open]` 在 click 后至少 1s 仍为 true，manifest 仍加载 21 个 modules。
 
 ## BUG-022 真实 Tavo 脚本来源回归
 
-- 真实 Tavo 控制台的脚本来源必须是当前 LAN loader：`http://192.168.8.100:9880/static/tavo.js?v=2028881917`，或另一个已验证可达的 adapter URL。
-- 生成前确认前端请求 `/parse_text` 的 base URL 与 adapter health URL 一致；不能打到旧的 `https://index-tts.928886540.xyz/parse_text`。
-- 如果使用 HTTPS 反代，手机/Tavo WebView 必须能访问 `/health`、`/static/tavo.js`、`/static/tavo.runtime.manifest.json` 和 `/parse_text`；否则不要把该域名作为真实回归入口。
+- 真实 Tavo 控制台的脚本来源必须是当前 HTTPS loader：`https://sovits.928886540.xyz/static/tavo.js?v=2028881918`。
+- 生成前确认前端请求 `/parse_text` 的 base URL 与 adapter health URL 一致；不能继续打到旧子域名或旧 `v=2028821788`。
+- 手机/Tavo WebView 必须能访问同源 `/health`、`/static/tavo.js`、`/static/tavo.runtime.manifest.json`、`/static/tavo.runtime.js` 和 `/parse_text`；否则先查 Cloudflare Tunnel / WebView / 正则缓存。
+
+## BUG-023 sovits 小写命名回归
+
+- 活跃 runtime/test/docs 入口统一使用小写 `sovits`；正则入口使用 `https://sovits.928886540.xyz/static/tavo.js?v=2028881918`。
+- 新历史 tracks 写入 `sovits_tracks_<messageId>`；旧历史 tracks 仍能读取并在后续刷新中迁移到新 key。
+- 新离线音频 IndexedDB 使用 `sovits_tavo_audio_v1`；旧离线音频库仍能读取，删除当前 track 时新旧库都应清理对应 `cache:<key>`。
+- 允许历史报告、旧对比资料和 voice profile provenance 保留旧产品名；不要把这些历史来源当成活跃 runtime 残留。
 
 ## 普通模式 / 智能模式回归
 

@@ -8,7 +8,7 @@
     function setField(name, value) {
       var el = field(name); if (!el) return;
       if (document.activeElement === el) return;            // 正在输入
-      if (el.__indexttsComposing) return;                    // 中文输入法组词中
+      if (el.__sovitsComposing) return;                      // 中文输入法组词中
       var v = value == null ? "" : value;
       if (el.value !== String(v)) el.value = v;
     }

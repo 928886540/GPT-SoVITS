@@ -44,8 +44,9 @@
 ## 常用入口
 
 - Adapter health: `http://127.0.0.1:9880/health`
+- Public adapter: `https://sovits.928886540.xyz`
 - LAN adapter: `http://192.168.8.100:9880`
-- Tavo loader: `http://192.168.8.100:9880/static/tavo.js`
+- Tavo loader: `https://sovits.928886540.xyz/static/tavo.js`
 - P2 test page: `http://192.168.8.100:9880/p2_test`
 - LAN 启动脚本: `dev_tools/start_adapter_lan.ps1`
 - Whisper CLI: `D:\software\whisper-codex\transcribe.cmd`

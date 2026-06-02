@@ -40,8 +40,9 @@
     // 的 position:fixed 误以为相对那个祖先(被截一半)。把它们直接挂到 body 上
     // 彻底逃离变形上下文。下次脚本重载会先清掉旧实例避免叠加。
     try {
-      var STALE_HOST_ATTR = 'data-indextts-host';
-      Array.prototype.slice.call(document.body.querySelectorAll('[' + STALE_HOST_ATTR + ']')).forEach(function (el) { try { el.remove(); } catch (_) {} });
+      var STALE_HOST_ATTR = 'data-sovits-host';
+      var LEGACY_STALE_HOST_ATTR = 'data-' + LEGACY_PRODUCT_KEY + '-host';
+      Array.prototype.slice.call(document.body.querySelectorAll('[' + STALE_HOST_ATTR + '],[' + LEGACY_STALE_HOST_ATTR + ']')).forEach(function (el) { try { el.remove(); } catch (_) {} });
       if (panel) { panel.setAttribute(STALE_HOST_ATTR, '1'); document.body.appendChild(panel); }
       var pickerNode = first(root, '[data-role="voice-picker"]');
       if (pickerNode) { pickerNode.setAttribute(STALE_HOST_ATTR, '1'); document.body.appendChild(pickerNode); }

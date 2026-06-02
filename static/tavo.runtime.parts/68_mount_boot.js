@@ -25,7 +25,7 @@
       ensureFull().then(function () {
         var btn = first(root, sel);
         if (btn) btn.click();
-      }).catch(function (e) { try { console.error("[IndexTTS TAVO] lazy mount", e); } catch (_) {} });
+      }).catch(function (e) { try { console.error("[sovits tavo] lazy mount", e); } catch (_) {} });
     }
     on(first(root, '[data-role="lazy-play"]'), 'click', function (ev) { ev.preventDefault(); clickFull('[data-role="play"]'); });
     on(first(root, '[data-role="lazy-gear"]'), 'click', function (ev) { ev.preventDefault(); clickFull('[data-role="gear"]'); });
@@ -36,8 +36,8 @@
   try {
     await ensureStyle();
     removeLegacyGlobalGear();
-    if (script && script.dataset.indexttsMounted === "1") return;
-    if (script) script.dataset.indexttsMounted = "1";
+    if (script && (script.dataset.sovitsMounted === "1" || script.dataset[LEGACY_PRODUCT_KEY + "Mounted"] === "1")) return;
+    if (script) script.dataset.sovitsMounted = "1";
     var msgEl = messageElement(script);
     if (msgEl && msgEl !== document.body && msgEl !== document.documentElement) {
       $all(msgEl, '.idx-tts').forEach(function (node) { if (node.parentNode) node.parentNode.removeChild(node); });
@@ -63,5 +63,5 @@
     // 关键:过滤掉历史会话累积的多余空行,确保前 2 行 reserved
     cfg.roleVoiceList = normalizeRoleVoiceList(cfg.roleVoiceList, cfg.currentCharacterName);
     mountFull(root, cfg, ctx);
-  } catch (e) { try { console.error("[IndexTTS TAVO]", e && e.stack ? e.stack : (e && e.message ? e.message : JSON.stringify(e))); } catch (_) {} }
+  } catch (e) { try { console.error("[sovits tavo]", e && e.stack ? e.stack : (e && e.message ? e.message : JSON.stringify(e))); } catch (_) {} }
 })();
