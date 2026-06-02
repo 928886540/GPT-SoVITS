@@ -253,12 +253,37 @@ window.__gptsovits_tavo_runtime_app_promise = (async function () {
     return fetch(url, init);
   }
 
-  function adapterJsonPost(url, payload) {
-    return adapterFetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=UTF-8" },
-      body: JSON.stringify(payload || {})
+  function adapterXhrTextPost(url, bodyText) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", url, true);
+        xhr.timeout = 120000;
+        xhr.setRequestHeader("Content-Type", "text/plain;charset=UTF-8");
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState !== 4) return;
+          var body = xhr.responseText || "";
+          resolve({
+            ok: xhr.status >= 200 && xhr.status < 300,
+            status: xhr.status,
+            statusText: xhr.statusText || "",
+            text: function () { return Promise.resolve(body); },
+            json: function () { return Promise.resolve(JSON.parse(body)); }
+          });
+        };
+        xhr.onerror = function () { reject(new Error("XMLHttpRequest network error")); };
+        xhr.ontimeout = function () { reject(new Error("XMLHttpRequest timeout")); };
+        xhr.send(bodyText || "{}");
+      } catch (e) {
+        reject(e);
+      }
     });
+  }
+
+  function adapterJsonPost(url, payload) {
+    var body = JSON.stringify(payload || {});
+    if (typeof XMLHttpRequest !== "undefined") return adapterXhrTextPost(url, body);
+    return adapterFetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: body });
   }
 
   var DEFAULT_CONFIG = {

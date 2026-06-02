@@ -111,11 +111,11 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 ## BUG-024/025/026 Tavo AR 动态 loader 与 /parse_text 回归
 
-- 真实 Tavo 控制台脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881922`，loader 版本 `20260602-sovits-simple-post-v32`，runtime manifest/parts `20260602-sovits-simple-post-v14`。
+- 真实 Tavo 控制台脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923`，loader 版本 `20260602-sovits-xhr-post-v33`，runtime manifest/parts `20260602-sovits-xhr-post-v15`。
 - 点击懒加载卡片后，应请求 `GET /static/tavo.runtime.js?...`、`GET /static/tavo.runtime.manifest.json?...`、21 个 `GET /static/tavo.runtime.parts/*.js?...` 和 CSS skin。
 - 动态 loader 必须按当前入口脚本 `src` 派生同源 base，不是外网专用：入口从 LAN 加载时，runtime/manifest/parts 走 LAN；入口从 `sovits.928886540.xyz` 加载时才走 HTTPS origin。
 - 页面不能创建或显示 iframe；`static/tavo.fetch.bridge.html` 不应存在也不应被请求；不应请求 `tavo.runtime.bundle.js`；不应出现 RPC/WebSocket/JSONP 绕行层。
-- `/parse_text` 单独验证：真实 Tavo 智能生成必须以 `text/plain;charset=UTF-8` simple POST 让 adapter 收到 `/parse_text`。如果失败，不改 runtime 模块架构；如果报错变成 `LLM parse failed` / `auth_unavailable`，说明请求已到后端，下一步查 LLM endpoint/model/key。
+- `/parse_text` 单独验证：真实 Tavo 智能生成必须通过 XHR `text/plain;charset=UTF-8` POST 让 adapter 收到 `/parse_text`。如果失败，不改 runtime 模块架构；如果报错变成 `LLM parse failed` / `auth_unavailable`，说明请求已到后端，下一步查 LLM endpoint/model/key。
 
 ## 普通模式 / 智能模式回归
 

@@ -31,17 +31,17 @@
 
 已改方向：
 
-- 正则入口改为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881922`。
-- Loader 版本改为 `20260602-sovits-simple-post-v32`，runtime parts/manifest 改为 `20260602-sovits-simple-post-v14`。
-- `/parse_text`、`/tts_stream_job`、`/tts_dialogue_stream_job` 前端 POST 改成 `Content-Type: text/plain;charset=UTF-8` 承载 JSON 字符串，避免 Tavo AR 里 JSON POST preflight；后端兼容解析 `application/json` 和 `text/plain`。
+- 正则入口改为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923`。
+- Loader 版本改为 `20260602-sovits-xhr-post-v33`，runtime parts/manifest 改为 `20260602-sovits-xhr-post-v15`。
+- `/parse_text`、`/tts_stream_job`、`/tts_dialogue_stream_job` 前端 POST 改成 XHR 主路径，`Content-Type: text/plain;charset=UTF-8` 承载 JSON 字符串，避免 Tavo AR 里 fetch JSON POST / preflight 链路；后端兼容解析 `application/json` 和 `text/plain`。
 - 新历史 key 使用 `sovits_tracks_*`，新 IndexedDB 使用 `sovits_tavo_audio_v1`；旧 key/旧 DB 只做读取兼容，避免历史音频丢失。
 - `adapterFetch()` 已回到原生 `fetch(url, init)`；没有 iframe bridge/RPC 分支。
 
 下一步：
 
 1. 已通过本地验证：`node --check static\tavo.js`、`node --check static\tavo.runtime.js`、manifest 拼接 `new Function`、`python -m py_compile gsv_tavo_adapter.py`。
-2. 已通过代理公网验证：`/static/tavo.js?v=2028881922` 返回 loader `20260602-sovits-simple-post-v32`；`/static/tavo.runtime.manifest.json?runtime_part_v=20260602-sovits-simple-post-v14` 返回 200；`text/plain` POST `/parse_text` 已到 adapter，adapter 日志出现 `POST /parse_text`。
-3. 待真实 Tavo 回归：当前公网正则必须刷新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881922` 并重新渲染消息；点击懒加载卡片后应请求 `tavo.runtime.js`、manifest、21 个 parts 和 CSS。
+2. 已通过代理公网验证：`/static/tavo.js?v=2028881923` 返回 loader `20260602-sovits-xhr-post-v33`；`/static/tavo.runtime.manifest.json?runtime_part_v=20260602-sovits-xhr-post-v15` 返回 200；part 00 返回 `adapterXhrTextPost()`。
+3. 待真实 Tavo 回归：当前公网正则必须刷新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923` 并重新渲染消息；点击懒加载卡片后应请求 `tavo.runtime.js`、manifest、21 个 parts 和 CSS。
 4. 如果新版真实 Tavo 报错变成 `LLM parse failed` / `auth_unavailable` / endpoint/model/key 问题，说明 `/parse_text` 已经到后端，下一步查 LLM adapter 配置，不再查 Tavo fetch。
 
 ## Runtime Manifest Phase 1 交接（2026-06-02 20:36 +08:00）

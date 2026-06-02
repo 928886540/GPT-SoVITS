@@ -2,7 +2,7 @@
   "use strict";
 
   var loaderScript = (typeof window !== "undefined" && window.__gptsovits_tavo_runtime_script_override) || document.currentScript;
-  var RUNTIME_PARTS_VERSION = "20260602-sovits-simple-post-v14";
+  var RUNTIME_PARTS_VERSION = "20260602-sovits-xhr-post-v15";
   var MANIFEST_FILE = "tavo.runtime.manifest.json";
   var FALLBACK_PARTS = [
     "tavo.runtime.parts/00_base_config_storage.js",

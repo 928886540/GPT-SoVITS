@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260602-sovits-simple-post-v14",
+  "runtimeVersion": "20260602-sovits-xhr-post-v15",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"
