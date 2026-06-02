@@ -395,3 +395,17 @@ Root cause: 前端错误分层不对。`friendlyPlaybackError()` 把 `wavHeader`
 Fix: `static/tavo.runtime.parts/34_element_audio_controls.js` 新增 `readableServerJobError()` 和 `applyServerJobFailure()`，统一把官方 API HTTP 502、参考音频非法、LLM 上游错误等后端失败转成可读卡片提示。`friendlyPlaybackError()` 对 `[step:wavHeader] WAV 头未到先断流` 不再提示“格式异常”，改成“服务端未返回音频流首包，正在确认服务端合成状态”。`static/tavo.runtime.parts/42_saved_playback_cache.js` 和 `44_track_history_cache.js` 在 job status `state=failed` 时写回 track/card/status/history；`pollCacheUpgrade()` 失败路径补 `done=true`，不再继续按等待落盘超时处理。
 
 Guard: 如果 `/tts_dialogue_job_status/<cache_key>` 返回 `state=failed`，UI 必须显示“服务端推理失败”以及官方 API / voice profile / LLM 上游的真实错误摘要，不能显示“音频流格式异常”。只有已保存 WAV 解码失败、真实 `decodeAudioData` 或 WAV data 段损坏时，才允许提示音频格式异常。
+
+## BUG-029: 本机代理把 adapter 到官方 9881 的调用伪装成官方 HTTP 502
+
+Status: fixed, adapter/live paths verified
+
+Repro: 用户真实 Tavo / LDPlayer 生成时，adapter 日志显示 `/parse_text` 已通过，`/tts_dialogue_stream_job` 已到后端，但第 0 段官方 TTS 失败：`segment 0 role=旁白 failed: official API HTTP 502:`，HTTP body 为空。官方 GPT-SoVITS 旧日志未更新，`curl.exe --noproxy "*"` 直连 `http://127.0.0.1:9881/docs` 连接失败；不绕代理访问同 URL 或显式 `-x http://127.0.0.1:7897` 访问同 URL，则返回空 body `502 Bad Gateway`。
+
+Evidence: 当前环境存在 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY=http://127.0.0.1:7897`，`python urllib.request.urlopen("http://127.0.0.1:9881/docs")` 复现 `HTTPError 502 Bad Gateway`；用 `ProxyHandler({})` 绕过代理后，同 URL 变成真实 `URLError [WinError 10061]`。这说明 adapter 看到的 502 很可能来自本机代理 7897，不是官方 GPT-SoVITS 自己返回的 502。
+
+Root cause: adapter 使用 `urllib.request.urlopen()` 调官方 `OFFICIAL_TTS_URL`，会读取进程环境里的代理变量。默认官方地址是 `http://127.0.0.1:9881/tts`，它是本机推理服务，不应该经过公网/系统代理。代理介入后会把“9881 未监听/不可达”伪装成空 body 502，导致前端和日志把问题误判成官方接口返回 502。同时本机官方 9881 当时确实没有常驻运行；普通 Codex 工具调用里拉起的 official 子进程会在调用结束后被清理，需要通过任务计划常驻。
+
+Fix: `gsv_tavo_adapter.py` 新增 official URL no-proxy opener：当 `GPT_SOVITS_OFFICIAL_TTS_URL` 是 loopback / private / link-local 地址时，adapter 用 `ProxyHandler({})` 绕过系统代理；可用 `GPT_SOVITS_OFFICIAL_BYPASS_PROXY=0/1/auto` 控制。新增 `dev_tools/run_official_api_9881.ps1`，并注册任务计划 `GPT-SoVITS Official API 9881` 用来常驻启动官方 `api_v2.py -a 127.0.0.1 -p 9881`。
+
+Guard: 在有 `HTTP_PROXY=http://127.0.0.1:7897` 的环境下，adapter 调 `http://127.0.0.1:9881/tts` 不能再得到代理空 body 502；如果 9881 未启动，应显示 `official API connection failed: [WinError 10061]` 这类真实连接失败。如果 9881 已启动，则官方日志应更新并返回 WAV 或官方自身的明确错误。2026-06-03 已验证：`python urllib` 默认走代理会复现 502；adapter helper 绕代理后 `/docs` 返回 200；直接 official TTS 生成 `reports/official_tts_proxyfix_20260603/bingshan_gaoyuanyuan.wav`；adapter queued job `d23b5e8df15adb928e73b11a2df40ae4ddb71464` 最终 `done/cached=true`；adapter live job `7627c06937a1398280ac3453e16011cf5ad4a649` 最终 `done/cached=true`。

@@ -1,12 +1,37 @@
 # Agent State
 
-更新时间：2026-06-03 00:02 +08:00
+更新时间：2026-06-03 00:45 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-029 official 9881 代理污染修复（2026-06-03 00:45 +08:00）
+
+用户继续追官方 GPT-SoVITS 502。结论：这次不是 `/parse_text`、不是 Tavo AR 链路，也不是真正的官方接口 body 502；adapter 进程继承了 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY=http://127.0.0.1:7897`，`urllib` 调默认 `http://127.0.0.1:9881/tts` 时会走代理，代理把 9881 不可达伪装成空 body `502 Bad Gateway`。
+
+已改：
+
+- `gsv_tavo_adapter.py`：新增 official no-proxy opener。`GPT_SOVITS_OFFICIAL_TTS_URL` 是 loopback / private / link-local 地址时，adapter 用 `ProxyHandler({})` 绕开系统代理；`GPT_SOVITS_OFFICIAL_BYPASS_PROXY=0/1/auto` 可覆盖。
+- 新增 `dev_tools/run_official_api_9881.ps1`：任务计划 runner，负责常驻启动官方 `../gpt-sovits-official/api_v2.py -a 127.0.0.1 -p 9881`，日志写 `outputs/logs/official_api_9881_task.*.log`。
+- 已注册并启动任务计划：`GPT-SoVITS Official API 9881`。当前 9881 已由该任务监听。
+
+证据：
+
+- `python urllib.request.urlopen("http://127.0.0.1:9881/docs")` 在代理环境下复现 `HTTPError 502 Bad Gateway`。
+- 用 `ProxyHandler({})` 绕过代理后，9881 未启动时是 `URLError [WinError 10061]`，不是 502。
+- 任务计划启动后，`curl.exe --noproxy "*"` 打 `http://127.0.0.1:9881/docs` 返回 200。
+- 直接 official TTS 成功：`reports/official_tts_proxyfix_20260603/bingshan_gaoyuanyuan.wav`。
+- adapter queued job 成功：`d23b5e8df15adb928e73b11a2df40ae4ddb71464`，最终 `done/cached=true`。
+- adapter live job 成功：`7627c06937a1398280ac3453e16011cf5ad4a649`，最终 `done/cached=true`，输出 `reports/official_tts_proxyfix_20260603/adapter_live_bingshan_gaoyuanyuan.wav`。
+
+下一步：
+
+1. 先复跑基础检查并提交/push 本轮 BUG-029。
+2. 真实 Tavo 再点一次同类生成；如果仍失败，优先看新的 job status/error，不要再把空 502 当官方真实错误。
+3. 如果系统重启后 9881 没起来，运行/启动任务计划 `GPT-SoVITS Official API 9881`，不要在普通 Codex 工具调用里裸 `Start-Process` official；该子进程会被工具清理。
 
 ## BUG-028 服务端失败提示分层修复（2026-06-03 00:02 +08:00）
 

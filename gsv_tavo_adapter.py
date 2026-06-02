@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import ipaddress
 import json
 import os
 import queue
@@ -11,7 +12,7 @@ import audioop
 from http.client import IncompleteRead, RemoteDisconnected
 from pathlib import Path
 from typing import Any, Optional
-from urllib import error, request as urlrequest
+from urllib import error, parse as urlparse, request as urlrequest
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,9 +34,11 @@ APP.add_middleware(
 ROOT = Path(__file__).resolve().parent
 STYLE_DIR = ROOT / "prompts" / "library" / "声腔"
 OFFICIAL_TTS_URL = os.getenv("GPT_SOVITS_OFFICIAL_TTS_URL", "http://127.0.0.1:9881/tts")
+OFFICIAL_BYPASS_PROXY = os.getenv("GPT_SOVITS_OFFICIAL_BYPASS_PROXY", "auto").strip().lower()
 LLM_ENDPOINT = os.getenv("GSV_TAVO_LLM_ENDPOINT", "").strip()
 LLM_MODEL = os.getenv("GSV_TAVO_LLM_MODEL", "").strip()
 LLM_API_KEY = os.getenv("GSV_TAVO_LLM_API_KEY", "").strip()
+NO_PROXY_OPENER = urlrequest.build_opener(urlrequest.ProxyHandler({}))
 
 
 STYLE_ALIASES = {
@@ -67,6 +70,32 @@ JOB_QUEUE: queue.Queue[tuple[str, dict[str, Any], dict[str, Optional[dict[str, A
 WORKER_STARTED = False
 MIN_REF_AUDIO_S = 3.0
 MAX_REF_AUDIO_S = 10.0
+
+
+def _is_private_or_local_host(host: str) -> bool:
+    normalized = (host or "").strip().strip("[]").lower()
+    if normalized in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    try:
+        ip = ipaddress.ip_address(normalized)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local
+
+
+def _official_should_bypass_proxy() -> bool:
+    if OFFICIAL_BYPASS_PROXY in {"1", "true", "yes", "on", "always"}:
+        return True
+    if OFFICIAL_BYPASS_PROXY in {"0", "false", "no", "off", "never"}:
+        return False
+    parsed = urlparse.urlparse(OFFICIAL_TTS_URL)
+    return _is_private_or_local_host(parsed.hostname or "")
+
+
+def _open_official_request(req: urlrequest.Request, timeout: int):
+    if _official_should_bypass_proxy():
+        return NO_PROXY_OPENER.open(req, timeout=timeout)
+    return urlrequest.urlopen(req, timeout=timeout)
 
 
 class ProfileSaveRequest(BaseModel):
@@ -1268,7 +1297,7 @@ def _post_official_tts(payload: dict[str, Any]) -> tuple[bytes, float, float]:
     first_at = None
     chunks: list[bytes] = []
     try:
-        resp_ctx = urlrequest.urlopen(req, timeout=600)
+        resp_ctx = _open_official_request(req, timeout=600)
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"official API HTTP {exc.code}: {detail}") from exc
@@ -1293,7 +1322,7 @@ def _stream_official_tts(payload: dict[str, Any], on_done=None):
         method="POST",
     )
     try:
-        resp_ctx = urlrequest.urlopen(req, timeout=600)
+        resp_ctx = _open_official_request(req, timeout=600)
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"official API HTTP {exc.code}: {detail}") from exc
