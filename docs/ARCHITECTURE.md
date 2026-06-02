@@ -72,6 +72,8 @@ Tavo 原文
 
 当前 Phase 1 已把 `static/tavo.runtime.js` 改为 manifest/config 驱动的 ordered-fragments loader：loader 读取 `static/tavo.runtime.manifest.json`，校验依赖并拓扑排序，再 fetch 21 个旧 parts 拼接闭包执行。它已经不再只靠硬编码数组决定模块列表，但还不是 Phase 2 的真 module registry；parts 之间仍共享闭包变量。下一步先做真实 Tavo/雷电回归，通过后再逐步迁到 module registry / UI skin 可替换 / 业务模块 API。中途如果会话中断，以 `docs/RUNTIME_MODULARIZATION.md` 的阶段状态和回滚规则为准。
 
+重要边界：这个运行面是 Tavo AR，不是普通 H5。后续模块加载必须从入口脚本 `src` 推导同源 `/static/` base，并保留 AR 动态 `fetch + eval` 模型。不要把 runtime 改成 iframe bridge、plain RPC、WebSocket/JSONP 或服务端 bundle；`/parse_text` 失败要单独按 API POST 请求链路排查。
+
 拆分建议按职责推进：
 
 - bootstrap / loader handshake：注入幂等、base URL、版本和日志入口。

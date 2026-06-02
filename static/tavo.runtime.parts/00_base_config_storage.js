@@ -249,123 +249,16 @@ window.__gptsovits_tavo_runtime_app_promise = (async function () {
     } catch (_) {}
     return scriptOrigin().replace(/\/+$/, "") + "/static/" + String(fileName || "").replace(/^\/+/, "");
   }
-  var FETCH_BRIDGE_IFRAME = null;
-  var FETCH_BRIDGE_READY = null;
-  var FETCH_BRIDGE_SEQ = 0;
-
-  function headersToPlainObject(headers) {
-    var out = {};
-    if (!headers) return out;
-    try {
-      if (typeof Headers !== "undefined" && headers instanceof Headers) {
-        headers.forEach(function (value, key) { out[key] = String(value); });
-        return out;
-      }
-    } catch (_) {}
-    if (Array.isArray(headers)) {
-      headers.forEach(function (pair) {
-        if (pair && pair.length >= 2) out[String(pair[0])] = String(pair[1]);
-      });
-      return out;
-    }
-    if (typeof headers === "object") {
-      Object.keys(headers).forEach(function (key) { out[key] = String(headers[key]); });
-    }
-    return out;
-  }
-
-  function isAboutSrcdocPage() {
-    try { return /^about:/i.test(String(location.href || "")); } catch (_) { return false; }
-  }
-
-  function shouldBridgeAdapterFetch(url, init) {
-    var method = String((init && init.method) || "GET").toUpperCase();
-    if (method === "GET" || method === "HEAD") return false;
-    try {
-      var target = new URL(url, location.href);
-      if (target.origin !== scriptOrigin()) return false;
-    } catch (_) { return false; }
-    return isAboutSrcdocPage();
-  }
-
-  function ensureFetchBridge() {
-    if (FETCH_BRIDGE_READY) return FETCH_BRIDGE_READY;
-    FETCH_BRIDGE_READY = new Promise(function (resolve, reject) {
-      try {
-        FETCH_BRIDGE_IFRAME = document.createElement("iframe");
-        FETCH_BRIDGE_IFRAME.setAttribute("aria-hidden", "true");
-        FETCH_BRIDGE_IFRAME.tabIndex = -1;
-        FETCH_BRIDGE_IFRAME.style.cssText = "position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none";
-        FETCH_BRIDGE_IFRAME.src = scriptAssetUrl("tavo.fetch.bridge.html") + "?bridge_v=" + encodeURIComponent(String(window.__gptsovits_tavo_loader_version || CONFIG_VERSION));
-        var done = false;
-        function finish(ok, value) {
-          if (done) return;
-          done = true;
-          if (ok) resolve(value);
-          else reject(value instanceof Error ? value : new Error(String(value || "fetch bridge failed")));
-        }
-        FETCH_BRIDGE_IFRAME.onload = function () { finish(true, FETCH_BRIDGE_IFRAME.contentWindow); };
-        FETCH_BRIDGE_IFRAME.onerror = function () { finish(false, new Error("fetch bridge iframe load failed")); };
-        setTimeout(function () { finish(false, new Error("fetch bridge iframe load timeout")); }, 5000);
-        (document.body || document.documentElement).appendChild(FETCH_BRIDGE_IFRAME);
-      } catch (e) { reject(e); }
-    });
-    return FETCH_BRIDGE_READY;
-  }
-
-  function bridgeFetch(url, init) {
-    init = init || {};
-    return ensureFetchBridge().then(function (bridgeWindow) {
-      return new Promise(function (resolve, reject) {
-        var id = "sovits-fetch-" + Date.now() + "-" + (++FETCH_BRIDGE_SEQ);
-        var timer = null;
-        function cleanup() {
-          try { window.removeEventListener("message", onMessage); } catch (_) {}
-          if (timer) clearTimeout(timer);
-        }
-        function onMessage(ev) {
-          var msg = ev && ev.data;
-          if (!msg || msg.sovitsFetchBridge !== 1 || msg.id !== id) return;
-          cleanup();
-          if (!msg.ok) {
-            reject(new Error(msg.error || "fetch bridge request failed"));
-            return;
-          }
-          try {
-            resolve(new Response(msg.body || "", {
-              status: Number(msg.status || 200),
-              statusText: msg.statusText || "",
-              headers: msg.headers || []
-            }));
-          } catch (e) { reject(e); }
-        }
-        window.addEventListener("message", onMessage);
-        timer = setTimeout(function () {
-          cleanup();
-          reject(new Error("fetch bridge request timeout"));
-        }, Math.max(10000, Number(init.timeoutMs || 0) || 0));
-        try {
-          bridgeWindow.postMessage({
-            sovitsFetchBridge: 1,
-            id: id,
-            url: String(url || ""),
-            method: String(init.method || "GET").toUpperCase(),
-            headers: headersToPlainObject(init.headers),
-            body: init.body == null ? null : String(init.body),
-            cache: init.cache || "no-store"
-          }, scriptOrigin());
-        } catch (e) {
-          cleanup();
-          reject(e);
-        }
-      });
-    });
-  }
-
   function adapterFetch(url, init) {
-    if (!shouldBridgeAdapterFetch(url, init)) return fetch(url, init);
-    try { debugLog("🌉 about:srcdoc adapter fetch bridge: " + String((init && init.method) || "GET").toUpperCase() + " " + url, "#9ff"); } catch (_) {}
-    return bridgeFetch(url, init);
+    return fetch(url, init);
+  }
+
+  function adapterJsonPost(url, payload) {
+    return adapterFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: JSON.stringify(payload || {})
+    });
   }
 
   var DEFAULT_CONFIG = {
@@ -439,11 +332,12 @@ window.__gptsovits_tavo_runtime_app_promise = (async function () {
       label + " 请求没有到达后端。",
       "请求 URL: " + url,
       "浏览器错误: " + name + (raw ? ": " + raw : ""),
-      "当前页面: " + localPageText(),
+      "运行环境: Tavo AR 消息渲染",
+      "WebView URL: " + localPageText(),
       "脚本来源: " + scriptSrcText()
     ];
     (extraLines || []).forEach(function (line) { if (line) lines.push(line); });
-    lines.push("常见原因: 手机访问不到电脑端口/防火墙拦截/地址不是局域网 IP/Tavo WebView 拦截 HTTP/CORS。");
+    lines.push("常见原因: Tavo AR fetch 限制/CORS 或 preflight 被拦/脚本版本缓存仍在旧 v=/adapter 未重启。");
     return lines.join("\n") + localNetworkHint(url);
   }
   function formatHttpError(label, url, res, body, extraLines) {

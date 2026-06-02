@@ -1,6 +1,6 @@
 # Agent State
 
-更新时间：2026-06-02 21:45 +08:00
+更新时间：2026-06-02 23:10 +08:00
 
 ## 当前目标
 
@@ -8,7 +8,17 @@
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
 
-## sovits 小写命名、HTTPS 映射与 fetch bridge（2026-06-02 21:45 +08:00）
+## Tavo AR 动态 loader 纠偏与当前 HTTPS 映射（2026-06-02 23:10 +08:00）
+
+用户纠正：这个页面是 Tavo 聊天消息里的 AR 渲染环境，不是普通 H5 页面。不能继续用 iframe bridge、plain RPC、WebSocket/JSONP 或服务端 runtime bundle 去绕；必须保留 AR 动态加载模型。
+
+当前正确架构：
+
+- `static/tavo.js` 仍是 Tavo 正则唯一入口，通过 `<script src>` 注入消息。
+- `static/tavo.js` 从自己的 `script.src` 推导同源 `/static/` base，再加载 `static/tavo.runtime.js`。
+- `static/tavo.runtime.js` 从同源 base 加载 `static/tavo.runtime.manifest.json` 和 21 个 `static/tavo.runtime.parts/*.js`，按 manifest 拓扑顺序拼接并 `eval` 到单消息 AR 运行环境。
+- 这仍是 AR 的动态 `fetch + eval` ordered-fragments loader；不是服务器 bundle，也不是真 module registry。
+- `/parse_text` 请求失败要按 API POST / CORS / WebView 请求链路单独排查，不能再用 iframe/RPC/bundle 代替。
 
 用户要求：旧 `index` 系列命名改成小写 `sovits`；外网映射子域名改成 `sovits.928886540.xyz`。
 
@@ -17,19 +27,22 @@
 - 已停止旧 `D:\cloudflared\cloudflared.exe` 实例，并通过任务计划 `CF Tunnel` 重启；当前任务状态 `Running`，cloudflared PID `23184`。
 - `https://sovits.928886540.xyz/health` 返回 200，body 为 `{"status":"ok","engine":"gptsovits-adapter"}`。
 - 之前 BUG-022 里“HTTPS 映射不可用”的判断已修正；外网映射是有效路线，真实问题是 Tavo 仍可能加载旧子域名/旧 `v=` 的脚本来源或 WebView 正则缓存。
+- iframe bridge 已废弃并删除；plain RPC/WebSocket/JSONP/服务端 bundle 方向不再继续。
 
 已改方向：
 
-- 正则入口改为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881919`。
-- Loader 版本改为 `20260602-sovits-bridge-v29`，runtime parts/manifest 改为 `20260602-sovits-bridge-v11`。
+- 正则入口改为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881922`。
+- Loader 版本改为 `20260602-sovits-simple-post-v32`，runtime parts/manifest 改为 `20260602-sovits-simple-post-v14`。
+- `/parse_text`、`/tts_stream_job`、`/tts_dialogue_stream_job` 前端 POST 改成 `Content-Type: text/plain;charset=UTF-8` 承载 JSON 字符串，避免 Tavo AR 里 JSON POST preflight；后端兼容解析 `application/json` 和 `text/plain`。
 - 新历史 key 使用 `sovits_tracks_*`，新 IndexedDB 使用 `sovits_tavo_audio_v1`；旧 key/旧 DB 只做读取兼容，避免历史音频丢失。
-- 用户真实 Tavo 已确认 v1918 脚本能加载，但 `about:srcdoc` 页面直接 `fetch POST /parse_text` 仍报 `TypeError: Load failed`。已新增 `static/tavo.fetch.bridge.html`，让 about:srcdoc 里的 JSON POST/DELETE 通过同源隐藏 iframe bridge 执行。
+- `adapterFetch()` 已回到原生 `fetch(url, init)`；没有 iframe bridge/RPC 分支。
 
 下一步：
 
-1. 已通过本地验证：`node --check static\tavo.js`、`node --check static\tavo.runtime.js`、manifest concat `new Function`、bridge inline JS `new Function`、`python -m py_compile gsv_tavo_adapter.py`、`git diff --check`、key 扫描、活跃代码/文档旧品牌扫描。
-2. 已通过 HTTPS 映射验证：`/static/tavo.js?v=2028881919` 返回 loader `20260602-sovits-bridge-v29`；`/static/tavo.fetch.bridge.html` 返回 200；part 00/manifest 返回 bridge 版本。
-3. 待真实 Tavo 回归：正则必须刷新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881919` 并重新渲染消息；点击智能生成时控制台应出现 `about:srcdoc adapter fetch bridge: POST .../parse_text`，adapter 日志应出现 `POST /parse_text`。
+1. 已通过本地验证：`node --check static\tavo.js`、`node --check static\tavo.runtime.js`、manifest 拼接 `new Function`、`python -m py_compile gsv_tavo_adapter.py`。
+2. 已通过代理公网验证：`/static/tavo.js?v=2028881922` 返回 loader `20260602-sovits-simple-post-v32`；`/static/tavo.runtime.manifest.json?runtime_part_v=20260602-sovits-simple-post-v14` 返回 200；`text/plain` POST `/parse_text` 已到 adapter，adapter 日志出现 `POST /parse_text`。
+3. 待真实 Tavo 回归：当前公网正则必须刷新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881922` 并重新渲染消息；点击懒加载卡片后应请求 `tavo.runtime.js`、manifest、21 个 parts 和 CSS。
+4. 如果新版真实 Tavo 报错变成 `LLM parse failed` / `auth_unavailable` / endpoint/model/key 问题，说明 `/parse_text` 已经到后端，下一步查 LLM adapter 配置，不再查 Tavo fetch。
 
 ## Runtime Manifest Phase 1 交接（2026-06-02 20:36 +08:00）
 

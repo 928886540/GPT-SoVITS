@@ -79,3 +79,19 @@ Status: accepted, Phase 1 locally implemented
 - Phase 4：逐步把 TTS jobs、audio、tracks、settings、voice picker、generate flow 迁成显式 API。
 
 约束：不引入 bundler，不假设 Tavo WebView 支持 ES module，不一次性重写业务逻辑；每阶段必须能回退到上一阶段并完成真实 Tavo 回归。
+
+## DEC-010: Tavo AR 保留动态 loader，不走 iframe/RPC/服务端 bundle
+
+Status: accepted
+
+当前前端运行面是 Tavo 聊天消息里的 Advanced Rendering（AR），不是普通 H5 页面。`static/tavo.js` 通过正则 `<script src>` 注入消息后，后续 runtime 必须继续按 AR 约束运行：单消息生命周期、幂等挂载、尽量不污染长期 `window`、从入口脚本 `src` 推导同源静态资源 base，再动态加载支持文件。
+
+因此当前路线是：
+
+- 保留 `static/tavo.js -> static/tavo.runtime.js -> static/tavo.runtime.manifest.json -> static/tavo.runtime.parts/*.js -> eval`。
+- 保留 manifest/config 驱动的 ordered-fragments loader，后续再小步迁 module registry。
+- 不引入 hidden iframe bridge。
+- 不引入 plain RPC、WebSocket、JSONP 或类似绕行层，除非用户明确批准并有真实 Tavo 证据证明必须这样做。
+- 不把 runtime 改成服务端拼接 bundle 来替代 AR 动态加载。
+
+`/parse_text` 请求不到 adapter 是 API POST 请求链路问题，应按 `Origin: null`、CORS/preflight、Tavo WebView fetch 能力、Cloudflare Tunnel 透传和后端日志逐项验证；不能用模块加载架构重写掩盖。

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260602-sovits-bridge-v11",
+  "runtimeVersion": "20260602-sovits-simple-post-v14",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

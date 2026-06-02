@@ -13,10 +13,10 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib import error, request as urlrequest
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from gsv_adapter import llm_proxy, profile_store, snapshot_cache, voice_library
 
@@ -125,6 +125,24 @@ class SingleStreamRequest(BaseModel):
     request_id: str = ""
 
 
+async def _parse_request_model(http_request: Request, model_type: type[BaseModel]) -> BaseModel:
+    content_type = (http_request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+    try:
+        if content_type in {"", "application/json"}:
+            data = await http_request.json()
+        else:
+            raw = (await http_request.body()).decode("utf-8-sig").strip()
+            data = json.loads(raw or "{}")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"invalid JSON body: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"invalid request body encoding: {exc}") from exc
+    try:
+        return model_type.model_validate(data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+
 @APP.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "engine": "gptsovits-adapter"}
@@ -150,7 +168,7 @@ async def tavo_js_head() -> FileResponse:
     return FileResponse(ROOT / "static" / "tavo.js", media_type="application/javascript", headers={"Cache-Control": "no-store, max-age=0"})
 
 
-def _static_file_response(name: str) -> FileResponse:
+def _safe_static_path(name: str, suffixes: set[str]) -> Path:
     raw_name = str(name or "").replace("\\", "/").strip()
     parts = raw_name.split("/")
     if (
@@ -160,6 +178,18 @@ def _static_file_response(name: str) -> FileResponse:
         or any(part in {"", ".."} for part in parts)
     ):
         raise HTTPException(status_code=404, detail="Not Found")
+    suffix = Path(raw_name).suffix.lower()
+    if suffix not in suffixes:
+        raise HTTPException(status_code=404, detail="Not Found")
+    static_root = (ROOT / "static").resolve()
+    path = (static_root / Path(*parts)).resolve()
+    if static_root not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return path
+
+
+def _static_file_response(name: str) -> Response:
+    raw_name = str(name or "").replace("\\", "/").strip()
     media_types = {
         ".js": "application/javascript",
         ".css": "text/css",
@@ -170,21 +200,18 @@ def _static_file_response(name: str) -> FileResponse:
     media_type = media_types.get(suffix)
     if not media_type:
         raise HTTPException(status_code=404, detail="Not Found")
-    static_root = (ROOT / "static").resolve()
-    path = (static_root / Path(*parts)).resolve()
-    if static_root not in path.parents or not path.is_file():
-        raise HTTPException(status_code=404, detail="Not Found")
+    path = _safe_static_path(raw_name, set(media_types.keys()))
     headers = {"Cache-Control": "no-store, max-age=0"} if suffix in {".js", ".css", ".html", ".json"} else None
     return FileResponse(path, media_type=media_type, headers=headers)
 
 
 @APP.get("/static/{name:path}")
-async def static_file(name: str) -> FileResponse:
+async def static_file(name: str) -> Response:
     return _static_file_response(name)
 
 
 @APP.head("/static/{name:path}")
-async def static_file_head(name: str) -> FileResponse:
+async def static_file_head(name: str) -> Response:
     return _static_file_response(name)
 
 
@@ -277,7 +304,8 @@ async def append_usage(request: UsageLogRequest) -> dict[str, int]:
 
 
 @APP.post("/parse_text")
-async def parse_text(request: ParseTextRequest) -> dict[str, Any]:
+async def parse_text(http_request: Request) -> dict[str, Any]:
+    request = await _parse_request_model(http_request, ParseTextRequest)
     endpoint = LLM_ENDPOINT or (request.endpoint or "").strip()
     model = LLM_MODEL or (request.model or "").strip()
     api_key = LLM_API_KEY or (request.api_key or "").strip()
@@ -332,7 +360,8 @@ async def delete_cache(key: str) -> dict[str, bool]:
 
 
 @APP.post("/tts_stream_job")
-async def create_single_job(request: SingleStreamRequest) -> dict[str, Any]:
+async def create_single_job(http_request: Request) -> dict[str, Any]:
+    request = await _parse_request_model(http_request, SingleStreamRequest)
     voice_name = request.ref_audio_path.strip()
     profile = voice_library.get_voice_profile(voice_name)
     if profile is None:
@@ -381,7 +410,8 @@ async def delete_single_cache(text: str = "", ref_audio_path: str = "") -> dict[
 
 
 @APP.post("/tts_dialogue_stream_job")
-async def create_dialogue_job(request: DialogueStreamRequest) -> dict[str, Any]:
+async def create_dialogue_job(http_request: Request) -> dict[str, Any]:
+    request = await _parse_request_model(http_request, DialogueStreamRequest)
     _ensure_worker_started()
     payload = request.model_dump(exclude={"bypass_cache", "request_id"})
     if request.bypass_cache:

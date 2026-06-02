@@ -135,11 +135,7 @@
     return body;
   }
   async function createSingleStreamJob(base, cfg, text, force) {
-    var res = await adapterFetch(cleanBase(base) + "/tts_stream_job", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(singleBody(cfg, text, force))
-    });
+    var res = await adapterJsonPost(cleanBase(base) + "/tts_stream_job", singleBody(cfg, text, force));
     if (!res.ok) throw new Error(await res.text());
     var data = await res.json();
     if (!data || !data.url) throw new Error("后端没有返回流式播放地址。");
@@ -153,11 +149,7 @@
   }
 
   async function createDialogueStreamJob(base, body) {
-    var res = await adapterFetch(cleanBase(base) + "/tts_dialogue_stream_job", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
+    var res = await adapterJsonPost(cleanBase(base) + "/tts_dialogue_stream_job", body);
     if (!res.ok) throw new Error(await res.text());
     var data = await res.json();
     if (!data || !data.url) throw new Error("后端没有返回流式播放地址。");

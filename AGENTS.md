@@ -2,6 +2,7 @@ Codex handoff rules for this workspace:
 
 - Default reply language is Simplified Chinese.
 - Before doing work here, read `README.md`, `docs/AGENT_STATE.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/BUGS.md`, `docs/TODO.md`, and `docs/REGRESSION.md`.
+- Hard rule for Tavo code: before changing any Tavo injected JS, AR rendering code, regex loader JSON, `static/tavo.js`, `static/tavo.runtime.js`, `static/tavo.runtime.parts/*`, Tavo storage/chat-variable code, or adapter behavior that is called by the Tavo frontend, Codex must read and follow the local `tavo` skill in the current session. If the skill has not been loaded, stop and load it before editing. Do not apply normal web-app assumptions until the Tavo AR surface has been identified.
 - This workspace is for GPT-SoVITS / Genie-TTS local product validation, not for a public hosted service.
 - The user wants a distributable local package for community users to run on their own machines.
 - Current main direction: official GPT-SoVITS for training and voice creation. Genie-TTS is paused as a later lightweight local runtime option.
