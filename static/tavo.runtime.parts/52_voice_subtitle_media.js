@@ -115,7 +115,15 @@
       activeSubtitle = null;
     }
 
-    function renderSubtitleRows(timeline, resetScroll) {
+    function timelineHasExactMeta(metaList) {
+      return (metaList || []).some(function (m) {
+        if (!m) return false;
+        var hasStart = isFinite(Number(m.start_s)) || isFinite(Number(m.start_offset_s)) || isFinite(Number(m.start_offset_bytes));
+        var hasDur = isFinite(Number(m.duration_s)) && Number(m.duration_s) > 0;
+        return hasStart && hasDur;
+      });
+    }
+    function renderSubtitleRows(timeline, resetScroll, trackForRows, exactTiming) {
       if (!subBox) return;
       subBox.classList.remove('idx-hidden');
       // 头像不进歌词区(占空间)。说话人通过左上角 cover 切换体现。
@@ -126,6 +134,11 @@
           if (ev) {
             try { ev.preventDefault(); } catch (_) {}
             try { ev.stopPropagation(); } catch (_) {}
+          }
+          if (!exactTiming) {
+            var activeTrack = trackForRows || currentTrack();
+            showTrackNotice(activeTrack, "歌词时间轴校准中", "拿到完整分段时间后再支持跳转");
+            return;
           }
           var startSec = parseFloat(row.dataset.start || "0");
           try { seekToSeconds(startSec, { noticeTitle: "跳到歌词" }); } catch (_) {}
@@ -255,9 +268,13 @@
       var timeline = [];
       var lastIdx = -1;
       var lastMetaSignature = "";
+      var exactTiming = false;
       function rebuild(metaList, sampleRate) {
         var t = 0;
         timeline = [];
+        var timingSource = (metaList && metaList.length) ? metaList : segs;
+        exactTiming = timelineHasExactMeta(timingSource);
+        trackEntry.lyricTimelineReady = exactTiming;
         var count = Math.max(segs.length, (metaList && metaList.length) || 0);
         for (var i = 0; i < count; i++) {
           var seg = (metaList && metaList[i]) || segs[i] || {};
@@ -283,7 +300,11 @@
           }
           t = isFinite(exactStart) ? (exactStart + segDur) : (t + segDur + gap);
         }
-        renderSubtitleRows(timeline, !metaList);
+        if (!exactTiming && isLiveTrack(trackEntry)) {
+          showSubtitleNotice("歌词时间轴校准中", "等待服务端返回完整分段时间");
+        } else {
+          renderSubtitleRows(timeline, !metaList, trackEntry, exactTiming);
+        }
         if (metaList) lastIdx = -1;
       }
       rebuild();
@@ -294,6 +315,7 @@
         var t;
         try { t = getTimeSec(); } catch (_) { t = NaN; }
         if (!isFinite(t) || t < 0) return;
+        if (!exactTiming && isLiveTrack(trackEntry)) return;
         var idx = -1;
         for (var i = 0; i < timeline.length; i++) {
           if (t >= timeline[i].start && t < timeline[i].end) { idx = i; break; }

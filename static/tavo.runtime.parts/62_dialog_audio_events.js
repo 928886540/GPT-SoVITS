@@ -1,8 +1,36 @@
 // GPT-SoVITS Tavo runtime part: 62_dialog_audio_events.js
 // Role: settings dialog layer controls and player/audio event bindings.
 // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script.
+    function positionLayerAtPlayer(d) {
+      if (!d || !d.style) return;
+      var vw = Math.max(320, Number(window.innerWidth || document.documentElement.clientWidth || 0) || 0);
+      var vh = Math.max(320, Number(window.innerHeight || document.documentElement.clientHeight || 0) || 0);
+      var small = vw <= 520;
+      var margin = small ? 8 : 12;
+      var isPicker = false;
+      try { isPicker = d.classList && d.classList.contains("idx-picker"); } catch (_) {}
+      var desiredH = isPicker ? (small ? 500 : 520) : (small ? 520 : 560);
+      desiredH = Math.min(desiredH, Math.max(260, vh - margin * 2));
+      var rect = null;
+      try {
+        var card = first(root, ".idx-card") || root;
+        rect = card && card.getBoundingClientRect ? card.getBoundingClientRect() : null;
+      } catch (_) { rect = null; }
+      var baseW = rect && isFinite(rect.width) && rect.width > 0 ? rect.width : Math.min(760, vw - margin * 2);
+      var minW = Math.min(320, Math.max(260, vw - margin * 2));
+      var width = small ? (vw - margin * 2) : Math.min(Math.max(minW, baseW), vw - margin * 2);
+      var baseLeft = rect && isFinite(rect.left) ? rect.left : Math.max(margin, (vw - width) / 2);
+      var baseTop = rect && isFinite(rect.top) ? rect.top : margin;
+      var left = Math.max(margin, Math.min(baseLeft, vw - margin - width));
+      var top = Math.max(margin, Math.min(baseTop, vh - margin - desiredH));
+      d.style.setProperty("--idx-layer-left", left.toFixed(1) + "px");
+      d.style.setProperty("--idx-layer-top", top.toFixed(1) + "px");
+      d.style.setProperty("--idx-layer-width", width.toFixed(1) + "px");
+      d.style.setProperty("--idx-layer-height", desiredH.toFixed(1) + "px");
+    }
     function openDialog(d) {
       if (!d) return;
+      positionLayerAtPlayer(d);
       // 通用 WebView 路径:不用 showModal()/top-layer，避免 Android/iOS WebView 在
       // dialog 事件、遮罩和穿透上的差异。只把它当 fixed layer 显示。
       try {
@@ -85,10 +113,10 @@
     on(play, 'click', function () { primeAudioContext(); if (tryResumeOrPauseInGesture()) return; generate(false).catch(function (e) { setError(errorMessage(e, "播放失败")); }); });
     on(add, 'click', function () { primeAudioContext(); generate(true).catch(function (e) { setError(errorMessage(e, "生成失败")); }); });
     on(prev, 'click', function () {
-      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex - 1, true); }).catch(function (e) { setError(errorMessage(e, "上一条历史音频读取失败")); });
+      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex - 1, false, { metadataOnly: true, reason: "navigation" }); }).catch(function (e) { setError(errorMessage(e, "上一条历史音频切换失败")); });
     });
     on(next, 'click', function () {
-      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex + 1, true); }).catch(function (e) { setError(errorMessage(e, "下一条历史音频读取失败")); });
+      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex + 1, false, { metadataOnly: true, reason: "navigation" }); }).catch(function (e) { setError(errorMessage(e, "下一条历史音频切换失败")); });
     });
     on(del, 'click', function () { clearCurrentTrack().catch(function (e) { setError(errorMessage(e, "删除历史音频失败")); }); });
     on(first(panel, '[data-role="save"]'), 'click', async function () { readFields(); await saveConfig(cfg, characterId); syncUI(); closeDialog(panel); setStatus("设置已保存"); });

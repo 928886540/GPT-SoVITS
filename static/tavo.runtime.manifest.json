@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260603-history-restore-v19",
+  "runtimeVersion": "20260603-state-model-v21",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

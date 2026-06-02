@@ -1,12 +1,46 @@
 # Agent State
 
-更新时间：2026-06-03 01:10 +08:00
+更新时间：2026-06-03 01:52 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-033 历史/播放状态机修复（2026-06-03 01:52 +08:00）
+
+用户反馈：历史音频仍不显示、上一条/下一条失效、loading 卡住播放键、live 切卡/后台状态混乱、歌词不同步、设置页不应贴底。结论：这是卡片选择态、服务端 cache 态、播放器 playback 态混在一起，不是单个接口问题。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881929`。
+- Loader 版本 `20260603-state-model-v39`，runtime parts/manifest `20260603-state-model-v21`。
+- `44_track_history_cache.js`：`selectTrack()` 开头立即刷新页码/状态；上一条/下一条不再自动播放；后台合成卡片非 autoplay 时不把播放按钮置为 loading。
+- `62_dialog_audio_events.js`：上一条/下一条改为 metadata-only 切卡；settings/picker 打开时按播放器卡片 rect 定位，不再固定贴底。
+- `30_player_shell.js`：已知历史条数但未加载 tracks 时显示 `历史音频 N 条`，右上角显示 `N条`，不再用“可恢复上次音频”掩盖数量。
+- `05_message_text_config.js` / `static/tavo.js`：读到旧 key 或异步 Tavo 存储里的历史后，迁移写回新的 `sovits_tracks_*` chat 变量，不只写 localStorage。
+- `34_element_audio_controls.js`：saved 播放失败按 `fetchSaved/arrayBufferSaved/decodeSaved/resume` 分层提示。
+- `52_voice_subtitle_media.js`：没有真实 `segments_meta` 时间轴时，live 歌词只显示校准中，不做假同步/跳转。
+- `58_live_pause_helper.js`：暂停文案改为后台继续保存，点播放再决定续播或读取历史。
+
+已验证：
+
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260603-state-model-v21`
+- `python -m py_compile gsv_tavo_adapter.py`
+- `git diff --check` 通过，仅有 LF/CRLF 工作区提示
+- key 扫描无命中
+- 本地 adapter `/health` 200；`/static/tavo.js?v=2028881929` 返回 `state-model-v39`；`/static/tavo.runtime.manifest.json?runtime_part_v=20260603-state-model-v21` 返回 200。
+- LDPlayer：把正则 LAN 规则从 `v=2028881926` 改到 `v=2028881928` 后，点击懒加载文字区域加载了 `state-model-v38/v20` runtime；设置页覆盖在播放器卡片区域；上一条/下一条从 6/6 到 5/6/2/6/1/6 页码即时切换且不进 loading。当前模拟器这条消息 6 条历史全是 failed，不能验证 saved 音频成功播放。
+
+待真实 Tavo 回归：
+
+1. 刷新真实 Tavo 正则到 `v=2028881929`，重渲染消息。
+2. 用一条确实有 saved 历史音频的消息验证：打开时显示 `历史音频 N 条`；上一条/下一条只切卡；点播放能读 saved 音频或显示具体失败阶段。
+3. live 生成时切卡/后台/落盘完成验证：提示不能互相覆盖，未点播放不自动切 saved。
+4. live 歌词在没有真实时间轴前显示校准中；有 `segments_meta` 后再同步和允许跳转。
 
 ## BUG-030/031/032 Tavo 历史恢复和歌词点击修复（2026-06-03 01:10 +08:00）
 

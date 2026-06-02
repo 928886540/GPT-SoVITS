@@ -6,7 +6,7 @@
   var TRACKS_KEY_PREFIX = "sovits_tracks_";
   var LEGACY_PRODUCT_KEY = "index" + "tts";
   var LEGACY_TRACKS_KEY_PREFIXES = [LEGACY_PRODUCT_KEY + "_tracks_"];
-  var LOADER_VERSION = "20260603-history-restore-v37";
+  var LOADER_VERSION = "20260603-state-model-v39";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -232,6 +232,12 @@
       if (count < bestCount) return;
       bestCount = count;
       try { localStorage.setItem(targetKey, JSON.stringify(value)); } catch (_) {}
+      if (sourceKey !== targetKey) {
+        try {
+          var p = window.tavo.set(targetKey, value, "chat");
+          if (p && typeof p.catch === "function") p.catch(function () {});
+        } catch (_) {}
+      }
       updateLazyHistory(root, messageId);
     }
     trackStorageKeys(messageId).forEach(function (key) {

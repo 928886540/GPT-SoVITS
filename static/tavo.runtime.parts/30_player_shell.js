@@ -116,14 +116,18 @@
       return t.length > 52 ? t.slice(0, 52) + "…" : t;
     }
     function noTrackStatusText() {
-      return knownHistoryCount > 0 ? "可恢复上次音频" : "准备生成语音";
+      return knownHistoryCount > 0 ? ("历史音频 " + knownHistoryCount + " 条") : "准备生成语音";
     }
     function showNoTrackNotice(detailText) {
-      var titleText = knownHistoryCount > 0 ? "上次音频可恢复" : "准备生成语音";
+      var titleText = knownHistoryCount > 0 ? ("历史音频 " + knownHistoryCount + " 条") : "准备生成语音";
       var detail = detailText || (knownHistoryCount > 0 ? "点播放读取历史音频" : (messagePreviewText() || "点播放开始生成音频"));
       showTrackNotice(null, titleText, detail);
     }
     function updateTrackCounter() {
+      if (!generatedTracks.length && !tracksLoaded && knownHistoryCount > 0) {
+        if (counter) counter.textContent = knownHistoryCount + "条";
+        return;
+      }
       var total = generatedTracks.length || (!tracksLoaded ? knownHistoryCount : 0);
       var idx = total && currentTrackIndex >= 0 ? currentTrackIndex + 1 : 0;
       if (counter) counter.textContent = idx + "/" + total;

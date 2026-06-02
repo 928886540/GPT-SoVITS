@@ -422,11 +422,17 @@
   async function loadTracksForMessage(messageId) {
     if (!messageId) return [];
     var keys = trackStorageKeys(messageId);
+    var targetKey = TRACKS_KEY_PREFIX + messageId;
     var empty = null;
+    async function migrateTracks(arr, key) {
+      if (!Array.isArray(arr) || !key || key === targetKey) return;
+      try { if (window.tavo && typeof tavo.set === "function") await tavo.set(targetKey, arr, "chat"); } catch (_) {}
+      try { localStorage.setItem(targetKey, JSON.stringify(arr)); } catch (_) {}
+    }
     function remember(arr, key) {
       if (!Array.isArray(arr)) return null;
       if (arr.some(function (t) { return !!(t && t.cacheKey); })) {
-        if (key && key !== TRACKS_KEY_PREFIX + messageId) {
+        if (key && key !== targetKey) {
           try { localStorage.setItem(TRACKS_KEY_PREFIX + messageId, JSON.stringify(arr)); } catch (_) {}
         }
         return arr;
@@ -436,9 +442,9 @@
     }
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
-      try { var raw = localStorage.getItem(key); if (raw != null) { var arr = raw ? JSON.parse(raw) : []; var hit = remember(arr, key); if (hit) return hit; } } catch (_) {}
-      try { if (window.tavo && typeof tavo.get === "function") { var cv = await tavo.get(key, "chat"); var ch = remember(cv, key); if (ch) return ch; } } catch (_) {}
-      try { if (window.tavo && typeof tavo.get === "function") { var v = await tavo.get(key, "global"); var gh = remember(v, key); if (gh) return gh; } } catch (_) {}
+      try { var raw = localStorage.getItem(key); if (raw != null) { var arr = raw ? JSON.parse(raw) : []; var hit = remember(arr, key); if (hit) { await migrateTracks(hit, key); return hit; } } } catch (_) {}
+      try { if (window.tavo && typeof tavo.get === "function") { var cv = await tavo.get(key, "chat"); var ch = remember(cv, key); if (ch) { await migrateTracks(ch, key); return ch; } } } catch (_) {}
+      try { if (window.tavo && typeof tavo.get === "function") { var v = await tavo.get(key, "global"); var gh = remember(v, key); if (gh) { await migrateTracks(gh, key); return gh; } } } catch (_) {}
     }
     return empty || [];
   }

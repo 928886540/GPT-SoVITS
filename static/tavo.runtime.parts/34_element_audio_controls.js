@@ -272,6 +272,11 @@
       var msg = errorMessage(err, "播放失败，请查看上一条请求日志和后端日志。");
       var active = currentTrack();
       if (active && trackState(active) === "failed" && active.error) return active.error;
+      if (/\[step:fetchSaved\]\s+HTTP\s+(\d{3})/i.test(msg)) return "已保存音频读取失败：cache 音频请求返回 HTTP " + RegExp.$1 + "。请检查该 cache 是否仍存在。";
+      if (/\[step:fetchSaved\]/i.test(msg)) return "已保存音频读取失败：Tavo WebView 没能读取 cache 音频，请看当前脚本同源地址和 adapter 日志。";
+      if (/\[step:arrayBufferSaved\]/i.test(msg)) return "已保存音频内容读取失败：请求到了响应，但音频数据没有读完整。";
+      if (/\[step:decodeSaved\]/i.test(msg)) return "已保存音频解码失败：cache 文件可能损坏或不是有效 WAV，请重新生成一次。";
+      if (/\[step:resume\]/i.test(msg)) return "音频通道未放行：请再点一次播放，若仍失败说明 WebView/系统阻止了 AudioContext。";
       if (/noAudio|没有返回可播放音频/i.test(msg)) return "后端没有返回音频，请重新生成一次。";
       if (/fetch|network|Load failed|Failed to fetch/i.test(msg)) return "连接音频流失败。弱网下请稍后重试；如果持续失败，再检查服务地址和后端日志。";
       if (/wavHeader/i.test(msg)) return "服务端未返回音频流首包，正在确认服务端合成状态。";

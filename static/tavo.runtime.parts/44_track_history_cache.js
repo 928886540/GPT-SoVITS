@@ -9,6 +9,8 @@
       currentCacheKey = track.cacheKey || "";
       var state = trackState(track);
       var metadataOnly = !!opts.metadataOnly && !autoplay;
+      updateTrackButtons();
+      if (!autoplay) setStatus(historyStatusText());
       // 切卡前先清掉旧 audio 状态(防止旧的 currentTime/duration 串到新卡片)
       try { audio.pause(); } catch (_) {}
       stopWebAudioPlayback("switch");
@@ -36,10 +38,10 @@
           showTrackNotice(track, "生成失败", track.error || "这条历史音频生成失败，点 + 重新生成");
         } else if (state === "saved") {
           setStatus(historyStatusText());
-          showTrackNotice(track, "历史音频已恢复", "点播放读取历史音频");
+          showTrackNotice(track, opts.reason === "navigation" ? "已切换到历史音频" : "历史音频已恢复", "点播放读取历史音频");
         } else {
           setStatus(historyStatusText());
-          showTrackNotice(track, "历史记录已恢复", track.cacheKey ? "点播放检查生成状态" : "点 + 重新生成音频");
+          showTrackNotice(track, opts.reason === "navigation" ? "已切换到历史记录" : "历史记录已恢复", track.cacheKey ? "点播放检查生成状态" : "点 + 重新生成音频");
         }
         updateTrackButtons();
         return;
@@ -53,12 +55,12 @@
       if (state === "live" && track.backgroundOnly && !track.deleted) {
         clearElementAudioSrc();
         if (seek) { seek.disabled = true; seek.value = "0"; }
-        setTrackPlaybackState(track, "loading");
-        setPlayState("loading");
+        setTrackPlaybackState(track, autoplay ? "loading" : "idle");
+        setPlayState(autoplay ? "loading" : "idle");
         if (autoplay) track.playSavedWhenReady = true;
         pollCacheUpgrade(track, "dialogue background snapshot");
         setStatus("后台合成中…");
-        showTrackNotice(track, "后台合成中…", "生成完成后自动播放保存音频");
+        showTrackNotice(track, "后台合成中…", autoplay ? "生成完成后自动播放保存音频" : "点播放等待完成后播放");
         updateTrackButtons();
         return;
       }

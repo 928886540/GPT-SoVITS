@@ -12,5 +12,5 @@
       track.playSavedWhenReady = false;
       setPlayState("idle");
       setStatus("已暂停");
-      showTrackNotice(track, "已暂停", track.cacheKey ? "不会自动恢复流式；保存完成后点播放会检查历史音频" : "已停止等待");
+      showTrackNotice(track, "已暂停", track.cacheKey ? "后台仍会继续保存；点播放再决定续播或读取历史音频" : "已停止等待");
     }
