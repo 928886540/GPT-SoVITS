@@ -1,12 +1,36 @@
 # Agent State
 
-更新时间：2026-06-02 23:10 +08:00
+更新时间：2026-06-03 00:02 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-028 服务端失败提示分层修复（2026-06-03 00:02 +08:00）
+
+用户截图确认：当前不是 `/parse_text` 链路断，也不是 Tavo AR 到 adapter 的网络问题。现象是 Web Audio 先报 `[step:wavHeader] WAV 头未到先断流`，但状态/日志随后明确显示 `服务端推理失败: ... official API HTTP 502`；旧 UI 却显示“音频流格式异常”，误导排查方向。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881926`。
+- Loader 版本 `20260602-sovits-server-error-v36`，runtime parts/manifest `20260602-sovits-server-error-v18`。
+- `static/tavo.runtime.parts/34_element_audio_controls.js`：新增 `readableServerJobError()` / `applyServerJobFailure()`；`wavHeader` 不再显示“音频流格式异常”，而是“服务端未返回音频流首包，正在确认服务端合成状态”。
+- `static/tavo.runtime.parts/42_saved_playback_cache.js`、`44_track_history_cache.js`：`/tts_dialogue_job_status` 返回 `state=failed` 时写回 track/card/status/history，卡片显示“服务端推理失败”和官方 API / voice profile / LLM 上游真实摘要；`pollCacheUpgrade()` failed 分支补 `done=true`，不再被当成等待落盘超时。
+- `static/tavo.runtime.parts/20_llm_segmentation.js`：LLM parse 错误说明改为 Tavo 页面配置优先，避免继续把后端 env 当产品主配置。
+
+已验证：
+
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260602-sovits-server-error-v18`
+- `python -m py_compile gsv_tavo_adapter.py`
+- `git diff --check` 通过，仅有 LF/CRLF 工作区提示
+- key 扫描无命中
+- 本地 adapter `/health` 返回 ok；`/static/tavo.js?v=2028881926` 返回 loader `20260602-sovits-server-error-v36`
+
+待真实 Tavo 回归：刷新真实 Tavo 正则到 `v=2028881926` 并重渲染消息。复现官方 API 502 时，卡片必须显示“服务端推理失败 / 官方 GPT-SoVITS 推理接口返回 502，不是音频格式问题”，不能再显示“音频流格式异常”。如果 `/tts_dialogue_stream_job` 返回 400，则按 voice profile 参考音频 3-10 秒校验处理，不回头查 `/parse_text`。
 
 ## Tavo AR 动态 loader 纠偏与当前 HTTPS 映射（2026-06-02 23:10 +08:00）
 

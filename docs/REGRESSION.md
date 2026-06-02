@@ -128,6 +128,13 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 后端 `/parse_text` 必须使用 Tavo 请求里的 endpoint/model/api_key 优先，env 只能兜底。`/llm_config` 显示 env 默认旧模型不等于实际请求会用旧模型；用直接 POST 指定新模型验证时应能覆盖 env。
 - 真实 Tavo/LDPlayer 非复用生成时，adapter 日志应出现 `POST /parse_text 200 OK`。若下一步 `/tts_dialogue_stream_job` 返回 400，按 voice profile 校验处理，不再回头查 LLM 链路。
 
+## BUG-028 服务端失败提示回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881926`，loader 版本 `20260602-sovits-server-error-v36`，runtime `20260602-sovits-server-error-v18`。
+- 复现官方 GPT-SoVITS 推理失败时，如果 `/tts_dialogue_job_status/<cache_key>` 返回 `state=failed` 且 error 包含 `official API HTTP 502`，播放器卡片必须显示“服务端推理失败”和“官方 GPT-SoVITS 推理接口返回 502”，不能显示“音频流格式异常”。
+- 如果 Web Audio 先报 `[step:wavHeader] WAV 头未到先断流`，这只能显示为“服务端未返回音频流首包，正在确认服务端合成状态”；随后 job status failed 必须覆盖成服务端失败原因。
+- `pollCacheUpgrade()` 进入 failed 分支后不能再把同一任务当成等待落盘超时；track 状态、cache 状态、playback 状态都应变成 failed/error，并写回 Tavo 历史。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。

@@ -42,7 +42,7 @@
     setStatus("后端 LLM 分析中…");
     var maxTokens = llmMaxTokensForText(text);
     var parseUrl = cleanBase(cfg.apiBase) + cfg.parseEndpoint;
-    var llmTarget = "LLM 访问位置: GPT-SoVITS adapter 后端；后端环境配置优先，前端字段只作兜底。前端 endpoint=" + (cfg.llmEndpoint || "(空)");
+    var llmTarget = "LLM 访问位置: Tavo AR -> GPT-SoVITS adapter /parse_text -> LLM 上游；Tavo 页面 endpoint/model/key 优先，后端 env 只作兜底。前端 endpoint=" + (cfg.llmEndpoint || "(空)") + ", model=" + (cfg.llmModel || "(空)");
     debugLog("🔎 LLM 解析代理: parseUrl=" + parseUrl + ", " + llmTarget, "#ffd479");
     var res;
     try {
@@ -50,10 +50,13 @@
     } catch (e) {
       throw new Error(formatNetworkError("LLM 解析代理 /parse_text", parseUrl, e, [
         llmTarget,
-        "说明: 这里失败的是浏览器/Tavo WebView 到 GPT-SoVITS adapter /parse_text 的请求，后端还没机会访问 LLM。"
+        "说明: 这里失败的是 Tavo AR 到 GPT-SoVITS adapter /parse_text 的浏览器请求；adapter 日志通常不会出现对应 POST。先查脚本版本、CORS/preflight、adapter 是否重启和请求 URL。"
       ]));
     }
-    if (!res.ok) throw new Error(formatHttpError("LLM 解析代理 /parse_text", parseUrl, res, await res.text(), [llmTarget, "说明: /parse_text 已经到达后端；如果响应里有 LLM proxy request failed，就是 adapter 访问 LLM 失败。"]));
+    if (!res.ok) throw new Error(formatHttpError("LLM 解析代理 /parse_text", parseUrl, res, await res.text(), [
+      llmTarget,
+      "说明: /parse_text 已经到达 GPT-SoVITS adapter；这不是 Tavo 到 adapter 的链路断。若响应里有 LLM proxy request failed、upstream、auth、403 或 503，就是 adapter 调用 8317 LLM 上游失败，请查 Tavo 页面 endpoint/model/key 和 provider 权限。"
+    ]));
     var data;
     try {
       data = await res.json();

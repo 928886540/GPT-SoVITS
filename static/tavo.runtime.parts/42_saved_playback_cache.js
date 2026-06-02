@@ -39,8 +39,7 @@
           return true;
         }
         if (j && j.state === "failed") {
-          track.error = j.error || "服务端生成失败";
-          setTrackState(track, "failed");
+          applyServerJobFailure(track, j.error, { title: "服务端推理失败" });
           return true;
         }
         if (j && j.state === "missing") {
@@ -109,11 +108,7 @@
           return false;
         }
         if (j && j.state === "failed") {
-          track.error = j.error || "服务端生成失败";
-          setTrackState(track, "failed");
-          setTrackCacheState(track, "failed");
-          setStatus("生成失败");
-          showTrackNotice(track, "生成失败", track.error);
+          applyServerJobFailure(track, j.error, { title: "服务端推理失败" });
           return false;
         }
         setTrackState(track, "live");

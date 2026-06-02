@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260602-sovits-llm-reuse-v16",
+  "runtimeVersion": "20260602-sovits-server-error-v18",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

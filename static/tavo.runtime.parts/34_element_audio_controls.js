@@ -237,11 +237,56 @@
       debugLog("❌ " + label + " audio.play() reject: " + err, "#f99");
       setStatus(fallbackStatus || "请点播放继续");
     }
+    function readableServerJobError(error) {
+      var raw = String(error || "").trim();
+      var clean = raw.replace(/\s+/g, " ").trim();
+      if (!clean) return "服务端生成失败，请查看 adapter/官方 GPT-SoVITS 日志。";
+      var m = clean.match(/official API HTTP\s*(\d{3})/i);
+      if (m) {
+        var seg = clean.match(/segment\s+\d+\s+role=[^:]+/i);
+        return "官方 GPT-SoVITS 推理接口返回 " + m[1] + "，不是音频格式问题。请查官方 API 日志、模型服务和该段音色。" + (seg ? " 失败段：" + seg[0] : "");
+      }
+      if (/参考音频.*(?:3\s*[-~至到]\s*10|3~10)|3-10s|ref_audio/i.test(clean)) return clean;
+      if (/LLM proxy request failed|auth_unavailable|no auth available|provider|model/i.test(clean)) {
+        return "LLM 上游请求失败：" + clean;
+      }
+      return clean.length > 220 ? (clean.slice(0, 220) + "...") : clean;
+    }
+    function applyServerJobFailure(track, rawError, opts) {
+      opts = opts || {};
+      var readable = readableServerJobError(rawError);
+      if (!track) return readable;
+      track.error = readable;
+      track.rawServerError = String(rawError || "");
+      track.backgroundOnly = false;
+      track.playSavedWhenReady = false;
+      track.allowStreamPlay = false;
+      track.pendingBlob = false;
+      track.streaming = false;
+      setTrackState(track, "failed");
+      setTrackPlaybackState(track, "error");
+      setTrackServerState(track, "failed");
+      setTrackCacheState(track, "failed");
+      setTrackStreamHealth(track, "interrupted");
+      if (currentTrack() === track) {
+        stopWebAudioPlayback("server-failed");
+        clearElementAudioSrc();
+        setPlayState("idle");
+        setStatus("生成失败");
+        showTrackNotice(track, opts.title || "服务端推理失败", readable);
+      }
+      if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
+      return readable;
+    }
     function friendlyPlaybackError(err) {
       var msg = String((err && err.message) || err || "");
+      var active = currentTrack();
+      if (active && trackState(active) === "failed" && active.error) return active.error;
       if (/noAudio|没有返回可播放音频/i.test(msg)) return "后端没有返回音频，请重新生成一次。";
       if (/fetch|network|Load failed|Failed to fetch/i.test(msg)) return "连接音频流失败。弱网下请稍后重试；如果持续失败，再检查服务地址和后端日志。";
-      if (/decodeAudioData|WAV|wavHeader|data 段/i.test(msg)) return "音频流格式异常，请重新生成一次。";
+      if (/wavHeader/i.test(msg)) return "服务端未返回音频流首包，正在确认服务端合成状态。";
+      if (/decodeAudioData/i.test(msg)) return "已保存音频解码失败，可能是缓存文件损坏，请重新生成一次。";
+      if (/WAV|data 段/i.test(msg)) return "服务端返回的音频内容不完整，请查看生成状态或重新生成。";
       if (/resume|AudioContext/i.test(msg)) return "浏览器没有放行音频播放，请点一次播放按钮重试。";
       return msg.replace(/\[step:[^\]]+\]\s*/g, "") || "播放失败，请重新生成一次。";
     }

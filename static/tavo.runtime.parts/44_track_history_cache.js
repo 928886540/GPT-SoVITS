@@ -245,12 +245,13 @@
                 break;
               }
               if (j && j.state === "failed") {
-                setTrackState(trackEntry, "failed");
+                var readable = applyServerJobFailure(trackEntry, j.error, { title: "服务端推理失败" });
                 if (trackEntry.stopServerLogWhenReady) {
                   trackEntry.stopServerLogWhenReady = false;
                   stopServerLogPolling();
                 }
-                debugLog("❌ 服务端推理失败: " + (j.error || ""), "#f99");
+                debugLog("❌ 服务端推理失败: " + (j.error || readable), "#f99");
+                done = true;
                 break;
               }
               if (j && j.state === "missing") {
