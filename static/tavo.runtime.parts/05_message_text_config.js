@@ -514,8 +514,22 @@
         }),
       };
     }).filter(function (t) { return !!t.cacheKey; });
-    try { if (window.tavo && typeof tavo.set === "function") await tavo.set(key, lite, "chat"); } catch (_) {}
     try { localStorage.setItem(key, JSON.stringify(lite)); } catch (_) {}
+    if (!lite.length) {
+      trackStorageKeys(messageId).forEach(function (storageKey) {
+        try { localStorage.setItem(storageKey, "[]"); } catch (_) {}
+      });
+    }
+    try { if (window.tavo && typeof tavo.set === "function") await tavo.set(key, lite, "chat"); } catch (_) {}
+    if (!lite.length && window.tavo && typeof tavo.set === "function") {
+      var keys = trackStorageKeys(messageId);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i] !== key) {
+          try { await tavo.set(keys[i], [], "chat"); } catch (_) {}
+        }
+        try { await tavo.set(keys[i], [], "global"); } catch (_) {}
+      }
+    }
   }
   function playIcon(state) { return state === "playing" ? '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'; }
   function loadingIcon() { return '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10h-3a7 7 0 1 1-7-7V2z"/></svg>'; }

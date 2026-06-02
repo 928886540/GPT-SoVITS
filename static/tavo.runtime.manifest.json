@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260603-state-model-v21",
+  "runtimeVersion": "20260603-delete-audio-v22",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

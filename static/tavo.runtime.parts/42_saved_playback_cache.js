@@ -133,6 +133,9 @@
       PRIMED_CTX = ctx;
       try { if (ctx.state === "suspended") await ctx.resume(); }
       catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
+      if (String(ctx.state || "running") !== "running") {
+        throw new Error("[step:resume] AudioContext state=" + String(ctx.state || "unknown") + "，音频通道未放行");
+      }
       setStatus(url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…");
       showTrackNotice(track, url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…", label || "首次读取后拖动进度不会重新请求音频");
       var res;
@@ -166,7 +169,11 @@
         var audioBuf = await decodedBufferForSavedTrack(track, url, opts.noticeDetail);
         if (token !== webAudioPlayToken) return false;
         var ctx = PRIMED_CTX;
-        try { if (ctx.state === "suspended") await ctx.resume(); } catch (_) {}
+        try { if (ctx.state === "suspended") await ctx.resume(); }
+        catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
+        if (!ctx || String(ctx.state || "running") !== "running") {
+          throw new Error("[step:resume] AudioContext state=" + String((ctx && ctx.state) || "unknown") + "，音频通道未放行");
+        }
         var source = ctx.createBufferSource();
         source.buffer = audioBuf;
         try { source.playbackRate.value = playbackRate; } catch (_) {}
@@ -213,6 +220,17 @@
         source.start(startCtxTime, offset);
         setTimeout(function () {
           if (stopped || token !== webAudioPlayToken) return;
+          if (!ctx || String(ctx.state || "running") !== "running") {
+            markWebAudioStopped(track);
+            webAudioController = null;
+            clearWebAudioProgressTimer();
+            setTrackPlaybackState(track, "paused");
+            setPlayState("idle");
+            setStatus("音频通道未放行，点播放继续");
+            showTrackNotice(track, "音频通道未放行", "系统还没有允许 Web Audio 出声，点播放重试");
+            debugLog("⚠️ 保存音频已排程但 AudioContext 未运行: " + String((ctx && ctx.state) || "unknown"), "#fc9");
+            return;
+          }
           track.webAudioPlaying = true;
           setTrackPlaybackState(track, "playing");
           setPlayState("playing");

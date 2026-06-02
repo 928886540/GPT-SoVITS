@@ -226,6 +226,9 @@
     var ctx = PRIMED_CTX || new AC();
     try { if (ctx.state === "suspended") await ctx.resume(); }
     catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
+    if (String(ctx.state || "running") !== "running") {
+      throw new Error("[step:resume] AudioContext state=" + String(ctx.state || "unknown") + "，音频通道未放行");
+    }
     var output = ctx.createGain ? ctx.createGain() : null;
     if (output) {
       output.gain.value = 1;
@@ -447,6 +450,9 @@
         }
       } catch (e) {
         throw new Error("[step:" + step + ".resume] " + errorMessage(e, "AudioContext resume 失败"));
+      }
+      if (String(ctx.state || "running") !== "running") {
+        throw new Error("[step:" + step + ".resume] AudioContext state=" + String(ctx.state || "unknown") + "，音频通道未放行");
       }
     }
 

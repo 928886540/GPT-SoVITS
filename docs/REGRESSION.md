@@ -165,6 +165,14 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 设置页和音色选择器应覆盖在播放器卡片位置附近，由播放器 rect 定位；不能固定贴在屏幕最底部。
 - LDPlayer 快照验证路径：刷新正则到 `v=2028881929`，点击懒加载文字区域打开播放器，不点播放生成；打开设置页截图；按上一条/下一条截图；记录 `dev_tools/tavo_debug/emulator_screen_*` 和 adapter log tail。
 
+## BUG-034 删除到空和无声假播放回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881930`，loader 版本 `20260603-delete-audio-v40`，runtime `20260603-delete-audio-v22`。
+- 连续删除当前消息里的所有历史音频，最后一条删除后完整播放器必须立即显示 `历史音频 0 条` / `0/0`，不能继续显示旧 `4条`。
+- 删除到空后关闭/重进 Tavo，同一条消息不能从 `sovits_tracks_*`、旧 `indextts_tracks_*` 或 global 变量里读回旧历史。
+- 删除到空后点播放会新建 live 生成，这是允许的；但只有 `AudioContext.state === "running"` 后才允许显示 playing 和推进进度。未放行时必须显示 `音频通道未放行`，不能出现进度走但无声。
+- saved 历史音频 Web Audio 复播同样要验证：解码成功但 AudioContext 未 running 时不能显示正在播放。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。

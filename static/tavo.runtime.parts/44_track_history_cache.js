@@ -442,8 +442,11 @@
       if (!await confirmDeleteTrack(target)) return;
       var removed = generatedTracks.splice(currentTrackIndex, 1)[0];
       if (removed) removed.deleted = true;
+      knownHistoryCount = generatedTracks.length;
+      tracksLoaded = true;
       try { audio.pause(); } catch (_) {}
       stopWebAudioPlayback("switch");
+      clearElementAudioSrc();
       if (removed && removed.url && /^blob:/i.test(removed.url)) {
         try { URL.revokeObjectURL(removed.url); } catch (_) {}
       }
@@ -451,15 +454,14 @@
       deleteRemoteTrack(removed).catch(function () {});
       // 删除后同步把变更写回 tavo.set，下次进页面就不会再看到这张卡片
       if (messageId) {
-        saveTracksForMessage(messageId, generatedTracks).catch(function(){});
+        try { await saveTracksForMessage(messageId, generatedTracks); }
+        catch (e) { debugLog("⚠️ 删除后同步历史失败: " + errorMessage(e, "Tavo 历史写入失败"), "#fc9"); }
         debugLog("🗑 删除卡片并同步 tavo.set（剩 " + generatedTracks.length + " 张）", "#fc9");
       }
       currentTrackIndex = Math.min(currentTrackIndex, generatedTracks.length - 1);
       if (currentTrackIndex >= 0) {
-        await selectTrack(currentTrackIndex, false);
+        await selectTrack(currentTrackIndex, false, { metadataOnly: true, reason: "delete" });
       } else {
-        audio.removeAttribute("src");
-        audio.load();
         currentCacheKey = "";
         if (seek) { seek.disabled = true; seek.value = "0"; }
         if (cur) cur.textContent = "00:00";

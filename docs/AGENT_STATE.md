@@ -1,12 +1,42 @@
 # Agent State
 
-更新时间：2026-06-03 01:52 +08:00
+更新时间：2026-06-03 07:46 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-034 删除到空后计数残留和无声假播放修复（2026-06-03 07:46 +08:00）
+
+用户反馈：历史音频全删后播放器仍显示 4 条；再点播放会开始 live 流式，进度条在走但没有声音。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881930`。
+- Loader 版本 `20260603-delete-audio-v40`，runtime parts/manifest `20260603-delete-audio-v22`。
+- `05_message_text_config.js`：保存空 tracks 时同步清 `sovits_tracks_*` 和旧 `indextts_tracks_*` 的 localStorage / Tavo chat / Tavo global，避免删除后旧 key 回灌。
+- `44_track_history_cache.js`：删除后立刻刷新 `knownHistoryCount`；删除到 0 时等待 `saveTracksForMessage()` 写完并清空音频/UI；删除后切剩余卡片只走 metadata-only。
+- `10_tts_jobs_audio_stream.js` / `42_saved_playback_cache.js`：live/saved Web Audio 只有 `AudioContext.state === "running"` 才能进入 playing 和推进进度；否则提示 `音频通道未放行`。
+
+已验证：
+
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260603-delete-audio-v22`
+- `python -m py_compile gsv_tavo_adapter.py`
+- 本地 adapter `/health` 200；`/static/tavo.js?v=2028881930` 返回 `delete-audio-v40`；manifest 返回 `delete-audio-v22`。
+
+未完成验证：
+
+- 本机 `curl.exe --noproxy "*"` 直连 `https://sovits.928886540.xyz/health` 当前 TLS handshake 被 reset，未能确认公网静态响应是否已取到 v1930。真实 Tavo 仍需以控制台脚本来源和 adapter 日志为准。
+
+待真实 Tavo 回归：
+
+1. 刷新真实 Tavo 正则到 `v=2028881930`，重渲染消息。
+2. 删除所有历史音频后，完整播放器应立即显示 `历史音频 0 条`，重进消息不能读回旧 4 条。
+3. 再点播放如果新建 live，必须真实出声才进入 playing；如果 AudioContext 没放行，应显示 `音频通道未放行`，不能进度条假走。
 
 ## BUG-033 历史/播放状态机修复（2026-06-03 01:52 +08:00）
 

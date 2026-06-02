@@ -19,6 +19,20 @@ Notes:
 - 根因未确认时写 `Status: open, investigating`，把截图/日志/复现现象和假设分开写。
 - 改 bug 前先读本文件，避免同一个问题反复改、重复编号或丢掉已知上下文。
 
+## BUG-034: 删除全部历史后计数残留且播放进度走但无声
+
+Status: patched in v2028881930, needs real Tavo regression
+
+Repro: 用户 2026-06-03 真实 Tavo 反馈：把历史音频全删后，播放器仍显示 `4 条`；随后点击播放，前端开始流式播放，进度条在走，但没有声音。
+
+Evidence: `clearCurrentTrack()` 删除到空列表后只异步 fire-and-forget 调 `saveTracksForMessage(messageId, generatedTracks)`，没有立刻把 `knownHistoryCount` 归零，也没有等待 Tavo chat 变量写入完成；如果同步/异步存储仍返回旧 tracks，懒加载/播放器计数会继续显示旧数量。播放按钮在 `generatedTracks.length === 0` 时会按当前消息重新创建 live job；Web Audio 路径在 schedule 后按计时器推进 UI，如果 `AudioContext` 没有真正进入 `running`，可能出现进度推进但系统没有出声。
+
+Hypothesis: 删除状态和持久化状态没有原子同步，导致“无历史”与“已知 4 条历史”在同一卡片并存。无声播放不是 `/parse_text` 链路问题，而是 Web Audio 输出通道/prime/resume 状态没有被严格校验，UI 把已排程误当成已出声。
+
+Fix: `static/tavo.runtime.parts/05_message_text_config.js` 的 `saveTracksForMessage()` 在保存空 tracks 时同步把新旧 history key 的 localStorage、Tavo chat 变量和 Tavo global 变量都写成空数组，防止旧 key / global 残留把已删除的 4 条回灌。`44_track_history_cache.js` 删除当前 track 后立刻更新 `knownHistoryCount`，删除到 0 时等待历史写入完成、清空音频 src 和 UI 计数；删除后切到剩余卡片只做 metadata-only，不自动读取/播放。`10_tts_jobs_audio_stream.js` 和 `42_saved_playback_cache.js` 在 live/saved Web Audio 路径里强制校验 `AudioContext.state === "running"`，否则直接显示音频通道未放行，不进入 playing，也不启动进度。
+
+Guard: 删除最后一条历史后，当前完整播放器和懒加载卡片必须立即显示 `历史音频 0 条`，下一次进入消息也不能从 Tavo/storage 读回旧 4 条。点击播放如果是新建 live，必须在 `AudioContext.state === "running"` 后才进入 playing/推进进度；如果没有放行音频通道，必须显示明确的 `音频通道未放行`，不能让进度条假走。
+
 ## BUG-033: Tavo 历史卡片与流式播放状态混乱
 
 Status: patched in v2028881929, needs real saved-track/mobile regression
