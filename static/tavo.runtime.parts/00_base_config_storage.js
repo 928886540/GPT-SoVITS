@@ -336,6 +336,27 @@ window.__gptsovits_tavo_runtime_app_promise = (async function () {
     limit = limit || 1200;
     return v.length > limit ? v.slice(0, limit) + "\n...(已截断, 共 " + v.length + " 字符)" : v;
   }
+  function errorMessage(err, fallback) {
+    fallback = fallback || "发生错误，但浏览器没有给出具体原因。请看上一条请求日志和后端日志。";
+    if (err == null) return fallback;
+    if (typeof err === "string") return err.trim() || fallback;
+    var msg = "";
+    try { msg = String(err.message || "").trim(); } catch (_) { msg = ""; }
+    if (msg && msg !== "Error") return msg;
+    try {
+      var text = String(err || "").trim();
+      if (text && text !== "[object Object]" && text !== "Error") return text;
+    } catch (_) {}
+    try {
+      var json = JSON.stringify(err);
+      if (json && json !== "{}") return json;
+    } catch (_) {}
+    try {
+      var name = String(err.name || "").trim();
+      if (name && name !== "Error") return name;
+    } catch (_) {}
+    return fallback;
+  }
   function scriptSrcText() {
     try { return script && script.src ? script.src : ""; } catch (_) { return ""; }
   }

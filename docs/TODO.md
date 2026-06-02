@@ -3,7 +3,7 @@
 ## P0
 
 - 重开 Codex 后第一步：读 `AGENTS.md`、`README.md`、`docs/AGENT_STATE.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/BUGS.md`、`docs/TODO.md`、`docs/REGRESSION.md`，再跑 `git status --short`。不要回退当前未提交 runtime 拆分成果。
-- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881926`，loader `20260602-sovits-server-error-v36`，runtime parts/manifest `20260602-sovits-server-error-v18`。优先回归 BUG-028：官方 GPT-SoVITS 502 必须显示服务端推理失败，不能显示音频流格式异常。
+- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881927`，loader `20260603-history-restore-v37`，runtime parts/manifest `20260603-history-restore-v19`。优先回归 BUG-030/031/032：重进消息只恢复历史 metadata、不自动读取音频；历史条数显示一致；live 流式点歌词不能重连；播放失败不能再显示裸 `Error`。
 - BUG-029 已确认并修复：本机代理 `127.0.0.1:7897` 会把 adapter 到官方 `127.0.0.1:9881` 的调用伪装成空 body 502。adapter 已绕过代理；官方 9881 通过任务计划 `GPT-SoVITS Official API 9881` 常驻。真实 Tavo 复测前先确认 `curl.exe --noproxy "*"` 打 `http://127.0.0.1:9881/docs` 返回 200。
 - 先做真实 Tavo/雷电回归：当前正则已 bump 到 `v=2028881923`，入口为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923`，需要在 Tavo 正则里刷新版本号，再确认 AR 动态 runtime loader、manifest、21 个 parts、CSS skin、播放器、设置页、音色选择器、懒加载首点播放和音符新建音频都加载/交互正常。
 - 把 README 拆分后的 `docs/` 作为后续唯一活跃状态入口维护。

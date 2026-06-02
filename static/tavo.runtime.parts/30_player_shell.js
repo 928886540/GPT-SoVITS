@@ -120,7 +120,7 @@
     }
     function showNoTrackNotice(detailText) {
       var titleText = knownHistoryCount > 0 ? "上次音频可恢复" : "准备生成语音";
-      var detail = detailText || (knownHistoryCount > 0 ? "点播放读取快照并继续" : (messagePreviewText() || "点播放开始生成音频"));
+      var detail = detailText || (knownHistoryCount > 0 ? "点播放读取历史音频" : (messagePreviewText() || "点播放开始生成音频"));
       showTrackNotice(null, titleText, detail);
     }
     function updateTrackCounter() {

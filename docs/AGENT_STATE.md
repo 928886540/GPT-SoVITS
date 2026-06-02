@@ -1,12 +1,44 @@
 # Agent State
 
-更新时间：2026-06-03 00:45 +08:00
+更新时间：2026-06-03 01:10 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-030/031/032 Tavo 历史恢复和歌词点击修复（2026-06-03 01:10 +08:00）
+
+用户真实 Tavo 反馈：流式播放时误点歌词会重连音频并刷多条 `play snapshot`；快照/懒加载卡片看不到历史音频条数；关闭 Tavo 后重进消息，日志说只恢复 metadata，但 UI 显示 `读取已保存音频`，随后播放失败并出现 `play compensation 本机缓存保存失败` 或裸 `错误: Error`。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881927`。
+- Loader 版本 `20260603-history-restore-v37`，runtime parts/manifest `20260603-history-restore-v19`。
+- `static/tavo.js`、`05_message_text_config.js`：历史读取优先非空 tracks；新 `sovits_tracks_*` 为空时不会遮住旧 key 的非空历史，异步读到旧历史后迁移写回新 key。
+- `25_ui_templates.js`、`30_player_shell.js`：懒加载/完整播放器统一显示 `历史音频 N 条`、`点播放读取历史音频`，不再用 `快照` / `未生成` / `读取快照`。
+- `44_track_history_cache.js`：新增 `selectTrack(..., { metadataOnly: true })`；重进消息只恢复历史条目、计数、断点和提示，不请求音频、不补写 IndexedDB、不轮询落盘。点击播放才读取保存音频。
+- `36_track_state_offline.js`、`38_saved_prompt_stream_helpers.js`、`42_saved_playback_cache.js`、`60_generate_mount_boot.js`：播放前不再用 `prepareOfflineAudio(... saveMissing=true)` 把离线副本保存和在线播放混起来；本机缓存副本保存失败只记录“不影响在线播放”。
+- `34_element_audio_controls.js`、`52_voice_subtitle_media.js`：live 未落盘时歌词/seek 不再重连流式音频；歌词 click 阻断冒泡。保存后的音频仍可 seek。
+- 新增 `errorMessage()`，TTS job 和播放/历史事件 catch 不再把空异常显示成裸 `Error`；非 2xx 空响应会显示 `TTS job 后端返回 HTTP xxx，响应为空`。
+
+已验证：
+
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 21 parts 拓扑拼接后 `node --check` 通过，runtimeVersion=`20260603-history-restore-v19`
+- `python -m py_compile gsv_tavo_adapter.py`
+- `git diff --check` 通过，仅有 LF/CRLF 工作区提示
+- key 扫描无命中
+- 本地 adapter `/health` 返回 200；`/static/tavo.js?v=2028881927` 返回 loader `20260603-history-restore-v37`；manifest 返回 `20260603-history-restore-v19`；part 44 返回 metadata-only 修复代码。
+
+待真实 Tavo 回归：
+
+1. 把真实 Tavo 正则刷新到 `v=2028881927` 并重渲染消息。
+2. 关闭/重进有历史音频的消息，确认只显示 `历史音频 N 条` / `点播放读取历史音频`，未点播放前不出现 `读取已保存音频` 或本机缓存补写日志。
+3. 点播放确认历史音频能播放；如果仍失败，看新的具体错误，不再接受裸 `Error`。
+4. live 流式播放时点歌词，确认不重连、不刷 `play snapshot`。
 
 ## BUG-029 official 9881 代理污染修复（2026-06-03 00:45 +08:00）
 

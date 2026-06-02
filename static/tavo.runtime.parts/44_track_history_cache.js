@@ -1,12 +1,14 @@
 // GPT-SoVITS Tavo runtime part: 44_track_history_cache.js
 // Role: track selection, cache upgrade polling, history restore, and delete flow.
 // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script.
-    async function selectTrack(index, autoplay) {
+    async function selectTrack(index, autoplay, opts) {
+      opts = opts || {};
       if (index < 0 || index >= generatedTracks.length) return;
       var track = generatedTracks[index];
       currentTrackIndex = index;
       currentCacheKey = track.cacheKey || "";
       var state = trackState(track);
+      var metadataOnly = !!opts.metadataOnly && !autoplay;
       // 切卡前先清掉旧 audio 状态(防止旧的 currentTime/duration 串到新卡片)
       try { audio.pause(); } catch (_) {}
       stopWebAudioPlayback("switch");
@@ -17,6 +19,31 @@
       if (seek) { seek.value = "0"; }
       if (cur) cur.textContent = "00:00";
       if (total) total.textContent = "--:--";
+      if (metadataOnly) {
+        clearElementAudioSrc();
+        var resumeMeta = trackResumeSec(track);
+        var durMeta = trackDurationHintSec(track);
+        if (seek) {
+          seek.disabled = !(state === "saved" && durMeta > 0);
+          seek.value = durMeta > 0 ? String(Math.floor(Math.min(resumeMeta, durMeta) / durMeta * 1000)) : "0";
+        }
+        if (cur) cur.textContent = formatTime(resumeMeta);
+        if (total) total.textContent = durMeta > 0 ? formatTime(durMeta) : "--:--";
+        setTrackPlaybackState(track, "idle");
+        setPlayState("idle");
+        if (state === "failed") {
+          setStatus("生成失败");
+          showTrackNotice(track, "生成失败", track.error || "这条历史音频生成失败，点 + 重新生成");
+        } else if (state === "saved") {
+          setStatus(historyStatusText());
+          showTrackNotice(track, "历史音频已恢复", "点播放读取历史音频");
+        } else {
+          setStatus(historyStatusText());
+          showTrackNotice(track, "历史记录已恢复", track.cacheKey ? "点播放检查生成状态" : "点 + 重新生成音频");
+        }
+        updateTrackButtons();
+        return;
+      }
       if (state === "live" && track.cacheKey && !track.deleted) {
         setStatus("检查历史音频…");
       showTrackNotice(track, "检查历史音频…", cfg.offlineAudioEnabled ? "优先检查本机缓存音频" : "如果已保存，会切到可拖动音频");
@@ -74,7 +101,7 @@
             });
           } else {
             setStatus(historyStatusText());
-            showTrackNotice(track, savedTrackLabel(track), "点播放开始，手机端会使用 Web Audio");
+            showTrackNotice(track, savedTrackLabel(track), "点播放读取历史音频");
           }
           updateTrackButtons();
           return;
@@ -161,7 +188,7 @@
               noticeTitle: "生成完成，正在播放保存音频",
               noticeDetail: "手机端使用 Web Audio 播放已保存音频"
             }).catch(function (e) {
-              debugLog("❌ Web Audio 播放 cache 失败: " + (e && e.message ? e.message : e), "#f99");
+              debugLog("❌ Web Audio 播放 cache 失败: " + errorMessage(e, "Web Audio 播放 cache 失败"), "#f99");
             });
           }
           return true;
@@ -181,7 +208,7 @@
             audio.play().catch(function (err) { handleAudioPlayReject("cache", err, "缓存已就绪，点播放继续"); });
           }
         } catch (e) {
-          debugLog("❌ 挂载 cache audio 失败: " + (e && e.message ? e.message : e), "#f99");
+          debugLog("❌ 挂载 cache audio 失败: " + errorMessage(e, "挂载 cache audio 失败"), "#f99");
         }
       } else {
         updateTrackButtons();
@@ -261,7 +288,7 @@
               }
             }
           } catch (e) {
-            debugLog("⚠️ " + label + " 状态轮询失败: " + (e && e.message ? e.message : e), "#fc9");
+            debugLog("⚠️ " + label + " 状态轮询失败: " + errorMessage(e, "网络请求失败"), "#fc9");
           }
           await new Promise(function(r){ setTimeout(r, 1000); });
         }
@@ -343,8 +370,8 @@
         currentTrackIndex = generatedTracks.length - 1;
         updateTrackButtons();
         if (selectRestored) {
-          await selectTrack(currentTrackIndex, false);
-          debugLog("📂 按需恢复历史 tracks: " + generatedTracks.length + " 段, 未预取本机缓存音频/未轮询落盘", "#9ff");
+          await selectTrack(currentTrackIndex, false, { metadataOnly: true });
+          debugLog("📂 恢复历史 tracks 元数据: " + generatedTracks.length + " 段, 未读取音频/未补写本机缓存/未轮询落盘", "#9ff");
         } else {
           debugLog("📂 仅恢复历史 tracks 元数据: " + generatedTracks.length + " 段, 未选择/未读取历史音频", "#9ff");
         }
@@ -389,7 +416,7 @@
           return choice === "delete";
         }
       } catch (e) {
-        debugLog("⚠️ 删除确认弹窗失败: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ 删除确认弹窗失败: " + errorMessage(e, "删除确认弹窗失败"), "#fc9");
       }
       return typeof window.confirm === "function" ? window.confirm("确认删除当前音频？这会删除历史记录和关联缓存。") : true;
     }
@@ -404,7 +431,7 @@
           await adapterFetch(track.deleteUrl, { method: "DELETE" }).catch(function () {});
         }
       } catch (e) {
-        debugLog("⚠️ 删除服务端关联缓存失败: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ 删除服务端关联缓存失败: " + errorMessage(e, "删除服务端关联缓存失败"), "#fc9");
       }
     }
     async function clearCurrentTrack() {

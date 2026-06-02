@@ -92,37 +92,27 @@
       var track = currentTrack();
       pos = Math.max(0, Number(pos) || 0);
       var dur = Number(audio && audio.duration);
-      if (audio && (audio.currentSrc || audio.src) && isFinite(dur) && dur > 0) {
+      var sourceKind = "";
+      try { sourceKind = audio && audio.dataset ? String(audio.dataset.idxSourceKind || "") : ""; } catch (_) { sourceKind = ""; }
+      if (audio && (audio.currentSrc || audio.src) && sourceKind !== "stream" && isFinite(dur) && dur > 0) {
         audio.currentTime = Math.max(0, Math.min(dur - 0.05, pos));
         return true;
       }
       if (track && isSavedTrack(track) && trackPlayableUrl(track)) {
         if (shouldUseWebAudioForSavedTrack(track)) {
           playSavedTrack(track, pos, { label: "seek saved", noticeTitle: "跳转播放", noticeDetail: "从 " + formatTime(pos) + " 继续" }).catch(function (e) {
-            debugLog("❌ 保存音频跳转失败: " + (e && e.message ? e.message : e), "#f99");
+            debugLog("❌ 保存音频跳转失败: " + errorMessage(e, "保存音频跳转失败"), "#f99");
           });
         } else {
           startElementAudioFrom(track, pos);
         }
         return true;
       }
-      if (track && isLiveTrack(track) && !shouldUseWebAudioForLiveTrack(track) && liveStreamUrlForTrack(track)) {
-        track.lastElementSec = pos;
-        startElementAudioFrom(track, pos);
-        return true;
-      }
-      if (track && (track.webAudioPlaying || isLiveTrack(track) || liveStreamUrlForTrack(track))) {
-        track.lastWebAudioSec = pos;
-        var liveUrl = liveStreamUrlForTrack(track);
-        if (liveUrl) {
-          playLiveTrack(track, liveUrl, {
-            noticeTitle: opts.noticeTitle || "跳转播放",
-            noticeDetail: "从 " + formatTime(pos) + " 继续",
-            waitDetail: "等待后端返回对应位置音频",
-            startOffsetSec: pos
-          });
-          return true;
-        }
+      if (track && isLiveTrack(track)) {
+        setStatus("流式播放中，暂不能跳转");
+        showTrackNotice(track, "流式播放中", "歌词跳转需等完整音频保存后使用");
+        debugLog("⚠️ live 流式音频未落盘，忽略 seek: " + (opts.noticeTitle || "seek") + " @" + formatTime(pos), "#fc9");
+        return false;
       }
       return false;
     }
@@ -204,7 +194,7 @@
           waitDetail: "等待后端返回音频",
           startOffsetSec: resumeSec
         }).catch(function (e) {
-          debugLog("❌ live audio fallback Web Audio 失败: " + (e && e.message ? e.message : e), "#f99");
+          debugLog("❌ live audio fallback Web Audio 失败: " + errorMessage(e, "Web Audio fallback 失败"), "#f99");
         });
         return true;
       }
@@ -226,7 +216,7 @@
             noticeTitle: "切换播放通道…",
             noticeDetail: "当前 WebView 不支持 audio.play()，改用 Web Audio"
           }).catch(function (e) {
-            debugLog("❌ audio.play fallback 失败: " + (e && e.message ? e.message : e), "#f99");
+            debugLog("❌ audio.play fallback 失败: " + errorMessage(e, "audio.play fallback 失败"), "#f99");
           });
           return;
         }
@@ -279,7 +269,7 @@
       return readable;
     }
     function friendlyPlaybackError(err) {
-      var msg = String((err && err.message) || err || "");
+      var msg = errorMessage(err, "播放失败，请查看上一条请求日志和后端日志。");
       var active = currentTrack();
       if (active && trackState(active) === "failed" && active.error) return active.error;
       if (/noAudio|没有返回可播放音频/i.test(msg)) return "后端没有返回音频，请重新生成一次。";
@@ -288,7 +278,7 @@
       if (/decodeAudioData/i.test(msg)) return "已保存音频解码失败，可能是缓存文件损坏，请重新生成一次。";
       if (/WAV|data 段/i.test(msg)) return "服务端返回的音频内容不完整，请查看生成状态或重新生成。";
       if (/resume|AudioContext/i.test(msg)) return "浏览器没有放行音频播放，请点一次播放按钮重试。";
-      return msg.replace(/\[step:[^\]]+\]\s*/g, "") || "播放失败，请重新生成一次。";
+      return msg.replace(/\[step:[^\]]+\]\s*/g, "") || "播放失败，请查看上一条请求日志和后端日志。";
     }
     function setPlayState(state) { if (play) { play.dataset.state = state; play.innerHTML = state === "loading" ? loadingIcon() : playIcon(state); play.disabled = false; } if (cover) cover.dataset.playing = state === "playing" ? "1" : "0"; }
     function updateTrackButtons() {

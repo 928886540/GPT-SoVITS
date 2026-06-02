@@ -144,6 +144,16 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 同文本走 adapter `/tts_dialogue_stream_job` 的 queued 路径应最终 `state=done/cached=true`；live `streaming_mode=2` 路径也应最终 `state=done/cached=true`。
 - 如果以后 `official API HTTP 502:` body 为空再次出现，先检查 adapter 是否加载了 no-proxy 代码、9881 是否由任务计划常驻、进程环境代理是否变化；不要先改 Tavo AR 前端。
 
+## BUG-030/031/032 历史恢复与歌词点击回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881927`，loader 版本 `20260603-history-restore-v37`，runtime `20260603-history-restore-v19`。
+- 关闭 Tavo 后重新进入有 1 条以上历史音频的消息：懒加载卡片和完整播放器都必须显示 `历史音频 N 条`；完整播放器日志应是 `恢复历史 tracks 元数据...未读取音频/未补写本机缓存/未轮询落盘`。
+- 重进消息但未点播放时，UI 不能显示 `读取已保存音频`，adapter 日志不能出现 `/cache_audio`、`/tts_dialogue_job_status` 或 IndexedDB 本机缓存补写请求。
+- 点播放后才允许显示 `读取已保存音频` 或 `读取本机缓存`；如果 IndexedDB 副本保存失败，只能提示“本机缓存副本保存失败，在线播放不受影响”，不能阻断在线历史音频播放。
+- 新 key `sovits_tracks_<messageId>` 为空、旧 key 有历史时，应显示旧历史条数，并迁移写回新 key；不能被空数组抢占成 0 条。
+- live 流式播放时点击歌词行不能重连音频，不能触发 `play snapshot` 刷屏；应提示“流式播放中，歌词跳转需等完整音频保存后使用”。落盘后的 saved 音频才允许歌词/进度跳转。
+- 新建单音色/多音色生成如果后端返回非 2xx 空响应，UI 必须显示 `TTS job 后端返回 HTTP xxx，响应为空` 这类可读错误，不能显示 `错误: Error`。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。

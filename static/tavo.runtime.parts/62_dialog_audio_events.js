@@ -82,15 +82,15 @@
     on(add, 'pointerdown', function () { primeAudioContext(); });
     on(play, 'touchstart', function () { primeAudioContext(); });
     on(add, 'touchstart', function () { primeAudioContext(); });
-    on(play, 'click', function () { primeAudioContext(); if (tryResumeOrPauseInGesture()) return; generate(false).catch(function (e) { setError(e && e.message ? e.message : String(e)); }); });
-    on(add, 'click', function () { primeAudioContext(); generate(true).catch(function (e) { setError(e && e.message ? e.message : String(e)); }); });
+    on(play, 'click', function () { primeAudioContext(); if (tryResumeOrPauseInGesture()) return; generate(false).catch(function (e) { setError(errorMessage(e, "播放失败")); }); });
+    on(add, 'click', function () { primeAudioContext(); generate(true).catch(function (e) { setError(errorMessage(e, "生成失败")); }); });
     on(prev, 'click', function () {
-      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex - 1, true); }).catch(function (e) { setError(e && e.message ? e.message : String(e)); });
+      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex - 1, true); }).catch(function (e) { setError(errorMessage(e, "上一条历史音频读取失败")); });
     });
     on(next, 'click', function () {
-      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex + 1, true); }).catch(function (e) { setError(e && e.message ? e.message : String(e)); });
+      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex + 1, true); }).catch(function (e) { setError(errorMessage(e, "下一条历史音频读取失败")); });
     });
-    on(del, 'click', function () { clearCurrentTrack().catch(function (e) { setError(e && e.message ? e.message : String(e)); }); });
+    on(del, 'click', function () { clearCurrentTrack().catch(function (e) { setError(errorMessage(e, "删除历史音频失败")); }); });
     on(first(panel, '[data-role="save"]'), 'click', async function () { readFields(); await saveConfig(cfg, characterId); syncUI(); closeDialog(panel); setStatus("设置已保存"); });
     // IME 组词期间不覆盖输入值（搜狗/微软拼音等）。事件委托到 panel 上，覆盖所有 data-field 输入。
     try {
@@ -103,7 +103,7 @@
     } catch (_) {}
     on(first(panel, '[data-role="reload"]'), 'click', function () {
       voicesLoaded = false;
-      ensureVoicesLoaded().catch(function (e) { setStatus("音色列表读取失败"); setError(e && e.message ? e.message : String(e)); });
+      ensureVoicesLoaded().catch(function (e) { setStatus("音色列表读取失败"); setError(errorMessage(e, "音色列表读取失败")); });
     });
     $all(panel, '.idx-mode').forEach(function (b) { b.addEventListener('click', async function () { readFields(); cfg.mode = b.dataset.mode; syncUI(); await saveConfig(cfg, characterId); }); });
     on(audio, 'play', function () {
@@ -140,7 +140,7 @@
                 debugLog("⚠️ job_status 没返回 segments_meta(可能服务端没存这条历史)", "#fc9");
               }
             })
-            .catch(function (e) { debugLog("❌ 拉 segments_meta 失败: " + e, "#f99"); })
+            .catch(function (e) { debugLog("❌ 拉 segments_meta 失败: " + errorMessage(e, "请求失败"), "#f99"); })
             .finally(function () { t.fetchingSegments = false; });
         }
       }
@@ -199,7 +199,7 @@
           noticeTitle: "切换播放通道…",
           noticeDetail: "当前 WebView 不支持 audio 元素播放，改用 Web Audio"
         }).catch(function (e) {
-          debugLog("❌ audio fallback Web Audio 失败: " + (e && e.message ? e.message : e), "#f99");
+          debugLog("❌ audio fallback Web Audio 失败: " + errorMessage(e, "Web Audio fallback 失败"), "#f99");
         });
         return;
       }

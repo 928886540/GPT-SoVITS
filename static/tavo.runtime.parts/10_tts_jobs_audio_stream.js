@@ -136,7 +136,10 @@
   }
   async function createSingleStreamJob(base, cfg, text, force) {
     var res = await adapterJsonPost(cleanBase(base) + "/tts_stream_job", singleBody(cfg, text, force));
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      var singleErr = await res.text().catch(function () { return ""; });
+      throw new Error("单音色 TTS job 后端返回 HTTP " + res.status + (singleErr ? ":\n" + singleErr : "，响应为空"));
+    }
     var data = await res.json();
     if (!data || !data.url) throw new Error("后端没有返回流式播放地址。");
     return {
@@ -150,7 +153,10 @@
 
   async function createDialogueStreamJob(base, body) {
     var res = await adapterJsonPost(cleanBase(base) + "/tts_dialogue_stream_job", body);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      var dialogueErr = await res.text().catch(function () { return ""; });
+      throw new Error("多音色 TTS job 后端返回 HTTP " + res.status + (dialogueErr ? ":\n" + dialogueErr : "，响应为空"));
+    }
     var data = await res.json();
     if (!data || !data.url) throw new Error("后端没有返回流式播放地址。");
     return {
@@ -219,7 +225,7 @@
     // 这种没经过 gesture 的场景也能跑）。
     var ctx = PRIMED_CTX || new AC();
     try { if (ctx.state === "suspended") await ctx.resume(); }
-    catch (e) { throw new Error("[step:resume] " + (e && e.message ? e.message : e)); }
+    catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
     var output = ctx.createGain ? ctx.createGain() : null;
     if (output) {
       output.gain.value = 1;
@@ -317,7 +323,7 @@
 
     var res;
     try { res = await fetch(streamUrl, { cache: "no-store" }); }
-    catch (e) { throw new Error("[step:fetch] " + (e && e.message ? e.message : e)); }
+    catch (e) { throw new Error("[step:fetch] " + errorMessage(e, "音频流请求失败")); }
     if (!res.ok) throw new Error("[step:fetch] HTTP " + res.status + " " + (await res.text().catch(function(){return"";})));
     hooks.onStateChange && hooks.onStateChange("connected");
 
@@ -326,17 +332,17 @@
     var canStream = !!(res.body && typeof res.body.getReader === "function");
     if (canStream) {
       try { reader = res.body.getReader(); }
-      catch (e) { canStream = false; hooks.debug && hooks.debug("getReader 抛异常, 退回 arrayBuffer: " + (e && e.message ? e.message : e)); }
+      catch (e) { canStream = false; hooks.debug && hooks.debug("getReader 抛异常, 退回 arrayBuffer: " + errorMessage(e, "ReadableStream 不可用")); }
     }
 
     if (!canStream) {
       hooks.debug && hooks.debug("无 ReadableStream 支持，走 arrayBuffer 整段解码");
       var ab;
       try { ab = await res.arrayBuffer(); }
-      catch (e) { throw new Error("[step:arrayBuffer] " + (e && e.message ? e.message : e)); }
+      catch (e) { throw new Error("[step:arrayBuffer] " + errorMessage(e, "读取音频内容失败")); }
       var audioBuf;
       try { audioBuf = await ctx.decodeAudioData(ab.slice(0)); }
-      catch (e) { throw new Error("[step:decodeAudioData] " + (e && e.message ? e.message : e)); }
+      catch (e) { throw new Error("[step:decodeAudioData] " + errorMessage(e, "音频解码失败")); }
       var src;
       try {
         src = ctx.createBufferSource();
@@ -353,7 +359,7 @@
         scheduledAudioSec = audioBuf.duration;
         started = true;
         src.start(fallbackStartAt, audioOffset);
-      } catch (e) { throw new Error("[step:bufferSource.start] " + (e && e.message ? e.message : e)); }
+      } catch (e) { throw new Error("[step:bufferSource.start] " + errorMessage(e, "启动音频失败")); }
       hooks.onStateChange && hooks.onStateChange("scheduled");
       playNotifyTimer = setTimeout(function () {
         playNotifyTimer = null;
@@ -383,7 +389,7 @@
         if (r.done) return false;
         appendPending(r.value);
         return true;
-      } catch (e) { throw new Error("[step:reader.read] " + (e && e.message ? e.message : e)); }
+      } catch (e) { throw new Error("[step:reader.read] " + errorMessage(e, "读取音频流失败")); }
     }
     function findDataOffset(arr) {
       for (var i = 12; i + 8 <= arr.length; i++) {
@@ -440,7 +446,7 @@
           hooks.debug && hooks.debug(step + " resume AudioContext -> " + ctx.state);
         }
       } catch (e) {
-        throw new Error("[step:" + step + ".resume] " + (e && e.message ? e.message : e));
+        throw new Error("[step:" + step + ".resume] " + errorMessage(e, "AudioContext resume 失败"));
       }
     }
 
@@ -492,7 +498,7 @@
           hooks.onStateChange && hooks.onStateChange("resumed");
         }
       } catch (e) {
-        throw new Error("[step:schedulePcm] " + (e && e.message ? e.message : e));
+        throw new Error("[step:schedulePcm] " + errorMessage(e, "PCM 排程失败"));
       }
     }
 
@@ -537,12 +543,12 @@
           interrupted = true;
           readEnded = true;
           hooks.onStateChange && hooks.onStateChange("interrupted");
-          hooks.debug && hooks.debug("流中断，停止 Web Audio: " + (e && e.message ? e.message : e));
+          hooks.debug && hooks.debug("流中断，停止 Web Audio: " + errorMessage(e, "读取音频流中断"));
           stopWebAudio("stream interrupted");
-          throw new Error("[step:reader.read.loop] " + (e && e.message ? e.message : e));
+          throw new Error("[step:reader.read.loop] " + errorMessage(e, "读取音频流中断"));
         }
         hooks.onError && hooks.onError(e);
-        throw new Error("[step:reader.read.loop] " + (e && e.message ? e.message : e));
+        throw new Error("[step:reader.read.loop] " + errorMessage(e, "读取音频流失败"));
       }
       if (r.done) { readEnded = true; break; }
       if (r.value && r.value.length) {

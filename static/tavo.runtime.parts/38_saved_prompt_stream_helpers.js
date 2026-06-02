@@ -15,7 +15,7 @@
           choice = window.confirm("音频已保存，是否直接播放已保存音频？") ? "play" : "wait";
         }
       } catch (e) {
-        debugLog("⚠️ 保存音频弹窗失败: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ 保存音频弹窗失败: " + errorMessage(e, "弹窗失败"), "#fc9");
       }
       if (choice !== "play" || currentTrack() !== track || !isSavedTrack(track)) return;
       var resumeSec = 0;
@@ -25,14 +25,14 @@
         else if (isElementUsingTrackStream(track) && isFinite(Number(audio.currentTime))) resumeSec = Number(audio.currentTime) || 0;
         else if (track.lastElementSec != null) resumeSec = Number(track.lastElementSec) || 0;
       } catch (_) { resumeSec = 0; }
-      await prepareOfflineAudio(track, "switch saved", { saveMissing: true });
+      if (cfg.offlineAudioEnabled) await hydrateOfflineAudio(track, "switch saved");
       stopWebAudioPlayback("switch");
       playSavedTrack(track, resumeSec, { label: "switch saved", noticeTitle: "播放已保存音频", noticeDetail: "从当前进度继续" }).catch(function (e) {
-        debugLog("❌ 切换保存音频失败: " + (e && e.message ? e.message : e), "#f99");
+        debugLog("❌ 切换保存音频失败: " + errorMessage(e, "切换保存音频失败"), "#f99");
       });
     }
     function isNetworkStreamError(err) {
-      var msg = String((err && err.message) || err || "");
+      var msg = errorMessage(err, "");
       if (/\[step:fetch\]\s+HTTP\s+\d+/i.test(msg)) return false;
       return /\[step:(fetch|reader\.read|reader\.read\.loop)\]|Load failed|Failed to fetch|NetworkError|network/i.test(msg);
     }

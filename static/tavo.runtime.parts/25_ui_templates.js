@@ -58,7 +58,7 @@
       '  <button class="idx-lazy-gear" type="button" data-role="lazy-gear" aria-label="设置">' + gearIcon() + '</button>',
       '  <div class="idx-lazy-main" data-role="lazy-open" role="button" tabindex="0">',
       '    <div class="idx-lazy-title">' + escapeHtml(characterName) + '</div>',
-      '    <div class="idx-lazy-status">' + (latest ? ('快照 ' + historyCount + ' 条 · ' + formatTime(resumeSec)) : '未生成 · 点播放') + '</div>',
+      '    <div class="idx-lazy-status">' + (latest ? ('历史音频 ' + historyCount + ' 条 · ' + formatTime(resumeSec)) : '历史音频 0 条 · 点开播放器') + '</div>',
       '    <div class="idx-lazy-progress"><span style="width:' + (latest && latest.duration_s ? Math.max(2, Math.min(100, resumeSec / Number(latest.duration_s || 1) * 100)) : 0) + '%"></span></div>',
       '  </div>',
       '</div>'

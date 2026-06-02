@@ -203,7 +203,7 @@
               }
             }
           },
-          onError: function (e) { debugLog("❌ Web Audio 错误: " + (e && e.message ? e.message : e), "#f99"); },
+          onError: function (e) { debugLog("❌ Web Audio 错误: " + errorMessage(e, "Web Audio 错误"), "#f99"); },
           debug: function (text) { debugLog("[wa] " + text, "#9ff"); },
           startOffsetSec: startOffsetSec
         });
@@ -211,7 +211,7 @@
       } catch (e) {
         stopWaitTimer();
         if (token !== webAudioPlayToken) return false;
-        var msg = String((e && e.message) || e || "");
+        var msg = errorMessage(e, "Web Audio 播放失败，但浏览器没有给出具体原因。");
         markWebAudioStopped(track);
         webAudioController = null;
         clearWebAudioProgressTimer();

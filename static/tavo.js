@@ -6,7 +6,7 @@
   var TRACKS_KEY_PREFIX = "sovits_tracks_";
   var LEGACY_PRODUCT_KEY = "index" + "tts";
   var LEGACY_TRACKS_KEY_PREFIXES = [LEGACY_PRODUCT_KEY + "_tracks_"];
-  var LOADER_VERSION = "20260602-sovits-server-error-v36";
+  var LOADER_VERSION = "20260603-history-restore-v37";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -199,11 +199,14 @@
   function localTracksForMessage(messageId) {
     if (!messageId) return [];
     var keys = trackStorageKeys(messageId);
+    var empty = null;
     for (var i = 0; i < keys.length; i++) {
       var tracks = tracksFromStorageKey(keys[i]);
-      if (Array.isArray(tracks)) return tracks;
+      if (!Array.isArray(tracks)) continue;
+      if (tracks.some(function (t) { return !!(t && t.cacheKey); })) return tracks;
+      if (!empty) empty = tracks;
     }
-    return [];
+    return empty || [];
   }
   function updateLazyHistory(root, messageId) {
     if (!root || !messageId) return;
@@ -220,12 +223,14 @@
   function refreshLazyHistoryAsync(root, messageId) {
     if (!root || !messageId || !window.tavo || typeof window.tavo.get !== "function") return;
     var targetKey = TRACKS_KEY_PREFIX + messageId;
-    var currentKeySeen = false;
+    var bestCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
     function storeAndUpdate(value, sourceKey) {
       if (!Array.isArray(value)) return;
-      if (sourceKey === targetKey) currentKeySeen = true;
-      if (sourceKey !== targetKey && currentKeySeen) return;
-      if (!value.length && sourceKey !== targetKey) return;
+      var count = value.filter(function (t) { return !!(t && t.cacheKey); }).length;
+      if (!count && bestCount > 0) return;
+      if (sourceKey !== targetKey && bestCount > 0 && count <= bestCount) return;
+      if (count < bestCount) return;
+      bestCount = count;
       try { localStorage.setItem(targetKey, JSON.stringify(value)); } catch (_) {}
       updateLazyHistory(root, messageId);
     }

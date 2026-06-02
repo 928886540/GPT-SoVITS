@@ -11,7 +11,7 @@
       try {
         await ensureTracksLoaded(force ? { selectRestored: false, statusOnEmpty: false } : null);
       } catch (e) {
-        setError((force ? "历史记录读取失败: " : "历史音频读取失败: ") + (e && e.message ? e.message : String(e)));
+        setError((force ? "历史记录读取失败: " : "历史音频读取失败: ") + errorMessage(e, "读取历史记录失败"));
         return;
       }
       // 已有卡片时，播放按钮只做"播放/暂停/选当前卡片"，不生成新音频。
@@ -47,7 +47,7 @@
           return;
         }
         if (shouldUseElementForSavedTrack(existingTrack)) {
-          await prepareOfflineAudio(existingTrack, "play", { saveMissing: true });
+          if (cfg.offlineAudioEnabled) await hydrateOfflineAudio(existingTrack, "play");
           var existingUrl = trackPlayableUrl(existingTrack);
           if (shouldUseWebAudioForSavedTrack(existingTrack)) {
             await playSavedTrack(existingTrack, trackResumeSec(existingTrack), {
@@ -71,7 +71,7 @@
         if (isLiveTrack(existingTrack) || trackState(existingTrack) === "pending") {
           if (existingTrack.cacheKey && await refreshTrackFromStatus(existingTrack, "play snapshot")) {
             if (shouldUseElementForSavedTrack(existingTrack)) {
-              await prepareOfflineAudio(existingTrack, "play saved", { saveMissing: true });
+              if (cfg.offlineAudioEnabled) await hydrateOfflineAudio(existingTrack, "play saved");
               await playSavedTrack(existingTrack, trackResumeSec(existingTrack), {
                 label: "play snapshot saved",
                 noticeTitle: "播放已保存音频",
@@ -323,7 +323,7 @@
           showTrackNotice(currentTrack(), "正在生成单音色音频…", "生成完成后点播放开始");
         }
       } catch (e) {
-        var msg = String((e && e.message) || e || "");
+        var msg = errorMessage(e, "生成失败，但浏览器没有给出具体原因。请看上一条请求日志和后端日志。");
         var isAbort = (e && e.name === 'AbortError') || /aborted/i.test(msg);
         setPlayState("idle");
         stopServerLogPolling();

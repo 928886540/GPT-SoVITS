@@ -409,3 +409,45 @@ Root cause: adapter 使用 `urllib.request.urlopen()` 调官方 `OFFICIAL_TTS_UR
 Fix: `gsv_tavo_adapter.py` 新增 official URL no-proxy opener：当 `GPT_SOVITS_OFFICIAL_TTS_URL` 是 loopback / private / link-local 地址时，adapter 用 `ProxyHandler({})` 绕过系统代理；可用 `GPT_SOVITS_OFFICIAL_BYPASS_PROXY=0/1/auto` 控制。新增 `dev_tools/run_official_api_9881.ps1`，并注册任务计划 `GPT-SoVITS Official API 9881` 用来常驻启动官方 `api_v2.py -a 127.0.0.1 -p 9881`。
 
 Guard: 在有 `HTTP_PROXY=http://127.0.0.1:7897` 的环境下，adapter 调 `http://127.0.0.1:9881/tts` 不能再得到代理空 body 502；如果 9881 未启动，应显示 `official API connection failed: [WinError 10061]` 这类真实连接失败。如果 9881 已启动，则官方日志应更新并返回 WAV 或官方自身的明确错误。2026-06-03 已验证：`python urllib` 默认走代理会复现 502；adapter helper 绕代理后 `/docs` 返回 200；直接 official TTS 生成 `reports/official_tts_proxyfix_20260603/bingshan_gaoyuanyuan.wav`；adapter queued job `d23b5e8df15adb928e73b11a2df40ae4ddb71464` 最终 `done/cached=true`；adapter live job `7627c06937a1398280ac3453e16011cf5ad4a649` 最终 `done/cached=true`。
+
+## BUG-030: live 流式播放时点歌词触发重复 snapshot 切历史且不能续播
+
+Status: patched in code, needs real Tavo regression
+
+Repro: 用户真实 Tavo 流式播放过程中误点歌词区域；前端重新连接音频，随后提示不能恢复/不能播放；控制台打印约 10 条 `✅ play snapshot 已保存，切换为历史音频`。
+
+Evidence: `static/tavo.runtime.parts/52_voice_subtitle_media.js` 的歌词行点击会调用 `seekToSeconds()`；`static/tavo.runtime.parts/60_generate_mount_boot.js` 的 play 路径在当前 live track 有 `cacheKey` 时会 `refreshTrackFromStatus(existingTrack, "play snapshot")`；`static/tavo.runtime.parts/42_saved_playback_cache.js` 里 `refreshTrackFromStatus()` 成功后会打印 `✅ <label> 已保存，切换为历史音频`。
+
+Root cause: confirmed. `seekToSeconds()` 原来把 live track 也当成可 seek 对象；当歌词点击传入 startSec 时，会对 `liveStreamUrlForTrack()` 调 `playLiveTrack(... startOffsetSec=pos)`，等价于重新连接流式音频。歌词行点击本身也没有 `preventDefault/stopPropagation`，在 Tavo AR 事件环境里可能继续穿透到外层播放路径。`refreshTrackFromStatus(..., "play snapshot")` 的 done 日志也没有按 cache/label 去重，所以同一条保存状态可刷多次。
+
+Fix: `static/tavo.runtime.parts/34_element_audio_controls.js` 不再允许 live 未落盘 track 通过 seek 重连；live 下点击歌词只显示“流式播放中，歌词跳转需等完整音频保存后使用”。`52_voice_subtitle_media.js` 给歌词行 click 加 `preventDefault/stopPropagation`。`42_saved_playback_cache.js` 对同一 cache/label 的“已保存，切换为历史音频”日志去重。
+
+Guard: live 流式播放时点击歌词行只能在已有可 seek 的本地/历史音频上跳转；如果当前是 live stream 且 cache 还没落盘，点击歌词不能重新连接、不能触发 play snapshot、不能刷多条“切换为历史音频”。落盘完成后再允许切历史音频/seek。
+
+## BUG-031: 快照卡片不显示历史音频条数
+
+Status: patched in code, needs real Tavo regression
+
+Repro: 用户反馈快照卡片看不到历史音频条数。
+
+Evidence: `static/tavo.js` 和 `static/tavo.runtime.parts/05_message_text_config.js` 都按 `sovits_tracks_<messageId>` -> 旧 key 的顺序读取历史；当前逻辑遇到第一个数组就返回，即使这个新 key 是空数组，也不会继续检查旧 key 或后续非空历史。`static/tavo.runtime.parts/25_ui_templates.js` 还把 lazy 状态文案写成 `快照 X 条 / 未生成`，不是用户要看的 `历史音频 X 条`。
+
+Root cause: confirmed. `static/tavo.js` 和 `static/tavo.runtime.parts/05_message_text_config.js` 都遇到第一个数组就返回；新 key 如果是空数组，会遮住旧 key 里的非空历史。runtime lazy shell 还继续显示 `快照 / 未生成`，和 loader lazy shell 的 `历史音频` 不一致。
+
+Fix: history 读取改为优先第一个非空 tracks 数组；只有所有来源都空时才返回空数组。异步读取到旧 key 非空历史时，迁移写回新的 `sovits_tracks_<messageId>` localStorage。`25_ui_templates.js` 的 runtime lazy shell 改为 `历史音频 N 条` / `历史音频 0 条 · 点开播放器`。
+
+Guard: 快照/lazy 卡片必须稳定显示 `历史音频 N 条`；如果新 key 为空但旧 key 有历史，应显示旧 key 的条数并迁移到新 key。BUG-019 的规则仍然保留：显示历史条数不等于自动读取/复用旧音频。
+
+## BUG-032: 重进 Tavo 消息后历史恢复、读取音频和本机缓存补偿状态混乱
+
+Status: patched in code, needs real Tavo regression
+
+Repro: 用户关闭 Tavo 后重新进入同一条消息。控制台日志显示 `📂 按需恢复历史 tracks: 1 段, 未预取本机缓存音频/未轮询落盘`，但页面文案显示 `读取已保存音频`；随后播放不了，并出现 `⚠️ play compensation 本机缓存保存失败，稍后播放在线音频时补偿: Load failed` 或泛化的 `❌ 错误: Error`。用户确认这不是一次性卡片，第二次进消息也必须能播放历史音频。
+
+Evidence: `static/tavo.runtime.parts/44_track_history_cache.js` 的 `ensureTracksLoaded(selectRestored=true)` 会恢复并选择历史 track，但日志说未预取/未轮询；`selectTrack()` 对 saved track 在 `autoplay=false` 时应只显示“点播放读取”，但播放路径 `playSavedTrack()` 会先 `prepareOfflineAudio(... saveMissing=true)`，离线缓存补写失败日志会被用户看到为播放失败原因。`static/tavo.runtime.parts/42_saved_playback_cache.js` 的读取保存音频文案只适合真实 fetch/decode 阶段，不能用于 metadata-only 恢复。生成 catch 路径把空 message 的异常显示成 `错误: Error`。
+
+Root cause: confirmed. `ensureTracksLoaded(selectRestored=true)` 重进消息时会选择历史 track，但旧 `selectTrack()` 仍可能校验 saved cache、hydrate 离线缓存或显示真实读取文案；这和“只恢复 metadata”的日志矛盾。播放路径又在真正播放前调用 `prepareOfflineAudio(... saveMissing=true)`，导致 IndexedDB 副本补写失败日志和在线播放失败混在一起。部分 WebView 异常 message 为空，生成 catch 使用 `String(e)` 后显示成裸 `Error`。
+
+Fix: `selectTrack(index, autoplay, { metadataOnly: true })` 新增 metadata-only 分支；重进消息只恢复历史条目、计数、断点和提示，不请求 `/cache_audio`、不请求 job status、不补写 IndexedDB。点击播放后才进入真实 `读取已保存音频/读取本机缓存`。`playSavedTrack()` 改为先 hydrate 已有 IndexedDB，再校验/播放在线保存音频；离线副本保存延后并降级为“不影响在线播放”的日志。新增 `errorMessage()`，TTS job、播放、历史读取和事件 catch 不再把空异常显示成 `Error`。
+
+Guard: 重进同一条 Tavo 消息时，懒加载卡片/完整播放器应显示 `历史音频 N 条` 和“点播放读取历史音频”，不得在未点击播放时显示 `读取已保存音频`。点击播放才允许进入“读取已保存音频/读取本机缓存”状态；IndexedDB 补写失败只能作为离线缓存提示，不能阻断在线音频播放，也不能显示成泛化 `Error`。

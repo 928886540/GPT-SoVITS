@@ -244,7 +244,7 @@
       } catch (e) {
         track.offlineWanted = true;
         setTrackOfflineState(track, "failed");
-        debugLog("⚠️ " + (label || "offline") + " 本机缓存保存失败，稍后播放在线音频时补偿: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ " + (label || "offline") + " 本机缓存副本保存失败，在线播放不受影响: " + errorMessage(e, "网络请求失败"), "#fc9");
         if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
         return false;
       } finally {

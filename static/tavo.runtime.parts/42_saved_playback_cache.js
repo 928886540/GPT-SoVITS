@@ -31,11 +31,15 @@
           });
         }
         if (j && j.state === "done") {
+          var savedLogKey = (label || "track") + ":" + track.cacheKey;
           setTrackState(track, "saved");
           attachCacheAudio(track, { deferElement: true });
           scheduleOfflineAudioSave(track, (label || "track") + " offline", 0);
           if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
-          debugLog("✅ " + (label || "track") + " 已保存，切换为历史音频", "#9f9");
+          if (track.lastSavedLogKey !== savedLogKey) {
+            track.lastSavedLogKey = savedLogKey;
+            debugLog("✅ " + (label || "track") + " 已保存，切换为历史音频", "#9f9");
+          }
           return true;
         }
         if (j && j.state === "failed") {
@@ -47,7 +51,7 @@
           return false;
         }
       } catch (e) {
-        debugLog("⚠️ 检查历史音频状态失败: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ 检查历史音频状态失败: " + errorMessage(e, "网络请求失败"), "#fc9");
       }
       return false;
     }
@@ -79,7 +83,7 @@
           if (hs.status === 404 || hs.status === 410) markTrackCacheMissing(track, label || "saved");
           return false;
         } catch (e) {
-          debugLog("⚠️ " + (label || "saved") + " HEAD 失败: " + (e && e.message ? e.message : e), "#fc9");
+          debugLog("⚠️ " + (label || "saved") + " HEAD 失败: " + errorMessage(e, "网络请求失败"), "#fc9");
           return true;
         }
       }
@@ -117,7 +121,7 @@
         showTrackNotice(track, "音频仍在生成中…", "完成后会自动切回历史音频");
         return false;
       } catch (e) {
-        debugLog("⚠️ " + (label || "saved") + " 状态确认失败: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ " + (label || "saved") + " 状态确认失败: " + errorMessage(e, "网络请求失败"), "#fc9");
         return true;
       }
     }
@@ -128,19 +132,19 @@
       var ctx = PRIMED_CTX || new AC();
       PRIMED_CTX = ctx;
       try { if (ctx.state === "suspended") await ctx.resume(); }
-      catch (e) { throw new Error("[step:resume] " + (e && e.message ? e.message : e)); }
+      catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
       setStatus(url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…");
       showTrackNotice(track, url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…", label || "首次读取后拖动进度不会重新请求音频");
       var res;
       try { res = await fetch(url, { cache: "force-cache" }); }
-      catch (e) { throw new Error("[step:fetchSaved] " + (e && e.message ? e.message : e)); }
+      catch (e) { throw new Error("[step:fetchSaved] " + errorMessage(e, "读取已保存音频失败")); }
       if (!res.ok) throw new Error("[step:fetchSaved] HTTP " + res.status);
       var ab;
       try { ab = await res.arrayBuffer(); }
-      catch (e) { throw new Error("[step:arrayBufferSaved] " + (e && e.message ? e.message : e)); }
+      catch (e) { throw new Error("[step:arrayBufferSaved] " + errorMessage(e, "读取已保存音频内容失败")); }
       var audioBuf;
       try { audioBuf = await ctx.decodeAudioData(ab.slice(0)); }
-      catch (e) { throw new Error("[step:decodeSaved] " + (e && e.message ? e.message : e)); }
+      catch (e) { throw new Error("[step:decodeSaved] " + errorMessage(e, "已保存音频解码失败")); }
       track.decodedAudioBuffer = audioBuf;
       track.decodedAudioBufferUrl = url;
       track.duration_s = audioBuf.duration || track.duration_s || 0;
@@ -231,18 +235,21 @@
         var friendly = friendlyPlaybackError(e);
         setError(friendly);
         showTrackNotice(track, "播放失败", friendly);
-        debugLog("❌ 保存音频解码播放失败: " + (e && e.message ? e.message : e), "#f99");
+        debugLog("❌ 保存音频解码播放失败: " + errorMessage(e, "保存音频播放失败"), "#f99");
         return false;
       }
     }
     async function playSavedTrack(track, startSec, opts) {
       opts = opts || {};
       if (!track) return false;
-      if (cfg.offlineAudioEnabled) await prepareOfflineAudio(track, opts.label || "play saved", { saveMissing: true });
+      if (cfg.offlineAudioEnabled) await hydrateOfflineAudio(track, opts.label || "play saved");
       if (!(await verifySavedTrackAvailable(track, opts.label || "play saved"))) return false;
       var url = trackPlayableUrl(track);
       if (!url) return false;
       startSec = Math.max(0, Number(startSec || 0) || 0);
+      if (cfg.offlineAudioEnabled && !track.offlineUrl && track.cacheUrl) {
+        scheduleOfflineAudioSave(track, (opts.label || "play saved") + " offline copy", 2500);
+      }
       if (shouldUseWebAudioForSavedTrack(track)) {
         return playSavedTrackViaDecodedBuffer(track, url, startSec, {
           noticeTitle: opts.noticeTitle || (startSec > 0 ? "从断点继续播放" : "读取已保存音频…"),

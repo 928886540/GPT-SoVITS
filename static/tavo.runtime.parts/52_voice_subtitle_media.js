@@ -122,7 +122,11 @@
       subBox.innerHTML = renderSubtitleRowsHtml(timeline, displayRoleName);
       if (resetScroll) { try { subBox.scrollTop = 0; } catch (_) {} }
       $all(subBox, '.idx-sub-row').forEach(function (row) {
-        on(row, 'click', function () {
+        on(row, 'click', function (ev) {
+          if (ev) {
+            try { ev.preventDefault(); } catch (_) {}
+            try { ev.stopPropagation(); } catch (_) {}
+          }
           var startSec = parseFloat(row.dataset.start || "0");
           try { seekToSeconds(startSec, { noticeTitle: "跳到歌词" }); } catch (_) {}
         });

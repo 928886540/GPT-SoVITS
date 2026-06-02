@@ -422,13 +422,25 @@
   async function loadTracksForMessage(messageId) {
     if (!messageId) return [];
     var keys = trackStorageKeys(messageId);
+    var empty = null;
+    function remember(arr, key) {
+      if (!Array.isArray(arr)) return null;
+      if (arr.some(function (t) { return !!(t && t.cacheKey); })) {
+        if (key && key !== TRACKS_KEY_PREFIX + messageId) {
+          try { localStorage.setItem(TRACKS_KEY_PREFIX + messageId, JSON.stringify(arr)); } catch (_) {}
+        }
+        return arr;
+      }
+      if (!empty) empty = arr;
+      return null;
+    }
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
-      try { var raw = localStorage.getItem(key); if (raw != null) { var arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } } catch (_) {}
-      try { if (window.tavo && typeof tavo.get === "function") { var cv = await tavo.get(key, "chat"); if (Array.isArray(cv)) return cv; } } catch (_) {}
-      try { if (window.tavo && typeof tavo.get === "function") { var v = await tavo.get(key, "global"); if (Array.isArray(v)) return v; } } catch (_) {}
+      try { var raw = localStorage.getItem(key); if (raw != null) { var arr = raw ? JSON.parse(raw) : []; var hit = remember(arr, key); if (hit) return hit; } } catch (_) {}
+      try { if (window.tavo && typeof tavo.get === "function") { var cv = await tavo.get(key, "chat"); var ch = remember(cv, key); if (ch) return ch; } } catch (_) {}
+      try { if (window.tavo && typeof tavo.get === "function") { var v = await tavo.get(key, "global"); var gh = remember(v, key); if (gh) return gh; } } catch (_) {}
     }
-    return [];
+    return empty || [];
   }
   function localTracksForMessage(messageId) {
     if (!messageId) return [];
@@ -436,11 +448,14 @@
     // 变量操作是同步的，优先同步读 tavo.get；读不到（或本版 tavo.get 返回 Promise）
     // 再回退 localStorage。否则懒加载时首页历史条数永远显示 0。
     var keys = trackStorageKeys(messageId);
+    var empty = null;
     for (var i = 0; i < keys.length; i++) {
       var tracks = syncTracksFromStorageKey(keys[i]);
-      if (Array.isArray(tracks)) return tracks;
+      if (!Array.isArray(tracks)) continue;
+      if (tracks.some(function (t) { return !!(t && t.cacheKey); })) return tracks;
+      if (!empty) empty = tracks;
     }
-    return [];
+    return empty || [];
   }
   function localHistoryCountForMessage(messageId) {
     return localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;

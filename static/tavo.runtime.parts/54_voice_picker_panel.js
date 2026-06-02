@@ -142,7 +142,7 @@
       } catch (e) {
         if (pickerGridEl) pickerGridEl.innerHTML = renderPickerMessageHtml("音色列表读取失败", "error");
         setStatus("音色列表读取失败");
-        setError(e && e.message ? e.message : String(e));
+        setError(errorMessage(e, "音色列表读取失败"));
         return;
       }
       renderPickerTabs();
@@ -192,7 +192,7 @@
             updatePickerPreviewClasses();
           });
         } catch (e) {
-          debugLog("⚠️ 当前 WebView 不支持音色试听 audio: " + (e && e.message ? e.message : e), "#fc9");
+          debugLog("⚠️ 当前 WebView 不支持音色试听 audio: " + errorMessage(e, "audio 试听不可用"), "#fc9");
           return;
         }
       }
@@ -209,14 +209,14 @@
         var p = pickerPreviewAudio.play();
         if (p && typeof p.catch === "function") {
           p.catch(function (e) {
-            debugLog("⚠️ 音色试听 play() 失败: " + (e && e.message ? e.message : e), "#fc9");
+            debugLog("⚠️ 音色试听 play() 失败: " + errorMessage(e, "试听播放失败"), "#fc9");
             pickerPreviewVoice = "";
             updatePickerPreviewClasses();
           });
         }
         setStatus("试听音色：" + voiceName);
       } catch (e) {
-        debugLog("⚠️ 音色试听失败: " + (e && e.message ? e.message : e), "#fc9");
+        debugLog("⚠️ 音色试听失败: " + errorMessage(e, "音色试听失败"), "#fc9");
         pickerPreviewVoice = "";
         updatePickerPreviewClasses();
       }
