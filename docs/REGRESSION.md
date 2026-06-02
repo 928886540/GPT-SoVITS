@@ -96,6 +96,12 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 音色选择器应保持打开；不能出现 picker 短暂打开后 50-500ms 内被关闭，且设置页也消失的状态。
 - 本地 CDP narrow smoke 应看到 `.idx-picker[open]` 在 click 后至少 1s 仍为 true，manifest 仍加载 21 个 modules。
 
+## BUG-022 真实 Tavo 脚本来源回归
+
+- 真实 Tavo 控制台的脚本来源必须是当前 LAN loader：`http://192.168.8.100:9880/static/tavo.js?v=2028881917`，或另一个已验证可达的 adapter URL。
+- 生成前确认前端请求 `/parse_text` 的 base URL 与 adapter health URL 一致；不能打到旧的 `https://index-tts.928886540.xyz/parse_text`。
+- 如果使用 HTTPS 反代，手机/Tavo WebView 必须能访问 `/health`、`/static/tavo.js`、`/static/tavo.runtime.manifest.json` 和 `/parse_text`；否则不要把该域名作为真实回归入口。
+
 ## 普通模式 / 智能模式回归
 
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。

@@ -307,3 +307,17 @@ Root cause: `static/tavo.js` 的懒加载收尾会调用 `closeAccidentalPicker(
 Fix: `closeAccidentalPicker()` 现在跳过 `data-open="1"` 的 active runtime picker，只清理没有 runtime open 标记的 stale picker。正则版本升到 `v=2028881917`，loader 升到 `20260602-ios-layer-v27`。
 
 Guard: CDP narrow smoke 已通过：懒加载打开播放器 -> 设置齿轮 -> 点音色按钮后，`.idx-picker[open]` 在 sync/microtask/50ms/300ms/1100ms 都保持 true，不再被 loader 的 delayed cleanup 关闭；真实 Tavo 中设置页进入选择音色也不能被懒加载 tap guard 误关。
+
+## BUG-022: 真实 Tavo 仍加载旧 HTTPS 脚本导致 /parse_text 请求不到 adapter
+
+Status: open, config/update required
+
+Repro: 真实 Tavo 控制台报错：`LLM 解析代理 /parse_text 请求没有到达后端`，请求 URL 为 `https://index-tts.928886540.xyz/parse_text`，浏览器错误 `TypeError: Load failed`，脚本来源为 `https://index-tts.928886540.xyz/static/tavo.js?v=2028821788`。
+
+Evidence: 当前仓库 `static/tavo_regex_gptsovits_loader.json` 已是 LAN URL：`http://192.168.8.100:9880/static/tavo.js?v=2028881917`。本机和 LAN adapter `/health` 都返回 ok：`127.0.0.1:9880`、`192.168.8.100:9880`。本机 curl 访问 `https://index-tts.928886540.xyz/static/tavo.js?v=2028821788` 和 `/parse_text` 均被连接重置。说明真实 Tavo 没加载当前 LAN 正则版本，而是仍使用旧 HTTPS/旧版本脚本。
+
+Root cause: Tavo 真实端正则配置未刷新到当前 `v=2028881917` 的 LAN loader，导致前端 `cfg.apiBase` / script origin 指向不可达或已过期的 `https://index-tts.928886540.xyz`。失败发生在 Tavo WebView 到 adapter 的浏览器请求阶段，后端还没机会访问 LLM。
+
+Fix: 在真实 Tavo 正则里把脚本 URL 改成当前 LAN loader：`http://192.168.8.100:9880/static/tavo.js?v=2028881917`，保存/应用规则后回到真实聊天消息重新渲染。若必须使用 HTTPS 域名，则需要先保证该域名能稳定反代到本机 adapter，并且 `/health`、`/static/tavo.js`、`/parse_text` 从手机/Tavo WebView 可访问；当前观察到该 HTTPS 域名不可用。
+
+Guard: 真实 Tavo 控制台脚本来源必须显示 `http://192.168.8.100:9880/static/tavo.js?v=2028881917` 或另一个已验证可达的 adapter URL；点击生成前先确认 `/health` 和 `/static/tavo.runtime.manifest.json` 从同源可达。不能用 `https://index-tts.928886540.xyz/static/tavo.js?v=2028821788` 继续验证当前版本。
