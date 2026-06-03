@@ -112,33 +112,6 @@
         return true;
       } catch (_) { return false; }
     }
-    function pauseActiveForHostSuspend(reason) {
-      var t = currentTrack();
-      if (!t) return;
-      if (isCancelableLiveTrack(t)) {
-        keepCurrentLiveTrackForHostBackground(reason || "host suspend");
-        return;
-      }
-      if (isSavedTrack(t)) {
-        debugLog("🎧 host suspend: 历史音频不主动暂停，交给 Tavo/系统后台播放策略处理: " + (reason || "visibility"), "#9ff");
-      }
-    }
-    function markVisiblePausedNotice() {
-      var t = currentTrack();
-      if (!t || !t.pausedByHost) return;
-      setTrackPlaybackState(t, "paused");
-      setPlayState("idle");
-      setStatus("已暂停，点播放继续");
-      showTrackNotice(t, "已暂停", "点播放从当前位置继续");
-    }
-    try {
-      document.addEventListener("visibilitychange", function () {
-        if (document.hidden) pauseActiveForHostSuspend("visibility hidden");
-        else markVisiblePausedNotice();
-      });
-      window.addEventListener("pagehide", function () { pauseActiveForHostSuspend("pagehide"); });
-      window.addEventListener("pageshow", function () { markVisiblePausedNotice(); });
-    } catch (_) {}
     on(play, 'pointerdown', function () { primeAudioContext(); });
     on(add, 'pointerdown', function () { primeAudioContext(); });
     on(play, 'touchstart', function () { primeAudioContext(); });

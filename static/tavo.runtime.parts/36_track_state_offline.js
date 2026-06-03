@@ -330,18 +330,23 @@
       function num(v) { v = Number(v); return isFinite(v) ? v : null; }
       var parts = [];
       var first = num(metrics.first_pcm_s);
-      var total = num(metrics.total_wall_s);
+      var total = num(metrics.total_wall_s != null ? metrics.total_wall_s : metrics.total_s);
       var dur = num(metrics.audio_duration_s);
       var rtf = num(metrics.rtf);
       var wallRtf = num(metrics.wall_rtf);
-      var steps = num(metrics.diffusion_steps);
+      var steps = num(metrics.sample_steps != null ? metrics.sample_steps : metrics.diffusion_steps);
+      var batch = num(metrics.batch_size);
+      var sampleRate = num(metrics.sample_rate);
       var firstTokens = num(metrics.first_tokens);
       var s2mel = num(metrics.s2mel_s);
       var condition = num(metrics.condition_s);
       var done = num(metrics.segments_done);
       var all = num(metrics.segments_total);
+      var sourceAll = num(metrics.source_segments_total);
       if (metrics.performance_mode) parts.push("档位 " + qualityModeLabel(metrics.performance_mode));
       if (steps != null) parts.push("steps " + steps);
+      if (batch != null) parts.push("batch " + batch);
+      if (sampleRate != null) parts.push((sampleRate >= 1000 ? (sampleRate / 1000).toFixed(sampleRate % 1000 ? 1 : 0) + "kHz" : sampleRate + "Hz"));
       if (firstTokens != null) parts.push("首段 " + firstTokens);
       if (first != null) parts.push("首音 " + first.toFixed(1) + "s");
       if (rtf != null) parts.push("RTF " + rtf.toFixed(2));
@@ -351,5 +356,6 @@
       if (dur != null && dur > 0) parts.push("音频 " + dur.toFixed(1) + "s");
       if (total != null) parts.push("总耗时 " + total.toFixed(1) + "s");
       if (done != null && all != null && all > 0) parts.push("段 " + done + "/" + all);
+      if (sourceAll != null && all != null && sourceAll !== all) parts.push("原始段 " + sourceAll);
       return parts.join(" · ");
     }

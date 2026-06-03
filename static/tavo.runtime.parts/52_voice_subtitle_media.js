@@ -301,10 +301,13 @@
           }
           t = isFinite(exactStart) ? (exactStart + segDur) : (t + segDur + gap);
         }
-        if (!exactTiming && isLiveTrack(trackEntry)) {
-          showSubtitleNotice("歌词时间轴校准中", "等待服务端返回完整分段时间");
-        } else {
+        if (timeline.length) {
           renderSubtitleRows(timeline, !metaList, trackEntry, exactTiming);
+          if (!exactTiming && isLiveTrack(trackEntry)) {
+            showTrackNotice(trackEntry, "歌词时间轴校准中", "先显示粗略歌词，拿到完整分段时间后自动校准");
+          }
+        } else {
+          showSubtitleNotice("暂无歌词", "音频可播放，但没有拿到分段字幕");
         }
         if (metaList) lastIdx = -1;
       }
@@ -316,7 +319,6 @@
         var t;
         try { t = getTimeSec(); } catch (_) { t = NaN; }
         if (!isFinite(t) || t < 0) return;
-        if (!exactTiming && isLiveTrack(trackEntry)) return;
         var idx = -1;
         for (var i = 0; i < timeline.length; i++) {
           if (t >= timeline[i].start && t < timeline[i].end) { idx = i; break; }

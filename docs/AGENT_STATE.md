@@ -1,12 +1,45 @@
 # Agent State
 
-更新时间：2026-06-03 14:21 +08:00
+更新时间：2026-06-03 15:24 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-038 live 后台状态、歌词和指标修正（2026-06-03 15:24 +08:00）
+
+用户反馈：v1936 live 流式播放时切 Tavo 控制台/后台后，卡片长期显示“流式播放继续”；live 歌词一直不出来；落盘指标只有 RTF 和音频时长；最新音频疑似漏字。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881937`。
+- Loader 版本 `20260603-live-status-metrics-v47`，runtime parts/manifest `20260603-live-status-metrics-v29`。
+- `62_dialog_audio_events.js`：删除 `visibilitychange/pagehide/pageshow` 对 live/saved 播放状态的主动处理。切控制台、切后台本身不再写“流式后台继续”、不再请求 `/background`；只有真实 WebAudio 挂起、流中断或缓冲超时这类播放层事件才进入后台保存兜底。
+- `52_voice_subtitle_media.js`：live 没有精确 `segments_meta` 时间轴时先显示粗略歌词行并按播放时钟高亮；拿到完整分段时间后自动校准。粗略时间轴不可点击 seek。
+- `44_track_history_cache.js`：job done 后当前卡片立即写“音频已保存”，展示完整指标，必要时从 `segments_meta` 重建歌词。
+- `36_track_state_offline.js` / `gsv_tavo_adapter.py` / `05_message_text_config.js`：指标补齐档位、sample steps、batch size、采样率、RTF、音频时长、总耗时、完成段数和原始 LLM 段数。
+- `gsv_tavo_adapter.py`：合成前合并相邻同 role / 同 style / 同 style_alpha 的短片段，不改 LLM role，不跨角色合并，减少 1 秒左右短 TTS chunk 导致的吞字风险。
+
+Whisper 已对旧 cache `7230be132b08365af4db14ece6a13a8f2183c1bd` 跑完：
+
+- 转写：`reports/whisper_cache_7230be132b08365af4db14ece6a13a8f2183c1bd_20260603/7230be132b08365af4db14ece6a13a8f2183c1bd.txt`
+- 覆盖摘要：`reports/whisper_cache_7230be132b08365af4db14ece6a13a8f2183c1bd_20260603/coverage_summary.json`
+- 关键结论：弱覆盖集中在短片段，尤其 `#16` 约 0.68s 的语气词和 `#21` 约 1.6s 的小薇对白；旧请求原始 29 段，新合成前会合并为 21 段。
+
+已验证：
+
+- `python -m py_compile gsv_tavo_adapter.py`
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260603-live-status-metrics-v29`
+- `git diff --check` 通过，仅 LF/CRLF 工作区提示；key scan 无命中
+- 本地 adapter 已重启，`/health` 200；`/static/tavo.js?v=2028881937` 返回 loader `20260603-live-status-metrics-v47`；manifest 返回 `20260603-live-status-metrics-v29`
+- 公网 `https://sovits.928886540.xyz` 返回 health 200、loader v47、manifest v29
+- 旧 cache `/tts_dialogue_job_status/7230be132b08365af4db14ece6a13a8f2183c1bd` 已能补出 `sample_steps=32`、`batch_size=4`、`sample_rate=48000`、`performance_mode=ultra`
+
+待真实 Tavo 回归：刷新正则到 v1937 并重新生成新 cache，确认切控制台/后台不再仅因页面可见性写“流式后台继续”，live 歌词先显示粗略行，新生成音频不再把连续短对白拆成 1 秒小段。
 
 ## BUG-037 LLM role 信任与实际 voice 显示修正（2026-06-03 14:21 +08:00）
 

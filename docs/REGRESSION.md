@@ -203,6 +203,17 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - adapter 日志 `[gsv_adapter] official_tts` 的 `voice` 必须等于该 role 在 voicesMap 里的音色；例如 `用户/白夜雨 -> 男声/忧郁少年`。
 - 前端从 `/tts_dialogue_job_status` 读取 `segments_meta` 后，track.segments 必须保留 `voice` 字段；播放状态栏应优先显示服务端实际 voice，不能只按本地映射猜。
 
+## BUG-038 live 后台状态、歌词和指标回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881937`，loader 版本 `20260603-live-status-metrics-v47`，runtime `20260603-live-status-metrics-v29`。
+- 点击懒加载后 manifest 仍应加载 21 个 runtime modules；`static/tavo.runtime.manifest.json` 返回的 `runtimeVersion` 必须是 `20260603-live-status-metrics-v29`。
+- live 播放时切 Tavo 控制台日志页、Tavo 其他页面或系统后台，前端不能仅因 `visibilitychange/pagehide/pageshow` 写“流式后台继续”，也不能仅因此请求 `/tts_dialogue_stream_job/<cache>/background`。
+- 如果宿主允许后台播放，live/saved 音频应继续出声；如果真实 WebAudio 挂起、网络流中断、连续缓冲或首段等待超时，才允许进入“后台继续保存”兜底并轮询 job status。
+- live 生成开始后，即使还没有精确 `segments_meta`，歌词区域也必须先显示粗略歌词行并按播放时间高亮；粗略时间轴不能点击 seek。job done 后必须从 `segments_meta` 校准歌词并在 saved/history 阶段允许 seek。
+- job done 或历史恢复后，指标文案必须至少包含：档位、steps、batch、采样率、RTF、音频时长、总耗时、段数；如果原始 LLM 段数和合成段数不同，还要显示原始段数。
+- `/tts_dialogue_job_status/<cache_key>` 返回的 `metrics` 必须包含 `performance_mode`、`sample_steps`、`batch_size`、`sample_rate`、`segments_done`、`segments_total`、`source_segments_total`；旧 cache 也应能从 metadata.request 补齐这些字段。
+- Whisper 质量检查：旧 cache `7230be132b08365af4db14ece6a13a8f2183c1bd` 的报告在 `reports/whisper_cache_7230be132b08365af4db14ece6a13a8f2183c1bd_20260603/`；新同类生成应确认相邻同角色/同声腔短对白不再被拆成 1 秒左右小段。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。

@@ -241,7 +241,10 @@
               if (j && j.metrics) {
                 trackEntry.metrics = j.metrics;
               }
-              if (j && j.sample_rate) trackEntry.sampleRate = j.sample_rate;
+              if (j && j.sample_rate) {
+                trackEntry.sampleRate = j.sample_rate;
+                if (trackEntry.metrics && trackEntry.metrics.sample_rate == null) trackEntry.metrics.sample_rate = j.sample_rate;
+              }
               if (j && j.duration_s) trackEntry.duration_s = j.duration_s;
               if (j && j.cache_url) {
                 trackEntry.cacheUrl = new URL(j.cache_url, cleanBase(cfg.apiBase) + "/").href;
@@ -266,6 +269,18 @@
                   stopServerLogPolling();
                 }
                 var metricsLine = formatJobMetrics(trackEntry.metrics);
+                if (currentTrack() === trackEntry) {
+                  setStatus("音频已保存");
+                  showTrackNotice(trackEntry, "音频已保存", metricsLine || "点播放可重播");
+                  try {
+                    if (Array.isArray(trackEntry.segments) && trackEntry.segments.length && !hasActiveSubtitleRows(trackEntry)) {
+                      startSubtitle(trackEntry, function () {
+                        if (webAudioController && typeof webAudioController.getTimeSec === "function") return webAudioController.getTimeSec();
+                        return trackResumeSec(trackEntry);
+                      });
+                    }
+                  } catch (_) {}
+                }
                 if (metricsLine) debugLog("📊 " + label + " 指标: " + metricsLine, "#9ff");
                 if (currentTrack() === trackEntry && isElementUsingTrackStream(trackEntry)) {
                   debugLog("✅ 未检测到 stalled/中断，保持当前流式播放，不切到落盘音频", "#9f9");
@@ -540,20 +555,6 @@
         return;
       }
       blockLiveNavigation(track, actionLabel);
-    }
-    function keepCurrentLiveTrackForHostBackground(reason) {
-      var track = currentTrack();
-      if (!isCancelableLiveTrack(track)) return false;
-      track.pausedByHost = false;
-      track.playSavedWhenReady = false;
-      if (track.cacheKey) {
-        requestLiveBackgroundCache(track, "host background");
-        pollCacheUpgrade(track, "live background");
-      }
-      setStatus("流式后台继续");
-      showTrackNotice(track, "流式后台继续", "前端不主动删除；完成后会保存为历史音频");
-      debugLog("🎧 host background: 保留 live，不主动删除 reason=" + (reason || "host background") + (track.cacheKey ? " cacheKey=" + track.cacheKey : ""), "#9ff");
-      return true;
     }
     async function clearCurrentTrack() {
       if (currentTrackIndex < 0) return;

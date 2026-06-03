@@ -6,7 +6,7 @@
   var TRACKS_KEY_PREFIX = "sovits_tracks_";
   var LEGACY_PRODUCT_KEY = "index" + "tts";
   var LEGACY_TRACKS_KEY_PREFIXES = [LEGACY_PRODUCT_KEY + "_tracks_"];
-  var LOADER_VERSION = "20260603-llm-role-trust-v46";
+  var LOADER_VERSION = "20260603-live-status-metrics-v47";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 

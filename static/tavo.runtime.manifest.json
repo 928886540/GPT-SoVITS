@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260603-llm-role-trust-v28",
+  "runtimeVersion": "20260603-live-status-metrics-v29",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

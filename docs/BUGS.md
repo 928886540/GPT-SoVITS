@@ -19,6 +19,20 @@ Notes:
 - 根因未确认时写 `Status: open, investigating`，把截图/日志/复现现象和假设分开写。
 - 改 bug 前先读本文件，避免同一个问题反复改、重复编号或丢掉已知上下文。
 
+## BUG-038: live 后台播放状态、歌词时间轴和指标展示不完整
+
+Status: patched locally in v2028881937, needs real Tavo regression
+
+Repro: 用户 2026-06-03 在 v2028881936 真实 Tavo 生成后反馈：流式播放时切控制台日志页或后台页面，前端像在监控页面切换一样一直显示“流式播放继续”，用户期望 live 后台播放依然可用，不需要前端把切页当成特殊状态；最后一条语音疑似漏字，需要用 Whisper 对比；live 过程中歌词始终没有出来，落盘后仍显示流式继续；`dialogue live snapshot 指标: RTF 0.61 · 音频 164.5s` 指标太少，需要显示 batch size、sample steps、采样率、分段数等参数。
+
+Evidence: adapter 日志确认真实 Tavo 已加载 `v=2028881936` / loader `20260603-llm-role-trust-v46` / runtime parts `20260603-llm-role-trust-v28`，并生成最新 cache `7230be132b08365af4db14ece6a13a8f2183c1bd`。日志中有 `POST /tts_dialogue_stream_job/<cache>/background`，说明前端在宿主切换/流式中断时主动请求后台合成。当前 `62_dialog_audio_events.js` 仍监听 `visibilitychange/pagehide/pageshow`，`44_track_history_cache.js` 的 `keepCurrentLiveTrackForHostBackground()` 会写“流式后台继续”，这可能解释用户看到的状态卡住。
+
+Root cause: live 切后台策略仍过度干预 UI 状态：v1936 仍把 `visibilitychange/pagehide/pageshow` 转成“流式后台继续”提示和 `/background` 请求，导致用户切控制台日志页或后台页时被 UI 文案误导。live 歌词在没有精确 `segments_meta.start_s/duration_s` 时只显示校准中，没有先显示粗略歌词；落盘后 `pollCacheUpgrade()` 也没有立即重建当前 track 的字幕。指标少是后端旧 metadata 只写 `total_s/audio_duration_s/rtf`，前端保存 tracks 时也丢了 batch、steps、sample rate 等字段。Whisper 对最新 cache 的比对显示弱覆盖集中在短 TTS chunk，尤其短语气词和约 1.6s 的同角色对白，说明漏字风险更像过短分段而不是链路断。
+
+Fix: v1937 移除 `62_dialog_audio_events.js` 对 `visibilitychange/pagehide/pageshow` 的主动监听和 `44_track_history_cache.js` 的 `keepCurrentLiveTrackForHostBackground()`；切 Tavo 控制台/后台本身不再改 live 状态，也不再因此请求 `/background`。真实 WebAudio 挂起、流中断、连续缓冲或首段等待过久仍由播放层保留 live 并兜底后台合成。`52_voice_subtitle_media.js` 改为 live 没有精确时间轴时先渲染粗略歌词并随播放高亮，拿到 `segments_meta` 后再校准，未精确时间仍不能点击 seek。`44_track_history_cache.js` 在 job done 后对当前 track 立即写“音频已保存”、重建字幕并显示完整指标。`gsv_tavo_adapter.py` 合成前合并相邻同 role / 同 style / 同 style_alpha 的短段，不跨角色、不改变 LLM role/voice；最新 cache 原始 29 段按该规则会合并为 21 个实际 TTS 段。后端 `/tts_dialogue_job_status` 和 cache metadata 补齐 `performance_mode/sample_steps/batch_size/sample_rate/segments_done/segments_total/source_segments_total` 等指标，前端 `formatJobMetrics()` 和 `saveTracksForMessage()` 同步显示/保存这些字段。
+
+Guard: 真实 Tavo 正则必须刷新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881937`。live/saved 播放时切控制台日志页或后台页，前端不能因 host visibility/pagehide 主动把卡片覆盖成“流式后台继续”，也不能仅因此请求 `/tts_dialogue_stream_job/<cache>/background`；如果宿主允许后台播放，应继续播放，如果真实流式连接或 AudioContext 失败，再按播放层事件兜底保存。live 必须先显示粗略歌词，拿到 `segments_meta` 后校准；落盘后 track 应从 job status 更新为 saved/history 并显示可播放歌词。snapshot 指标至少显示档位、steps、batch、sample rate、RTF、音频时长、总耗时、合并后分段完成数和原始 LLM 段数。Whisper 报告路径：`reports/whisper_cache_7230be132b08365af4db14ece6a13a8f2183c1bd_20260603/`。
+
 ## BUG-037: LLM 角色拆段被前端 JS 强制改旁白导致音色映射失效
 
 Status: patched locally in v2028881936, needs real Tavo regression

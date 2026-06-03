@@ -2,7 +2,7 @@
   "id": "6f45bb74-7c22-477d-97be-003f47e99a52",
   "scriptName": "GPT-SoVITS Tavo Loader - tail script",
   "findRegex": "\\s*$",
-  "replaceString": "<script src=\"https://sovits.928886540.xyz/static/tavo.js?v=2028881936\"></script>",
+  "replaceString": "<script src=\"https://sovits.928886540.xyz/static/tavo.js?v=2028881937\"></script>",
   "trimStrings": [],
   "placement": [
     2

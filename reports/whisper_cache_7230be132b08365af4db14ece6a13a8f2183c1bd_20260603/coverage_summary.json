@@ -1,0 +1,79 @@
+{
+  "cache": "7230be132b08365af4db14ece6a13a8f2183c1bd",
+  "asr_path": "reports/whisper_cache_7230be132b08365af4db14ece6a13a8f2183c1bd_20260603/7230be132b08365af4db14ece6a13a8f2183c1bd.txt",
+  "total_segments": 29,
+  "weak_segments": [
+    {
+      "idx": 3,
+      "role": "用户",
+      "voice": "男声/忧郁少年",
+      "duration_s": 4.92,
+      "coverage_ratio": 0.75,
+      "text": "“两位美人，起的真早啊。乖，让老公再亲亲 ”"
+    },
+    {
+      "idx": 4,
+      "role": "旁白",
+      "voice": "女声/冰山美人",
+      "duration_s": 5.6376875,
+      "coverage_ratio": 0.821,
+      "text": "凌乱不堪的大床上，BoBo和小薇一左一右地依偎在白夜雨身旁。"
+    },
+    {
+      "idx": 5,
+      "role": "旁白",
+      "voice": "女声/冰山美人",
+      "duration_s": 6.8,
+      "coverage_ratio": 0.806,
+      "text": "那件红边女仆装早就被撕成了几块破布，可怜兮兮地挂在BoBo的腰间。"
+    },
+    {
+      "idx": 9,
+      "role": "旁白",
+      "voice": "女声/冰山美人",
+      "duration_s": 5.12,
+      "coverage_ratio": 0.81,
+      "text": "BoBo皱了皱眉，从极度的疲惫中缓缓睁开眼睛。"
+    },
+    {
+      "idx": 11,
+      "role": "旁白",
+      "voice": "女声/冰山美人",
+      "duration_s": 2,
+      "coverage_ratio": 0.75,
+      "text": "灌满浓精的饱胀感。"
+    },
+    {
+      "idx": 16,
+      "role": "小薇",
+      "voice": "女声/风韵少妇",
+      "duration_s": 0.68,
+      "coverage_ratio": 0,
+      "text": "“唔……”"
+    },
+    {
+      "idx": 18,
+      "role": "旁白",
+      "voice": "女声/冰山美人",
+      "duration_s": 3.6,
+      "coverage_ratio": 0.706,
+      "text": "上面还留着BoBo昨晚吸吮出的红印。"
+    },
+    {
+      "idx": 21,
+      "role": "小薇",
+      "voice": "女声/风韵少妇",
+      "duration_s": 1.6,
+      "coverage_ratio": 0.643,
+      "text": "今天去公司走路肯定要被看出来。”"
+    },
+    {
+      "idx": 22,
+      "role": "旁白",
+      "voice": "女声/冰山美人",
+      "duration_s": 5.3585416666666665,
+      "coverage_ratio": 0.783,
+      "text": "BoBo轻笑了一声，眼底透着一股彻底堕落后的媚意。"
+    }
+  ]
+}

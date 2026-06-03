@@ -3,7 +3,7 @@
 ## P0
 
 - 重开 Codex 后第一步：读 `AGENTS.md`、`README.md`、`docs/AGENT_STATE.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/BUGS.md`、`docs/TODO.md`、`docs/REGRESSION.md`，再跑 `git status --short`。不要回退当前未提交 runtime 拆分成果。
-- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881936`，loader `20260603-llm-role-trust-v46`，runtime parts/manifest `20260603-llm-role-trust-v28`。优先回归 BUG-037：LLM 输出的 role 不能再被 JS 按“无引号”强制改旁白；如果 LLM 输出 `用户/白夜雨`，adapter 实际合成 voice 必须是 `男声/忧郁少年`。继续覆盖 BUG-036：saved/history 播放时前端不主动暂停后台播放；live 是特殊临时卡片，播放中只显示 `退出流式`，上一条/下一条/播放/新增/删除隐藏；live 未完成点 `退出流式` 才删除，播放结束或落盘后进入 saved/history 普通卡片。
+- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881937`，loader `20260603-live-status-metrics-v47`，runtime parts/manifest `20260603-live-status-metrics-v29`。优先回归 BUG-038：切 Tavo 控制台/后台不能仅因 visibility/pagehide 写“流式后台继续”或请求 `/background`；live 歌词应先显示粗略行，拿到 `segments_meta` 后校准；snapshot 指标必须显示档位、steps、batch、sample rate、RTF、总耗时、音频时长、分段数和原始 LLM 段数；新生成时后端应合并相邻同角色/同声腔短段以降低吞字风险。继续覆盖 BUG-037：LLM 输出的 role 不能再被 JS 按“无引号”强制改旁白；如果 LLM 输出 `用户/白夜雨`，adapter 实际合成 voice 必须是 `男声/忧郁少年`。
 - BUG-029 已确认并修复：本机代理 `127.0.0.1:7897` 会把 adapter 到官方 `127.0.0.1:9881` 的调用伪装成空 body 502。adapter 已绕过代理；官方 9881 通过任务计划 `GPT-SoVITS Official API 9881` 常驻。真实 Tavo 复测前先确认 `curl.exe --noproxy "*"` 打 `http://127.0.0.1:9881/docs` 返回 200。
 - 先做真实 Tavo/雷电回归：当前正则已 bump 到 `v=2028881923`，入口为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923`，需要在 Tavo 正则里刷新版本号，再确认 AR 动态 runtime loader、manifest、21 个 parts、CSS skin、播放器、设置页、音色选择器、懒加载首点播放和音符新建音频都加载/交互正常。
 - 把 README 拆分后的 `docs/` 作为后续唯一活跃状态入口维护。

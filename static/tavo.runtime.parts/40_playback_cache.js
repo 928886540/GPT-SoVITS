@@ -88,8 +88,8 @@
       }
       setTrackPlaybackState(track, "idle");
       setPlayState("idle");
-      setStatus(title || "流式后台继续保存");
-      showTrackNotice(track, title || "流式后台继续保存", detail || "不删除任务；保存完成后会成为历史音频");
+      setStatus(title || "等待音频保存");
+      showTrackNotice(track, title || "等待音频保存", detail || "不删除任务；保存完成后会成为历史音频");
       debugLog("🎧 保留 live 等待保存: " + (label || "live") + (track.cacheKey ? " cacheKey=" + track.cacheKey : ""), "#9ff");
     }
     async function playTrackViaWebAudio(track, url, opts) {

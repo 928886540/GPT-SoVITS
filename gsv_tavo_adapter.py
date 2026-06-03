@@ -5,6 +5,7 @@ import ipaddress
 import json
 import os
 import queue
+import re
 import threading
 import time
 import wave
@@ -584,16 +585,27 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
             state = job_state
         else:
             state = "missing"
+    segments_meta = job.get("segments_meta") or (metadata or {}).get("segments_meta", [])
+    sample_rate = job.get("sample_rate") or (metadata or {}).get("sample_rate")
+    duration_s = job.get("duration_s") or (metadata or {}).get("duration_s")
+    payload = job.get("payload") or (metadata or {}).get("request") or {}
+    metrics = _enrich_dialogue_metrics(
+        job.get("metrics") or (metadata or {}).get("metrics", {}),
+        payload if isinstance(payload, dict) else {},
+        sample_rate,
+        segments_meta,
+        duration_s,
+    )
     return {
         "cache_key": cache_key,
         "state": state,
         "status": "cached" if path else state,
         "cached": bool(path),
         "cache_url": f"/cache_audio/{cache_key}" if path else "",
-        "segments_meta": job.get("segments_meta") or (metadata or {}).get("segments_meta", []),
-        "sample_rate": job.get("sample_rate") or (metadata or {}).get("sample_rate"),
-        "duration_s": job.get("duration_s") or (metadata or {}).get("duration_s"),
-        "metrics": job.get("metrics") or (metadata or {}).get("metrics", {}),
+        "segments_meta": segments_meta,
+        "sample_rate": sample_rate,
+        "duration_s": duration_s,
+        "metrics": metrics,
         "error": job.get("error", "") or ("" if path or job else "cache not found or job expired"),
         "queue_position": job.get("queue_position", 0),
     }
@@ -939,7 +951,7 @@ def _synthesize_dialogue_to_cache(
         "duration_s": duration_s,
         "segments_meta": segments_meta,
         "request": payload,
-        "metrics": {"total_s": elapsed_s, "audio_duration_s": duration_s, "rtf": elapsed_s / duration_s if duration_s > 0 else None},
+        "metrics": _dialogue_metrics(payload, elapsed_s, duration_s, sample_rate, segments_meta),
     }
     snapshot_cache.save_cached_audio(cache_key, merged, metadata)
     return {
@@ -999,6 +1011,18 @@ def _stream_dialogue_to_cache(
             ),
             flush=True,
         )
+        partial_duration = offset_frames / float(sample_rate) if sample_rate else None
+        partial_metrics = _enrich_dialogue_metrics(
+            {
+                "partial": bool(total_bytes),
+                "partial_bytes": total_bytes,
+                "elapsed_s": time.perf_counter() - started,
+            },
+            payload,
+            sample_rate,
+            segments_meta,
+            partial_duration,
+        )
         with JOBS_LOCK:
             JOBS[cache_key] = {
                 **JOBS.get(cache_key, {}),
@@ -1006,12 +1030,8 @@ def _stream_dialogue_to_cache(
                 "error": error_text,
                 "segments_meta": segments_meta,
                 "sample_rate": sample_rate,
-                "duration_s": offset_frames / float(sample_rate) if sample_rate else None,
-                "metrics": {
-                    "partial": bool(total_bytes),
-                    "partial_bytes": total_bytes,
-                    "elapsed_s": time.perf_counter() - started,
-                },
+                "duration_s": partial_duration,
+                "metrics": partial_metrics,
                 "finished_at": time.time(),
             }
 
@@ -1117,7 +1137,7 @@ def _stream_dialogue_to_cache(
             "duration_s": duration_s,
             "segments_meta": segments_meta,
             "request": payload,
-            "metrics": {"total_s": elapsed_s, "audio_duration_s": duration_s, "rtf": elapsed_s / duration_s if duration_s > 0 else None},
+            "metrics": _dialogue_metrics(payload, elapsed_s, duration_s, sample_rate, segments_meta),
         }
         snapshot_cache.save_cached_audio(cache_key, merged, metadata)
         result = {
@@ -1179,7 +1199,137 @@ def _normalize_segments(raw_segments: list[dict[str, Any]]) -> list[dict[str, An
         if style_alpha is not None:
             segment["style_alpha"] = style_alpha
         out.append(segment)
+    return _merge_short_adjacent_segments(out)
+
+
+_SEGMENT_TEXT_NOISE_RE = re.compile(r"[\s\u3000「」『』“”\"'‘’（）()《》〈〉【】\[\]{}，。！？；：、,.!?;:…—\-~～·]+")
+
+
+def _segment_units(text: str) -> int:
+    return len(_SEGMENT_TEXT_NOISE_RE.sub("", str(text or "")))
+
+
+def _segment_style_alpha_key(segment: dict[str, Any]) -> Optional[float]:
+    if segment.get("style_alpha") is None:
+        return None
+    try:
+        return round(float(segment.get("style_alpha")), 3)
+    except (TypeError, ValueError):
+        return None
+
+
+def _quote_open_delta(text: str) -> int:
+    value = str(text or "")
+    return (
+        value.count("“")
+        + value.count("「")
+        + value.count("『")
+        + (value.count('"') % 2)
+        - value.count("”")
+        - value.count("」")
+        - value.count("』")
+    )
+
+
+def _can_merge_adjacent_segments(prev: dict[str, Any], cur: dict[str, Any]) -> bool:
+    if (prev.get("role") or "") != (cur.get("role") or ""):
+        return False
+    if (prev.get("style") or "neutral") != (cur.get("style") or "neutral"):
+        return False
+    if _segment_style_alpha_key(prev) != _segment_style_alpha_key(cur):
+        return False
+    prev_units = _segment_units(str(prev.get("text") or ""))
+    cur_units = _segment_units(str(cur.get("text") or ""))
+    if prev_units <= 0 or cur_units <= 0:
+        return False
+    if prev_units + cur_units > 90:
+        return False
+    prev_text = str(prev.get("text") or "").rstrip()
+    if _quote_open_delta(prev_text) > 0 or prev_text.endswith(("：", ":")):
+        return True
+    return prev_units < 18 or cur_units < 18 or (prev_units < 32 and cur_units < 32)
+
+
+def _merge_short_adjacent_segments(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    for segment in segments:
+        if merged and _can_merge_adjacent_segments(merged[-1], segment):
+            joined = str(merged[-1].get("text") or "").rstrip() + str(segment.get("text") or "").lstrip()
+            merged[-1] = {**merged[-1], "text": joined}
+        else:
+            merged.append(dict(segment))
+    return merged
+
+
+def _enrich_dialogue_metrics(
+    metrics: Optional[dict[str, Any]],
+    payload: Optional[dict[str, Any]],
+    sample_rate: Optional[int],
+    segments_meta: Optional[list[dict[str, Any]]],
+    duration_s: Optional[float],
+) -> dict[str, Any]:
+    out = dict(metrics or {})
+    payload = payload or {}
+    segments_meta = segments_meta or []
+    if duration_s is not None and out.get("audio_duration_s") is None:
+        out["audio_duration_s"] = duration_s
+    if sample_rate is not None:
+        out["sample_rate"] = sample_rate
+    if out.get("total_wall_s") is None and out.get("total_s") is not None:
+        out["total_wall_s"] = out.get("total_s")
+    if out.get("total_s") is None and out.get("total_wall_s") is not None:
+        out["total_s"] = out.get("total_wall_s")
+    if out.get("rtf") is None:
+        total = out.get("total_s") or out.get("total_wall_s")
+        dur = out.get("audio_duration_s")
+        try:
+            if total is not None and dur:
+                out["rtf"] = float(total) / float(dur)
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
+    for key in (
+        "performance_mode",
+        "sample_steps",
+        "diffusion_steps",
+        "batch_size",
+        "parallel_infer",
+        "streaming_mode",
+        "speed_factor",
+        "top_k",
+        "top_p",
+        "temperature",
+    ):
+        if out.get(key) is None and payload.get(key) is not None:
+            out[key] = payload.get(key)
+    raw_segments = payload.get("segments")
+    planned_segments: list[dict[str, Any]] = []
+    if isinstance(raw_segments, list):
+        planned_segments = _normalize_segments(raw_segments)
+    if out.get("segments_done") is None:
+        out["segments_done"] = len(segments_meta)
+    if out.get("segments_total") is None:
+        # Old cache files can contain pre-merge segments_meta. Do not report
+        # impossible values such as 29/21 for those historical artifacts.
+        out["segments_total"] = max(len(segments_meta), len(planned_segments)) if planned_segments else len(segments_meta)
+    if out.get("source_segments_total") is None and isinstance(raw_segments, list):
+        out["source_segments_total"] = len(raw_segments)
     return out
+
+
+def _dialogue_metrics(
+    payload: dict[str, Any],
+    elapsed_s: float,
+    duration_s: float,
+    sample_rate: int,
+    segments_meta: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return _enrich_dialogue_metrics(
+        {"total_s": elapsed_s, "total_wall_s": elapsed_s, "audio_duration_s": duration_s, "rtf": elapsed_s / duration_s if duration_s > 0 else None},
+        payload,
+        sample_rate,
+        segments_meta,
+        duration_s,
+    )
 
 
 def _pick_default_profile(payload: dict[str, Any], profiles: dict[str, Optional[dict[str, Any]]]) -> Optional[dict[str, Any]]:
