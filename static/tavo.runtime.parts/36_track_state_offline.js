@@ -285,11 +285,17 @@
     }
     function shouldUseWebAudioForLiveTrack(track) {
       if (!(track && track.mode === "ai8" && isLiveTrack(track) && (track.streamUrl || track.cacheKey))) return false;
+      if (track.forceElementAudio) return false;
       if (track.forceWebAudioLive || track.elementAudioUnsupported) return true;
-      if (isMobileUA()) return true;
       try {
+        if (script && script.src && /[?&]webAudioLive=0\b/.test(script.src)) return false;
         if (script && script.src && /[?&]webAudioLive=1\b/.test(script.src)) return true;
       } catch (_) {}
+      // Live playback should prefer the native <audio> element first. In Tavo AR,
+      // WebAudio can enter "interrupted" when the user opens console/log pages or
+      // the app backgrounds; the native audio route has a better chance to keep
+      // playing. If the element route is unsupported, handlers flip
+      // elementAudioUnsupported and fall back to WebAudio.
       return false;
     }
     function shouldUseWebAudioForSavedTrack(track) {

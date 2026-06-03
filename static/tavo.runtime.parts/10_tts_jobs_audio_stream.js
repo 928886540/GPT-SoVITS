@@ -203,7 +203,8 @@
     var state = "unknown";
     try { state = String((ctx && ctx.state) || "unknown"); } catch (_) {}
     resetPrimedAudioContext(step + ":" + state);
-    return new Error("[step:" + step + "] AudioContext state=" + state + "，音频通道未放行");
+    var text = state === "interrupted" ? "宿主音频通道中断，尚未恢复" : "音频通道未放行";
+    return new Error("[step:" + step + "] AudioContext state=" + state + "，" + text);
   }
   function primeAudioContext() {
     if (!PRIMED_CTX && !FORCE_NEW_AUDIO_CONTEXT) {
@@ -482,18 +483,38 @@
     startAt = ctx.currentTime + 0.12;
     nextAt = startAt;
 
+    function waitAudioContextMs(ms) {
+      return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
     async function ensureAudioContextRunning(step) {
-      try {
-        if (ctx.state === "suspended") {
-          await ctx.resume();
-          hooks.debug && hooks.debug(step + " resume AudioContext -> " + ctx.state);
+      var deadline = Date.now() + (step === "schedulePcm" ? 45000 : 12000);
+      var notified = false;
+      while (!stopped) {
+        var state = String(ctx.state || "running");
+        if (state === "running") return;
+        if (state === "closed") throw audioContextBlockedError(step + ".resume", ctx);
+        if (!notified) {
+          notified = true;
+          hooks.onStateChange && hooks.onStateChange(state === "interrupted" ? "audio_interrupted" : "audio_suspended");
+          hooks.debug && hooks.debug(step + " waiting AudioContext, state=" + state);
         }
-      } catch (e) {
-        throw new Error("[step:" + step + ".resume] " + errorMessage(e, "AudioContext resume 失败"));
+        try {
+          if (state === "suspended" || state === "interrupted") {
+            await ctx.resume();
+            hooks.debug && hooks.debug(step + " resume AudioContext -> " + ctx.state);
+          }
+        } catch (e) {
+          hooks.debug && hooks.debug(step + " resume AudioContext failed: " + errorMessage(e, "resume failed"));
+        }
+        if (String(ctx.state || "running") === "running") {
+          hooks.onStateChange && hooks.onStateChange("audio_resumed");
+          return;
+        }
+        if (Date.now() >= deadline) break;
+        await waitAudioContextMs(250);
       }
-      if (String(ctx.state || "running") !== "running") {
-        throw audioContextBlockedError(step + ".resume", ctx);
-      }
+      if (stopped) throw makeAbortError(stopReason);
+      throw audioContextBlockedError(step + ".resume", ctx);
     }
 
     async function schedulePcm(bytes) {

@@ -216,11 +216,19 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 ## 旁白 artwork 回归
 
-- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881938`，loader 版本 `20260603-narrator-art-v48`，runtime `20260603-narrator-art-v30`。
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881938` 或更新版本；当前版本是 `v=2028881939`，loader `20260603-audio-interrupt-v49`，runtime `20260603-audio-interrupt-v31`，仍包含旁白 artwork 修复。
 - `/static/tavo.assets/narrator.png?asset_v=20260603-narrator-art-v30` 本地和公网都必须返回 200，图片尺寸应为 1024x1024 PNG；公网裸 `/static/tavo.assets/narrator.png` 短时间可能命中 Cloudflare 旧 404 缓存，不作为失败判定。
 - 播放到 `role="旁白"` 的 segment 时，播放器左上角 cover 应显示新的开书/声波图。
 - 系统后台/锁屏 MediaSession artwork 对旁白段也应使用同一张图。
 - `用户` 和普通角色的默认 avatar 不应改变：用户仍走 `userAvatarUrl || DEFAULT_AVATARS.user`，角色仍走 `avatarUrl || DEFAULT_AVATARS.character`。
+
+## BUG-039 live 音频通道 interrupted 回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881939`，loader 版本 `20260603-audio-interrupt-v49`，runtime `20260603-audio-interrupt-v31`。
+- live 流式播放首路径应优先 `<audio>` 系统音频通道，控制台应出现 `live track 使用 audio 元素流式`；只有 audio 元素 play/error 明确不支持时才 fallback WebAudio。
+- 切 Tavo 控制台日志页、切其他页面或系统后台时，前端不能写“Web Audio 通道暂停”“已暂停”或把 live 变成用户暂停态。
+- 如果 fallback WebAudio 出现 `AudioContext state=interrupted/suspended`，UI 应显示“宿主音频通道中断/等待恢复”或“音频通道暂不可用，等待恢复”，不能显示“暂停”。
+- 通道恢复后应继续缓冲/起播；超过恢复窗口仍未恢复时，才能转“宿主音频通道未恢复，等待保存”，并继续轮询 saved/history。
 
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。

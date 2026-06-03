@@ -234,8 +234,8 @@
             debugLog("💾 立即写 tavo.set cacheKey=" + jobInfo.cacheKey, "#9ff");
           }
           if (trackEntry.pausedByUser) {
-            setStatus("已暂停，后台保存中");
-            showTrackNotice(trackEntry, "已暂停", "合成还在后台进行，保存后会成为历史音频");
+            setStatus("等待音频保存中");
+            showTrackNotice(trackEntry, "等待音频保存", "合成还在后台进行，保存后会成为历史音频");
             pollCacheUpgrade(trackEntry, "paused snapshot");
             stopServerLogPolling();
             return;

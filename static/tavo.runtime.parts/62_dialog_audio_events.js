@@ -82,10 +82,10 @@
     function tryResumeOrPauseInGesture() {
       try {
         var t = currentTrack();
-        if (t && t.webAudioPlaying && isCancelableLiveTrack(t)) {
-          setStatus("流式播放中，不能暂停");
+        if (t && t.webAudioPlaying && isLiveTrack(t)) {
+          setStatus("流式播放中，仅可退出");
           showTrackNotice(t, "流式播放中", "请等待音频保存完成；需要中止时点退出流式");
-          debugLog("⛔ live 播放按钮暂停被阻止：保留流式任务 cacheKey=" + (t.cacheKey || ""), "#fc9");
+          debugLog("⛔ live 控制被阻止：保留流式任务 cacheKey=" + (t.cacheKey || ""), "#fc9");
           return true;
         }
         if (t && t.webAudioPlaying) {
@@ -202,7 +202,20 @@
       }
     });
     on(audio, 'playing', function () { var t = currentTrack(); try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("element playing"); } catch (_) {} if (t) { t.pausedByHost = false; setTrackPlaybackState(t, "playing"); } setError(""); setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t)); });
-    on(audio, 'pause', function () { var t = currentTrack(); if (t && !audio.ended) setTrackPlaybackState(t, "paused"); setPlayState("idle"); if (audio.currentTime > 0 && !audio.ended) setStatus("已暂停"); stopSubtitle(); });
+    on(audio, 'pause', function () {
+      var t = currentTrack();
+      if (t && isLiveTrack(t) && !audio.ended) {
+        setTrackPlaybackState(t, "buffering");
+        setPlayState("loading");
+        setStatus("宿主音频通道暂不可用，等待恢复…");
+        showTrackNotice(t, "宿主音频通道暂不可用", "不暂停、不删除 live；保存完成后会进入历史音频");
+        return;
+      }
+      if (t && !audio.ended) setTrackPlaybackState(t, "paused");
+      setPlayState("idle");
+      if (audio.currentTime > 0 && !audio.ended) setStatus("已暂停");
+      stopSubtitle();
+    });
     on(audio, 'ended', function () {
       var t = currentTrack();
       if (t && t.mode === "single" && t.cacheKey && t.cacheUrl) {

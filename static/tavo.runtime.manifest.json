@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260603-narrator-art-v30",
+  "runtimeVersion": "20260603-audio-interrupt-v31",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

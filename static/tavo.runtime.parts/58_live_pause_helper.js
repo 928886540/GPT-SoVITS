@@ -3,10 +3,10 @@
 // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script.
     function pauseLiveTrack(track) {
       if (!track) return;
-      if (isCancelableLiveTrack(track)) {
-        setStatus("流式播放中，不能暂停");
+      if (isLiveTrack(track) || isCancelableLiveTrack(track)) {
+        setStatus("流式播放中，仅可退出");
         showTrackNotice(track, "流式播放中", "请等待音频保存完成；需要中止时点退出流式");
-        debugLog("⛔ live 暂停被阻止：保留流式任务 cacheKey=" + (track.cacheKey || ""), "#fc9");
+        debugLog("⛔ live 控制被阻止：保留流式任务 cacheKey=" + (track.cacheKey || ""), "#fc9");
         return;
       }
       track.pausedByUser = true;

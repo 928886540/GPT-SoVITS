@@ -1,12 +1,26 @@
 # Agent State
 
-更新时间：2026-06-03 16:10 +08:00
+更新时间：2026-06-03 18:52 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-039 live 音频通道 interrupted 不再当暂停（2026-06-03 18:52 +08:00）
+
+用户在真实 Tavo v1938 反馈：只是打开控制台日志页或正常等待首段，live 就出现 `AudioContext state=interrupted`，前端日志写成 `Web Audio 通道暂停`，并且没有声音。用户明确要求支持后台播放，不能把切日志页当暂停。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881939`。
+- Loader 版本 `20260603-audio-interrupt-v49`，runtime parts/manifest `20260603-audio-interrupt-v31`。
+- `36_track_state_offline.js`：live 默认优先原生 `<audio>` 系统音频通道；只有 audio 元素不支持时才 fallback WebAudio。保留 `webAudioLive=1/0` query 用于强制测试。
+- `10_tts_jobs_audio_stream.js`：WebAudio `interrupted/suspended` 不再立刻失败；先等待通道恢复，恢复后继续排程 PCM。
+- `40_playback_cache.js`：`audio_interrupted/audio_suspended` 不再调用 `keepLiveTrackForCache()`，不把 live 写成 idle/paused；文案改为“宿主音频通道中断/等待恢复”，超时才等待保存。
+
+待真实 Tavo 回归：刷新正则到 v1939，重新生成 live。首路径应优先日志 `live track 使用 audio 元素流式`；切控制台日志页/后台不能出现“通道暂停/已暂停”；如果 audio 元素不支持再看 WebAudio fallback 是否等恢复或等待保存。
 
 ## 旁白播放器/后台 artwork 更新（2026-06-03 16:10 +08:00）
 

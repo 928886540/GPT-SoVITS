@@ -19,6 +19,20 @@ Notes:
 - 根因未确认时写 `Status: open, investigating`，把截图/日志/复现现象和假设分开写。
 - 改 bug 前先读本文件，避免同一个问题反复改、重复编号或丢掉已知上下文。
 
+## BUG-039: live WebAudio interrupted 被提示成前端暂停
+
+Status: patched locally in v2028881939, needs real Tavo regression
+
+Repro: 用户 2026-06-03 真实 Tavo v2028881938 反馈 live 流式中出现日志：`⚠️ Web Audio 通道暂停，保留 live 等待保存: [step:schedulePcm] [step:schedulePcm.resume] AudioContext state=interrupted，音频通道未放行`。用户明确要求：不要随便暂停。
+
+Evidence: `10_tts_jobs_audio_stream.js` 的 `ensureAudioContextRunning("schedulePcm")` 在 `AudioContext.state=interrupted` 时抛错；`40_playback_cache.js` 把包含 `AudioContext|resume|schedulePcm|音频通道` 的错误统一写成 `Web Audio 通道暂停，保留 live 等待保存`，并调用 `keepLiveTrackForCache(... "音频通道暂停，后台继续保存" ...)`。这会把宿主/系统中断误表达成前端主动暂停。
+
+Root cause: `interrupted` 是 Tavo WebView / iOS / 系统音频会话中断，不是用户点击暂停，也不是前端应该主动 pause 的状态。当前文案和状态名把它折叠到 `audio_suspended/暂停`，导致用户误判为程序随便暂停；更关键的是 `shouldUseWebAudioForLiveTrack()` 对移动端 live 强制 WebAudio，用户切控制台日志页或系统后台时 WebAudio 更容易被宿主中断，普通等待首段时也可能卡在 `AudioContext state=interrupted`。
+
+Fix: v1939 把 live 默认播放路径改回原生 `<audio>` 系统音频通道；只有 `<audio>` 不支持时才设置 `elementAudioUnsupported/forceWebAudioLive` 回退到 WebAudio。`10_tts_jobs_audio_stream.js` 对 `AudioContext state=interrupted/suspended` 不再立刻失败，而是先等待恢复并发出 `audio_interrupted/audio_suspended/audio_resumed` 状态。`40_playback_cache.js` 对这些状态只显示“等待恢复”，不调用 `keepLiveTrackForCache()`，不把 live 变成 idle/paused；超过恢复窗口仍未恢复时才转“宿主音频通道未恢复，等待保存”。所有相关文案去掉“通道暂停/已暂停”。
+
+Guard: 真实 Tavo 正则刷新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881939`。live 流式首路径应优先走 `<audio>` 元素，日志应出现 `live track 使用 audio 元素流式`；只有 audio 元素不支持时才 fallback WebAudio。切控制台日志页/后台或普通等待首段时，UI 不能出现“通道暂停/已暂停”这类像用户或前端主动暂停的文案；如果 WebAudio 返回 `interrupted`，应显示“宿主音频通道中断/等待恢复”或超时后“宿主音频通道未恢复，等待保存”。前端不能仅因此删除 live，也不能把未完成 live 写入历史；job done 后仍进入 saved/history。
+
 ## BUG-038: live 后台播放状态、歌词时间轴和指标展示不完整
 
 Status: patched locally in v2028881937, needs real Tavo regression

@@ -156,7 +156,7 @@
               setTrackPlaybackState(track, "buffering");
               setStatus("音频已排队，准备起播…");
               showTrackNotice(track, "音频已排队", "即将开始出声");
-            } else if (state === "audio_suspended") {
+            } else if (state === "audio_suspended" || state === "audio_interrupted") {
               try {
                 if (webAudioController && typeof webAudioController.getTimeSec === "function") {
                   track.lastWebAudioSec = Math.max(0, Number(webAudioController.getTimeSec()) || 0);
@@ -166,10 +166,18 @@
               } catch (_) {
                 track.lastWebAudioSec = trackResumeSec(track);
               }
-              markWebAudioStopped(track);
-              clearWebAudioProgressTimer();
-              setTrackStreamHealth(track, "stalled");
-              keepLiveTrackForCache(track, "音频通道暂停，后台继续保存", "Tavo/系统可能暂停了 WebAudio；不删除任务，保存完成后进入历史", "audio_suspended");
+              setTrackStreamHealth(track, state === "audio_interrupted" ? "interrupted" : "stalled");
+              setTrackPlaybackState(track, "buffering");
+              setPlayState("loading");
+              var hostAudioTitle = state === "audio_interrupted" ? "宿主音频通道中断，等待恢复…" : "音频通道暂不可用，等待恢复…";
+              setStatus(hostAudioTitle);
+              showTrackNotice(track, hostAudioTitle, "不暂停、不删除 live；音频通道恢复后继续起播，未恢复时再等待保存");
+              debugLog("⚠️ " + hostAudioTitle + " cacheKey=" + (track.cacheKey || ""), "#fc9");
+            } else if (state === "audio_resumed") {
+              setTrackPlaybackState(track, "buffering");
+              setPlayState("loading");
+              setStatus("音频通道已恢复，继续缓冲…");
+              showTrackNotice(track, "音频通道已恢复", "继续接收并排队播放");
             } else if (state === "playing") {
               stopWaitTimer();
               try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("live playing"); } catch (_) {}
@@ -276,9 +284,9 @@
           return false;
         }
         if (track.cacheKey && /AudioContext|resume|schedulePcm|音频通道/i.test(msg)) {
-          setTrackStreamHealth(track, "stalled");
-          keepLiveTrackForCache(track, "音频通道暂停，后台继续保存", "不删除任务；保存完成后会成为历史音频", "audio context suspended");
-          debugLog("⚠️ Web Audio 通道暂停，保留 live 等待保存: " + msg, "#fc9");
+          setTrackStreamHealth(track, /interrupted|中断/i.test(msg) ? "interrupted" : "stalled");
+          keepLiveTrackForCache(track, "宿主音频通道未恢复，等待保存", "不暂停、不删除任务；保存完成后会成为历史音频", "audio context interrupted");
+          debugLog("⚠️ Web Audio 宿主音频通道未恢复，保留 live 等待保存: " + msg, "#fc9");
           return false;
         }
         var friendly = friendlyPlaybackError(e);
