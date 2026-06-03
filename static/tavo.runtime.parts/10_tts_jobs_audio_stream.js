@@ -14,19 +14,6 @@
       .replace(/[「」『』“”"‘’'（）()《》〈〉【】\[\]{}]/g, "")
       .replace(/[，。！？；：、,.!?;:…—\-~～·]/g, "");
   }
-  function tailNarrationAfterQuote(value) {
-    var text = String(value || "").trim();
-    var lastClose = Math.max(
-      text.lastIndexOf("」"),
-      text.lastIndexOf("』"),
-      text.lastIndexOf("”"),
-      text.lastIndexOf("\"")
-    );
-    if (lastClose < 0 || lastClose >= text.length - 1) return "";
-    var tail = text.slice(lastClose + 1).trim();
-    if (!tail || !/[\u4e00-\u9fffA-Za-z0-9]/.test(tail)) return "";
-    return tail;
-  }
   function assertLlmSegmentsCoverSource(sourceText, segments) {
     var sourceNorm = normalizeCoverageText(sourceText);
     var joinedNorm = normalizeCoverageText((segments || []).map(function (s) { return s.text || ""; }).join(""));
@@ -43,48 +30,6 @@
       }
       debugLog("⚠️ LLM 覆盖校验发现轻微差异但已放行：原文约 " + sourceNorm.length + " 字，返回约 " + joinedNorm.length + " 字，差 " + diff + " 字。", "#fc9");
     }
-    var tail = tailNarrationAfterQuote(sourceText);
-    if (tail && segments && segments.length) {
-      var last = segments[segments.length - 1];
-      if ((last.role || "") !== "旁白") {
-        debugLog("⚠️ LLM 尾段可能应为旁白：当前 role=" + (last.role || "?") + "，尾部=" + tail.slice(0, 40), "#fc9");
-      }
-    }
-  }
-  function escapeRegExpText(value) {
-    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-  function quoteDepthAt(sourceText, idx) {
-    var depth = 0;
-    var asciiQuoteOpen = false;
-    var text = String(sourceText || "");
-    for (var i = 0; i < Math.max(0, idx); i++) {
-      var ch = text.charAt(i);
-      if (ch === "「" || ch === "『" || ch === "“") depth += 1;
-      else if (ch === "」" || ch === "』" || ch === "”") depth = Math.max(0, depth - 1);
-      else if (ch === '"') asciiQuoteOpen = !asciiQuoteOpen;
-    }
-    return depth + (asciiQuoteOpen ? 1 : 0);
-  }
-  function findSegmentTextInSource(sourceText, segmentText, fromIdx) {
-    var text = String(segmentText || "").trim();
-    if (!text) return -1;
-    var src = String(sourceText || "");
-    var idx = src.indexOf(text, Math.max(0, fromIdx || 0));
-    if (idx >= 0) return idx;
-    return src.indexOf(text);
-  }
-  function looksLikeNarrationSegment(text, role) {
-    var s = String(text || "").trim();
-    if (!s || /[「」『』“”"]/.test(s)) return false;
-    var verbs = "(低下|抬起|低头|抬头|看着|望着|看见|听见|感觉|走|站|坐|躺|靠|伸|抱|搂|抓|攥|咬|闭|睁|转|笑|哭|喘|颤|缩|贴|凑|伏|跪|垂|松|捂|揉|摸|按|亲|吻|加快|放慢|停下|开始|尖叫|叫|张开|流|滴|仰|扭|摇|晃|动|沉浸|起伏)";
-    if (new RegExp("^我" + verbs).test(s)) return true;
-    if (new RegExp("^[他她它]" + verbs).test(s)) return true;
-    role = String(role || "").trim();
-    if (role && role !== "旁白" && role !== "用户") {
-      return new RegExp("^" + escapeRegExpText(role) + verbs).test(s);
-    }
-    return false;
   }
   function singleParams(cfg, text) {
     var p = new URLSearchParams();
@@ -711,11 +656,11 @@
       "{\"segments\":[{\"role\":\"...\",\"text\":\"...\",\"style\":\"neutral\",\"style_alpha\":0.2}]}",
       "",
       "拆段规则：",
-      "1. 旁白（叙述、环境、动作描写、心理描写、所有无引号正文）→ role 固定为 \"旁白\"。",
-      "   无论主语是不是用户身份名/当前角色名，只要不是引号里的直接台词，都必须写 \"旁白\"。",
-      "   例如「白夜雨抱住她」「潘金莲低下头」「她笑了」「我低下头看着……」「白夜雨说道：」都写旁白，不要让用户或角色认领旁白。",
-      "   ⚠️ 旁白的 style 永远写 neutral，style_alpha 写 0.15。",
-      "       旁白是叙述者，本身不使用声腔参考；后端也会强制覆盖成 neutral。",
+      "1. 先按语义判断每段朗读归属，不要只用有没有引号做规则判断。",
+      "   客观叙述、环境描写、转场说明、无法确定说话人的片段 → role 写 \"旁白\"。",
+      "   明确属于某人物说出口的话、内心独白、贴近视角自述、第一/第二人称且能从上下文判断归属的片段 → role 写该人物名或 \"用户\"。",
+      "   引号是强信号但不是唯一依据；没有引号也可能是人物台词、心理或自述。不要把所有无引号正文机械改成旁白。",
+      "   ⚠️ 只有真正的旁白段 style 才固定 neutral，style_alpha 写 0.15。",
       "   ⚠️ 旁白连续多个句子，要按句号/问号/感叹号/分号 拆成多个旁白 segments，每段≤2 句。",
       "       不要把整段旁白合并成一条 segment 偷懒。例：「她抬头看了我一眼。她哭了。」要拆成两条。",
-      "2. 人物直接说出口的话 → role 用说话人的名字。",
+      "2. 人物直接说出口的话或明确的角色内心/自述 → role 用说话人/视角人物的名字。",

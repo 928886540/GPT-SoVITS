@@ -19,6 +19,18 @@ Notes:
 - 根因未确认时写 `Status: open, investigating`，把截图/日志/复现现象和假设分开写。
 - 改 bug 前先读本文件，避免同一个问题反复改、重复编号或丢掉已知上下文。
 
+## BUG-037: LLM 角色拆段被前端 JS 强制改旁白导致音色映射失效
+
+Status: patched locally in v2028881936, needs real Tavo regression
+
+Repro: 用户 2026-06-03 反馈：最新历史音频里角色映射、歌词和进度条看起来正确，但实际声音不是用户配置的 `男声/忧郁少年`，而是旁白音色。检查最新 cache `5880d2243707038d55529c35e64ef67753d432de` 后发现请求 voices 里有 `白夜雨/用户 -> 男声/忧郁少年`，但 `segments_meta` 只有 `旁白/小薇/BoBo`，没有任何 `用户/白夜雨` 段，因此后端实际不会用男声音色。
+
+Root cause: 前端 LLM prompt 和 `parseWithLlm()` 后处理都写了“无引号正文强制归旁白”的硬规则。LLM 已完成角色拆分后，JS 又用 `quoteDepthAt()` / `insideQuote` 二次判断并把非旁白 role 覆盖成 `旁白`，等于让规则代码推翻 LLM 判断。GPT-SoVITS adapter 只按 `segment.role -> voices[role]` 映射音色，后端没有串音色。
+
+Fix: v1935 移除 JS 对 LLM role 的“无引号强制旁白”覆盖，让 LLM 负责角色归属；JS 只做 role 名规范化、style 范围归一、覆盖率校验和缺失映射报错。prompt 也去掉“所有无引号正文固定旁白”的硬要求，改成“按语义判断，不能只看引号”。前端从 `segments_meta` 恢复歌词时保留服务端实际 `voice` 字段，播放状态栏优先显示真实 voice，避免 UI 只按本地映射显示而误导真实音色判断。
+
+Guard: 新版本生成同类文本时，前端日志不能再出现 `无引号正文强制归旁白`；如果 LLM 输出 `用户/白夜雨`，请求到 adapter 的 `segments` 必须保留该 role，并在 `segments_meta.voice` 中显示 `男声/忧郁少年`。如果 LLM 判断为 `旁白`，UI/日志必须显示实际服务端 `voice`，不能让用户误以为这段用了用户音色。
+
 ## BUG-035: Tavo 切画面/桌面后 Web Audio 恢复重复播放且音频通道卡死
 
 Status: patched in v2028881932; live/history policy superseded by BUG-036 v2028881934, needs real Tavo regression

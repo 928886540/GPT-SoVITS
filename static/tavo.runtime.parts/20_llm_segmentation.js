@@ -1,8 +1,8 @@
 // GPT-SoVITS Tavo runtime part: 20_llm_segmentation.js // Source: static/tavo.runtime.js lines 1501-1630 before physical split. // Role: LLM parse, dialogue normalization, synthesis splitting // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script. 
       "   - 如果说话人是「你」或用户身份名，role 统一写 \"用户\"（不写 \"你\"、不写用户身份名）。",
-      "   - 不要把「我」当作用户；无引号的「我……」默认是第一人称叙述，role 写 \"旁白\"。只有明确处在引号/对白里的「我……」才按说话人归属。",
+      "   - 不要机械把「我」当作用户；根据上下文判断「我」属于用户、当前角色还是其他人物。判断不出来才写旁白。",
       "   - 其他人物优先从「已知角色名单」里挑名字;名单外的新人物用原文里的名字（如「林老师」「兰绯」「她」）。",
-      "3. 「他说：」「她笑道：」「白夜雨说道：」这类引导句本身永远是旁白；只有后面引号里的直接台词才按说话人分配。",
+      "3. 「他说：」「她笑道：」「白夜雨说道：」这类引导句本身通常是旁白；后面的直接台词、心理或自述按说话人/视角人物分配。",
       "4. text 是要朗读的原文片段，保留标点和语气词（啊、嗯、……）。",
       "5. style 是段级声腔/呼吸参考，只能从这个枚举里选：" + styleIdsText(),
       "   - 旁白、客观描写、普通对白 → neutral。",
@@ -72,26 +72,13 @@
         debugLog("  [raw " + i + "] role=" + (s.role || "?") + "  style=" + normalizeStyleId(s.style || s.style_ref) + (s.style_alpha != null ? "  sα=" + s.style_alpha : "") + "  text=" + JSON.stringify(String(s.text || "").slice(0, 40)));
       });
     } catch (_) {}
-    var sourceSearchOffset = 0;
     var normalizedSegments = data.segments.map(function (seg) {
       var style = normalizeStyleId(seg.style || seg.style_ref);
       var styleAlpha = Number(seg.style_alpha);
       if (!isFinite(styleAlpha)) styleAlpha = defaultStyleAlpha(style, cfg);
       styleAlpha = style === "neutral" ? Math.max(0.12, Math.min(0.20, styleAlpha)) : Math.max(0.30, Math.min(0.70, styleAlpha));
       var role = String(seg.role || "旁白").trim();
-      var segTextForRole = String(seg.text || "");
-      var sourceIdx = findSegmentTextInSource(text, segTextForRole, sourceSearchOffset);
-      var insideQuote = false;
-      if (sourceIdx >= 0) {
-        sourceSearchOffset = sourceIdx + segTextForRole.length;
-        insideQuote = quoteDepthAt(text, sourceIdx) > 0;
-      }
-      if (role && role !== "旁白" && !insideQuote) {
-        debugLog("↩️ 无引号正文强制归旁白: role=" + role + " → 旁白 text=" + JSON.stringify(segTextForRole.slice(0, 32)), "#fc9");
-        role = "旁白";
-        style = "neutral";
-        styleAlpha = 0.15;
-      } else if (isUserRoleName(role, context)) {
+      if (isUserRoleName(role, context)) {
         role = "用户";
       }
       if (role === "旁白") {

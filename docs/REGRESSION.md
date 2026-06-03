@@ -195,6 +195,14 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 只有 job status done 或 saved track 才能保存进历史；成功落盘后仍能按 saved/history 规则播放、seek、显示历史条数。
 - 如果流式响应被宿主关闭且前端已请求后台合成，adapter 日志应出现 `dialogue_stream_background_queued`，状态最终必须进入 done/failed，不能长期 stuck running。
 
+## BUG-037 LLM role 信任与音色映射回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881936`，loader 版本 `20260603-llm-role-trust-v46`，runtime `20260603-llm-role-trust-v28`。
+- 智能模式生成时，前端日志不能再出现 `无引号正文强制归旁白`。
+- `/parse_text` 返回的 `segments[].role` 如果是 `用户`、`白夜雨` 或其他已映射角色，前端提交给 `/tts_dialogue_stream_job` 的 `segments` 必须保留该 role，不能因没有引号被 JS 改成 `旁白`。
+- adapter 日志 `[gsv_adapter] official_tts` 的 `voice` 必须等于该 role 在 voicesMap 里的音色；例如 `用户/白夜雨 -> 男声/忧郁少年`。
+- 前端从 `/tts_dialogue_job_status` 读取 `segments_meta` 后，track.segments 必须保留 `voice` 字段；播放状态栏应优先显示服务端实际 voice，不能只按本地映射猜。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。

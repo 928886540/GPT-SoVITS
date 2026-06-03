@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260603-live-background-v26",
+  "runtimeVersion": "20260603-llm-role-trust-v28",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

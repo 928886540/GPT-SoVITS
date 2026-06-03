@@ -190,7 +190,7 @@
             .then(function (j) {
               if (j && Array.isArray(j.segments_meta) && j.segments_meta.length) {
                 t.segments = j.segments_meta.map(function (s) {
-                  return { role: s.role || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
+                  return { role: s.role || "", voice: s.voice || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
                 });
                 if (j.sample_rate) t.sampleRate = j.sample_rate;
                 if (j.duration_s) t.duration_s = j.duration_s;

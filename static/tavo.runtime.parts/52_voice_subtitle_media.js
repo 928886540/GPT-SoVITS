@@ -148,7 +148,7 @@
 
     // 当前说话人 → 左上角 cover + 标题同步
     var lastSpeakerRole = "";
-    function syncHeaderToSpeaker(role, text) {
+    function syncHeaderToSpeaker(role, text, segmentVoice) {
       role = role || "";
       if (role && role !== lastSpeakerRole) {
         lastSpeakerRole = role;
@@ -163,7 +163,7 @@
         } catch (_) {}
       }
       if (role && (audio && !audio.paused || (currentTrack() && currentTrack().webAudioPlaying))) {
-        setPlayingStatusForRole(role);
+        setPlayingStatusForRole(role, currentTrack(), segmentVoice);
       }
       // 同步给系统媒体面板(后台/锁屏可见 + 控制)
       try { updateMediaSession(role, text); } catch (_) {}
@@ -292,6 +292,7 @@
             var subDur = segDur * (subs[j].length / totalChars);
             timeline.push({
               role: seg.role || "旁白",
+              voice: seg.voice || "",
               text: subs[j],
               start: subStart,
               end: subStart + subDur,
@@ -326,7 +327,7 @@
           setRowClass(idx, idx);
           scrollCurrentIntoMiddle();
           // 左上角 cover/标题 + 系统媒体面板同步当前说话人
-          syncHeaderToSpeaker(timeline[idx].role, timeline[idx].text);
+          syncHeaderToSpeaker(timeline[idx].role, timeline[idx].text, timeline[idx].voice);
         }
       }, 150);
       // 后台轮询 job_status 拿真实 segments_meta 校准时间轴
@@ -340,7 +341,7 @@
               if (Array.isArray(j.segments_meta) && j.segments_meta.length) {
                 if (!segs.length || j.segments_meta.length > segs.length) {
                   segs = j.segments_meta.map(function (s) {
-                    return { role: s.role || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
+                    return { role: s.role || "", voice: s.voice || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
                   });
                   trackEntry.segments = segs;
                   if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});

@@ -1,9 +1,9 @@
 // GPT-SoVITS Tavo runtime part: 34_element_audio_controls.js
 // Role: element-audio playback labels, seek helpers, and audio element fallback controls.
 // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script.
-    function playbackLabelForRole(role, track) {
+    function playbackLabelForRole(role, track, segmentVoice) {
       role = String(role || "").trim() || "多音色";
-      var voice = voiceNameForRole(role, track);
+      var voice = voiceNameForRole(role, track, segmentVoice);
       return displayRoleName(role) + (voice ? " / " + shortName(voice) : "");
     }
     function trackPlaybackLabel(track) {
@@ -14,8 +14,8 @@
       }
       return shortName((track && track.voice) || cfg.defaultVoice);
     }
-    function setPlayingStatusForRole(role, track) {
-      setStatus("正在播放：" + playbackLabelForRole(role, track || currentTrack()));
+    function setPlayingStatusForRole(role, track, segmentVoice) {
+      setStatus("正在播放：" + playbackLabelForRole(role, track || currentTrack(), segmentVoice));
     }
     function setAudioPlaybackRate() {
       try { audio.playbackRate = clampNumber(cfg.speedFactor || 1.0, 1.0, 0.85, 1.25); } catch (_) {}

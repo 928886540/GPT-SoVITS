@@ -1,12 +1,26 @@
 # Agent State
 
-更新时间：2026-06-03 12:43 +08:00
+更新时间：2026-06-03 14:21 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-037 LLM role 信任与实际 voice 显示修正（2026-06-03 14:21 +08:00）
+
+用户反馈：最新音频里映射、歌词、进度条看起来正确，但实际声音是旁白，不是 `男声/忧郁少年`。检查最新 cache 发现 voicesMap 有 `白夜雨/用户 -> 男声/忧郁少年`，但实际 `segments_meta` 大量是 `旁白 -> 女声/冰山美人`；后端没有串音色，是前端 JS 在 LLM 后又按“无引号正文强制旁白”覆盖了 role。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881936`。
+- Loader 版本 `20260603-llm-role-trust-v46`，runtime parts/manifest `20260603-llm-role-trust-v28`。
+- `10_tts_jobs_audio_stream.js` / `20_llm_segmentation.js`：prompt 改成按语义判断 role，不再要求“所有无引号正文固定旁白”；移除 `insideQuote` / `quoteDepthAt()` 后处理对 LLM role 的强制覆盖，并删掉旧的 quote/source/narration helper，避免前端再用 JS 规则判断谁该读。
+- `05/42/44/52/62` parts：从 `segments_meta` 恢复歌词时保留服务端实际 `voice` 字段。
+- `30_player_shell.js` / `34_element_audio_controls.js` / `52_voice_subtitle_media.js`：播放状态栏优先显示服务端实际 segment voice，而不是只按本地映射猜。
+
+待验证：重新生成同类文本，前端日志不能再出现 `无引号正文强制归旁白`；如果 LLM 输出 `用户/白夜雨`，adapter 日志和 `segments_meta.voice` 必须使用 `男声/忧郁少年`。
 
 ## BUG-036 live 特殊卡片与历史普通卡片策略修正（2026-06-03 12:43 +08:00）
 

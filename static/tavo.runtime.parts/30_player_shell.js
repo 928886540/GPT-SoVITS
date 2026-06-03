@@ -141,7 +141,9 @@
     function currentVoicesMap(track) {
       return (track && track.voicesMap) || rolesListToVoicesMap(cfg.roleVoiceList, cfg.defaultVoice, cfg.currentCharacterName, context);
     }
-    function voiceNameForRole(role, track) {
+    function voiceNameForRole(role, track, segmentVoice) {
+      segmentVoice = String(segmentVoice || "").trim();
+      if (segmentVoice) return segmentVoice;
       var voices = currentVoicesMap(track);
       role = String(role || "").trim();
       return (role && voices[role]) || voices.default || cfg.defaultVoice || "";

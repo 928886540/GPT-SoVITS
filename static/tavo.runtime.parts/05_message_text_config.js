@@ -519,7 +519,7 @@
         sampleRate: t.sampleRate || t.sample_rate || 0,
         duration_s: t.duration_s || (t.metrics && t.metrics.audio_duration_s) || 0,
         segments: (t.segments || []).map(function (s) {
-          return { role: s.role || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
+          return { role: s.role || "", voice: s.voice || "", text: s.text || "", style: s.style || "neutral", style_alpha: s.style_alpha, start_s: s.start_s, start_offset_bytes: s.start_offset_bytes, duration_s: s.duration_s };
         }),
       };
     }).filter(function (t) { return !!t.cacheKey; });
