@@ -402,6 +402,16 @@
     LEGACY_TRACKS_KEY_PREFIXES.forEach(function (prefix) { keys.push(prefix + messageId); });
     return keys;
   }
+  function isPersistableHistoryTrack(t) {
+    if (!t || !t.cacheKey) return false;
+    var state = String(t.state || "").trim();
+    if (state === "saved") return true;
+    if (state === "pending" || state === "live" || state === "failed") return false;
+    return !!(t.cacheReady || t.fromHistory || t.status === "ready" || t.cacheState === "ready" || t.remoteCacheState === "ready" || ((t.cacheUrl || t.url) && !t.streaming && !t.pendingBlob));
+  }
+  function persistableHistoryTracks(tracks) {
+    return (tracks || []).filter(isPersistableHistoryTrack);
+  }
   function syncTracksFromStorageKey(key) {
     try {
       if (window.tavo && typeof tavo.get === "function") {
@@ -431,11 +441,12 @@
     }
     function remember(arr, key) {
       if (!Array.isArray(arr)) return null;
-      if (arr.some(function (t) { return !!(t && t.cacheKey); })) {
+      var saved = persistableHistoryTracks(arr);
+      if (saved.length) {
         if (key && key !== targetKey) {
-          try { localStorage.setItem(TRACKS_KEY_PREFIX + messageId, JSON.stringify(arr)); } catch (_) {}
+          try { localStorage.setItem(TRACKS_KEY_PREFIX + messageId, JSON.stringify(saved)); } catch (_) {}
         }
-        return arr;
+        return saved;
       }
       if (!empty) empty = arr;
       return null;
@@ -458,24 +469,22 @@
     for (var i = 0; i < keys.length; i++) {
       var tracks = syncTracksFromStorageKey(keys[i]);
       if (!Array.isArray(tracks)) continue;
-      if (tracks.some(function (t) { return !!(t && t.cacheKey); })) return tracks;
+      var saved = persistableHistoryTracks(tracks);
+      if (saved.length) return saved;
       if (!empty) empty = tracks;
     }
     return empty || [];
   }
   function localHistoryCountForMessage(messageId) {
-    return localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
+    return persistableHistoryTracks(localTracksForMessage(messageId)).length;
   }
   async function saveTracksForMessage(messageId, tracks) {
     if (!messageId) return;
     var key = TRACKS_KEY_PREFIX + messageId;
     // 只挑能跨会话持久化的字段；blob URL 重启就失效，丢掉。
     // segments 也存下来,字幕重进页面后才有时间轴显示。
-    var lite = (tracks || []).map(function (t) {
-      var state = String((t && t.state) || "").trim();
-      if (state !== "pending" && state !== "live" && state !== "saved" && state !== "failed") {
-        state = (t && (t.cacheReady || t.fromHistory || t.status === "ready")) ? "saved" : ((t && (t.streamUrl || t.streaming || t.status === "running" || t.pendingBlob)) ? "live" : "pending");
-      }
+    var lite = persistableHistoryTracks(tracks).map(function (t) {
+      var state = "saved";
       return {
         cacheKey: t.cacheKey || "",
         voice: t.voice || "",

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260603-audio-keepalive-v24",
+  "runtimeVersion": "20260603-live-history-policy-v25",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

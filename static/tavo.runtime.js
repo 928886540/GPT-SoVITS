@@ -2,7 +2,7 @@
   "use strict";
 
   var loaderScript = (typeof window !== "undefined" && window.__gptsovits_tavo_runtime_script_override) || document.currentScript;
-  var RUNTIME_PARTS_VERSION = "20260603-audio-keepalive-v24";
+  var RUNTIME_PARTS_VERSION = "20260603-live-history-policy-v25";
   var MANIFEST_FILE = "tavo.runtime.manifest.json";
   var FALLBACK_PARTS = [
     "tavo.runtime.parts/00_base_config_storage.js",

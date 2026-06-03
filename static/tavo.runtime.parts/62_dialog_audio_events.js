@@ -82,6 +82,15 @@
     function tryResumeOrPauseInGesture() {
       try {
         var t = currentTrack();
+        if (t && t.webAudioPlaying && isCancelableLiveTrack(t)) {
+          setStatus("正在中止流式…");
+          showTrackNotice(t, "正在中止流式…", "未完成的流式任务会被删除，完成后请重新生成");
+          cancelLiveTrack(t, "user stop").then(function () {
+            if (!generatedTracks.length) showEmptyAfterLiveCancel("user stop");
+            else selectTrack(Math.max(0, Math.min(currentTrackIndex, generatedTracks.length - 1)), false, { metadataOnly: true, reason: "live-cancel" }).catch(function () {});
+          }).catch(function (e) { setError(errorMessage(e, "流式中止失败")); });
+          return true;
+        }
         if (t && t.webAudioPlaying) {
           t.pausedByUser = true;
           try {
@@ -109,30 +118,15 @@
     function pauseActiveForHostSuspend(reason) {
       var t = currentTrack();
       if (!t) return;
-      var touched = false;
-      if (t.webAudioPlaying || webAudioController) {
-        try {
-          if (webAudioController && typeof webAudioController.getTimeSec === "function") {
-            t.lastWebAudioSec = Math.max(0, Number(webAudioController.getTimeSec()) || 0);
-          }
-        } catch (_) {}
-        stopWebAudioPlayback("silent");
-        try { if (typeof resetPrimedAudioContext === "function") resetPrimedAudioContext(reason || "host suspend"); } catch (_) {}
-        touched = true;
-      } else if (elementAudioBelongsToTrack(t) && audio && !audio.paused && !audio.ended) {
-        try { t.lastElementSec = Math.max(0, elementPlaybackTimeSec(t)); } catch (_) {}
-        try { audio.pause(); } catch (_) {}
-        touched = true;
+      if (isCancelableLiveTrack(t)) {
+        setStatus("流式已中止");
+        showTrackNotice(t, "流式已中止", "离开当前 AR 渲染时不恢复未完成流式任务");
+        cancelCurrentLiveTrackForHostLeave(reason || "host suspend");
+        return;
       }
-      if (!touched) return;
-      t.pausedByHost = true;
-      t.pausedByUser = true;
-      setTrackPlaybackState(t, "paused");
-      setPlayState("idle");
-      setStatus("已暂停，点播放继续");
-      showTrackNotice(t, "已暂停", "Tavo/系统切走后音频通道会暂停，点播放从当前位置继续");
-      if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function () {});
-      debugLog("⏸ host suspend pause: " + (reason || "visibility") + " @" + formatTime(trackResumeSec(t)), "#fc9");
+      if (isSavedTrack(t)) {
+        debugLog("🎧 host suspend: 历史音频不主动暂停，交给 Tavo/系统后台播放策略处理: " + (reason || "visibility"), "#9ff");
+      }
     }
     function markVisiblePausedNotice() {
       var t = currentTrack();
@@ -157,10 +151,10 @@
     on(play, 'click', function () { primeAudioContext(); if (tryResumeOrPauseInGesture()) return; generate(false).catch(function (e) { setError(errorMessage(e, "播放失败")); }); });
     on(add, 'click', function () { primeAudioContext(); generate(true).catch(function (e) { setError(errorMessage(e, "生成失败")); }); });
     on(prev, 'click', function () {
-      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex - 1, false, { metadataOnly: true, reason: "navigation" }); }).catch(function (e) { setError(errorMessage(e, "上一条历史音频切换失败")); });
+      cancelCurrentLiveTrackForNavigation(-1, "上一条历史音频").catch(function (e) { setError(errorMessage(e, "上一条历史音频切换失败")); });
     });
     on(next, 'click', function () {
-      ensureTracksLoaded().then(function () { return selectTrack(currentTrackIndex + 1, false, { metadataOnly: true, reason: "navigation" }); }).catch(function (e) { setError(errorMessage(e, "下一条历史音频切换失败")); });
+      cancelCurrentLiveTrackForNavigation(1, "下一条历史音频").catch(function (e) { setError(errorMessage(e, "下一条历史音频切换失败")); });
     });
     on(del, 'click', function () { clearCurrentTrack().catch(function (e) { setError(errorMessage(e, "删除历史音频失败")); }); });
     on(first(panel, '[data-role="save"]'), 'click', async function () { readFields(); await saveConfig(cfg, characterId); syncUI(); closeDialog(panel); setStatus("设置已保存"); });

@@ -6,7 +6,7 @@
   var TRACKS_KEY_PREFIX = "sovits_tracks_";
   var LEGACY_PRODUCT_KEY = "index" + "tts";
   var LEGACY_TRACKS_KEY_PREFIXES = [LEGACY_PRODUCT_KEY + "_tracks_"];
-  var LOADER_VERSION = "20260603-audio-keepalive-v42";
+  var LOADER_VERSION = "20260603-live-history-policy-v43";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -206,6 +206,16 @@
     LEGACY_TRACKS_KEY_PREFIXES.forEach(function (prefix) { keys.push(prefix + messageId); });
     return keys;
   }
+  function isPersistableHistoryTrack(t) {
+    if (!t || !t.cacheKey) return false;
+    var state = String(t.state || "").trim();
+    if (state === "saved") return true;
+    if (state === "pending" || state === "live" || state === "failed") return false;
+    return !!(t.cacheReady || t.fromHistory || t.status === "ready" || t.cacheState === "ready" || t.remoteCacheState === "ready" || ((t.cacheUrl || t.url) && !t.streaming && !t.pendingBlob));
+  }
+  function persistableHistoryTracks(tracks) {
+    return (tracks || []).filter(isPersistableHistoryTrack);
+  }
   function tracksFromStorageKey(key) {
     try {
       if (window.tavo && typeof window.tavo.get === "function") {
@@ -230,7 +240,8 @@
     for (var i = 0; i < keys.length; i++) {
       var tracks = tracksFromStorageKey(keys[i]);
       if (!Array.isArray(tracks)) continue;
-      if (tracks.some(function (t) { return !!(t && t.cacheKey); })) return tracks;
+      var saved = persistableHistoryTracks(tracks);
+      if (saved.length) return saved;
       if (!empty) empty = tracks;
     }
     return empty || [];
@@ -238,7 +249,7 @@
   function updateLazyHistory(root, messageId) {
     if (!root || !messageId) return;
     var latest = latestTrack(messageId);
-    var historyCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
+    var historyCount = localTracksForMessage(messageId).length;
     var status = $(root, '[data-role="lazy-status"]');
     var progress = $(root, '.idx-lazy-progress span');
     var title = $(root, '.idx-lazy-title');
@@ -250,18 +261,19 @@
   function refreshLazyHistoryAsync(root, messageId) {
     if (!root || !messageId || !window.tavo || typeof window.tavo.get !== "function") return;
     var targetKey = TRACKS_KEY_PREFIX + messageId;
-    var bestCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
+    var bestCount = localTracksForMessage(messageId).length;
     function storeAndUpdate(value, sourceKey) {
       if (!Array.isArray(value)) return;
-      var count = value.filter(function (t) { return !!(t && t.cacheKey); }).length;
+      var saved = persistableHistoryTracks(value);
+      var count = saved.length;
       if (!count && bestCount > 0) return;
       if (sourceKey !== targetKey && bestCount > 0 && count <= bestCount) return;
       if (count < bestCount) return;
       bestCount = count;
-      try { localStorage.setItem(targetKey, JSON.stringify(value)); } catch (_) {}
+      try { localStorage.setItem(targetKey, JSON.stringify(saved)); } catch (_) {}
       if (sourceKey !== targetKey) {
         try {
-          var p = window.tavo.set(targetKey, value, "chat");
+          var p = window.tavo.set(targetKey, saved, "chat");
           if (p && typeof p.catch === "function") p.catch(function () {});
         } catch (_) {}
       }
@@ -281,7 +293,7 @@
     });
   }
   function latestTrack(messageId) {
-    var arr = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); });
+    var arr = localTracksForMessage(messageId);
     return arr.length ? arr[arr.length - 1] : null;
   }
   function shortName(v) {
@@ -329,7 +341,7 @@
     try { window.__gptsovits_tavo_loader_version = LOADER_VERSION; } catch (_) {}
     var messageId = pickMessageId(loaderScript);
     var latest = latestTrack(messageId);
-    var historyCount = localTracksForMessage(messageId).filter(function (t) { return !!(t && t.cacheKey); }).length;
+    var historyCount = localTracksForMessage(messageId).length;
     var resumeSec = latest ? Math.max(0, Number(latest.lastElementSec || latest.lastWebAudioSec || 0) || 0) : 0;
     var title = shortName(latest && latest.voice);
     root.innerHTML = [

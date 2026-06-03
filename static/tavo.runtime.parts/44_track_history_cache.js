@@ -427,14 +427,120 @@
       var base = cleanBase(cfg.apiBase);
       try {
         if (track.cacheKey) {
-          await adapterFetch(base + "/tts_dialogue_stream_job/" + encodeURIComponent(track.cacheKey), { method: "DELETE" }).catch(function () {});
-          await adapterFetch(base + "/cache/" + encodeURIComponent(track.cacheKey), { method: "DELETE" }).catch(function () {});
+          await adapterFetch(base + "/tts_dialogue_stream_job/" + encodeURIComponent(track.cacheKey), { method: "DELETE", keepalive: true }).catch(function () {});
+          await adapterFetch(base + "/cache/" + encodeURIComponent(track.cacheKey), { method: "DELETE", keepalive: true }).catch(function () {});
         } else if (track.deleteUrl) {
-          await adapterFetch(track.deleteUrl, { method: "DELETE" }).catch(function () {});
+          await adapterFetch(track.deleteUrl, { method: "DELETE", keepalive: true }).catch(function () {});
         }
       } catch (e) {
         debugLog("⚠️ 删除服务端关联缓存失败: " + errorMessage(e, "删除服务端关联缓存失败"), "#fc9");
       }
+    }
+    function isCancelableLiveTrack(track) {
+      if (!track || track.deleted || isSavedTrack(track)) return false;
+      var state = trackState(track);
+      if (state === "failed") return false;
+      return state === "live" || state === "pending" || !!(track.pendingBlob || track.streaming || track.backgroundOnly || track.cachePollStarted);
+    }
+    async function confirmInterruptLiveTrack(actionLabel) {
+      actionLabel = actionLabel || "切换历史音频";
+      try {
+        if (window.tavo && tavo.utils && typeof tavo.utils.select === "function") {
+          var choice = await tavo.utils.select([
+            { value: "keep", label: "留在当前", description: "继续当前流式播放" },
+            { value: "interrupt", label: "中断并切换", description: "停止并删除本次未完成的流式任务" }
+          ], actionLabel + " 会中断当前流式播放", "keep");
+          return choice === "interrupt";
+        }
+      } catch (e) {
+        debugLog("⚠️ 流式中断确认弹窗失败: " + errorMessage(e, "确认弹窗失败"), "#fc9");
+      }
+      return typeof window.confirm === "function" ? window.confirm(actionLabel + " 会中断并删除当前未完成的流式任务，确认继续？") : false;
+    }
+    async function cancelLiveTrack(track, reason) {
+      if (!isCancelableLiveTrack(track)) return false;
+      var idx = generatedTracks.indexOf(track);
+      track.deleted = true;
+      track.playSavedWhenReady = false;
+      track.backgroundOnly = false;
+      track.allowStreamPlay = false;
+      track.cachePollStarted = false;
+      try { stopServerLogPolling(); } catch (_) {}
+      try { audio.pause(); } catch (_) {}
+      stopWebAudioPlayback("switch");
+      clearElementAudioSrc();
+      stopSubtitle();
+      hideSubtitlePanel();
+      if (track.url && /^blob:/i.test(String(track.url))) {
+        try { URL.revokeObjectURL(track.url); } catch (_) {}
+      }
+      deleteOfflineAudioForTrack(track).catch(function () {});
+      deleteRemoteTrack(track).catch(function () {});
+      if (idx >= 0) {
+        generatedTracks.splice(idx, 1);
+        currentTrackIndex = Math.min(idx, generatedTracks.length - 1);
+      }
+      knownHistoryCount = persistableHistoryTracks(generatedTracks).length;
+      tracksLoaded = true;
+      if (messageId) {
+        try { await saveTracksForMessage(messageId, generatedTracks); }
+        catch (e) { debugLog("⚠️ live 中止后同步历史失败: " + errorMessage(e, "Tavo 历史写入失败"), "#fc9"); }
+      }
+      debugLog("🛑 live 流式已中止并删除: " + (reason || "cancel") + (track.cacheKey ? " cacheKey=" + track.cacheKey : ""), "#fc9");
+      return true;
+    }
+    function showEmptyAfterLiveCancel(reason) {
+      currentCacheKey = "";
+      if (seek) { seek.disabled = true; seek.value = "0"; }
+      if (cur) cur.textContent = "00:00";
+      if (total) total.textContent = "--:--";
+      setPlayState("idle");
+      setStatus(noTrackStatusText());
+      showNoTrackNotice();
+      updateTrackButtons();
+      if (reason) debugLog("🛑 live 流式已中止: " + reason, "#fc9");
+    }
+    async function cancelCurrentLiveTrackForNavigation(delta, actionLabel) {
+      await ensureTracksLoaded();
+      if (currentTrackIndex < 0) return;
+      var fromIndex = currentTrackIndex;
+      var targetIndex = fromIndex + delta;
+      if (targetIndex < 0 || targetIndex >= generatedTracks.length) return;
+      var track = currentTrack();
+      if (!isCancelableLiveTrack(track)) {
+        await selectTrack(targetIndex, false, { metadataOnly: true, reason: "navigation" });
+        return;
+      }
+      if (!await confirmInterruptLiveTrack(actionLabel)) {
+        setStatus("继续当前流式播放");
+        showTrackNotice(track, "继续当前流式播放", "未切换历史音频");
+        return;
+      }
+      await cancelLiveTrack(track, "navigation");
+      if (!generatedTracks.length) {
+        showEmptyAfterLiveCancel("navigation");
+        return;
+      }
+      var nextIndex = delta > 0 ? fromIndex : targetIndex;
+      nextIndex = Math.max(0, Math.min(nextIndex, generatedTracks.length - 1));
+      await selectTrack(nextIndex, false, { metadataOnly: true, reason: "navigation" });
+    }
+    function cancelCurrentLiveTrackForHostLeave(reason) {
+      var track = currentTrack();
+      if (!isCancelableLiveTrack(track)) return false;
+      cancelLiveTrack(track, reason || "host leave").then(function () {
+        if (!generatedTracks.length) {
+          showEmptyAfterLiveCancel(reason || "host leave");
+          return;
+        }
+        var nextIndex = Math.max(0, Math.min(currentTrackIndex, generatedTracks.length - 1));
+        selectTrack(nextIndex, false, { metadataOnly: true, reason: "live-cancel" }).catch(function (e) {
+          debugLog("⚠️ live 中止后切历史失败: " + errorMessage(e, "切换历史失败"), "#fc9");
+        });
+      }).catch(function (e) {
+        debugLog("❌ live 中止失败: " + errorMessage(e, "live 中止失败"), "#f99");
+      });
+      return true;
     }
     async function clearCurrentTrack() {
       if (currentTrackIndex < 0) return;
@@ -442,7 +548,7 @@
       if (!await confirmDeleteTrack(target)) return;
       var removed = generatedTracks.splice(currentTrackIndex, 1)[0];
       if (removed) removed.deleted = true;
-      knownHistoryCount = generatedTracks.length;
+      knownHistoryCount = persistableHistoryTracks(generatedTracks).length;
       tracksLoaded = true;
       try { audio.pause(); } catch (_) {}
       stopWebAudioPlayback("switch");
