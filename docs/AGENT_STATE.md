@@ -1,12 +1,24 @@
 # Agent State
 
-更新时间：2026-06-03 15:24 +08:00
+更新时间：2026-06-03 16:10 +08:00
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## 旁白播放器/后台 artwork 更新（2026-06-03 16:10 +08:00）
+
+用户反馈旧旁白后台图片太丑，要求只替换旁白图片，角色图片和用户图片不动。已用 `imagegen` skill 生成新的 1024x1024 PNG，并保存为 `static/tavo.assets/narrator.png`。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881938`。
+- Loader 版本 `20260603-narrator-art-v48`，runtime parts/manifest `20260603-narrator-art-v30`。
+- `52_voice_subtitle_media.js`：`DEFAULT_AVATARS.narrator` 从旧内联 SVG 改为 `scriptAssetUrl("tavo.assets/narrator.png?asset_v=20260603-narrator-art-v30")`，因此 LAN 和公网入口都会按同源 `/static/tavo.assets/narrator.png?asset_v=20260603-narrator-art-v30` 加载。`user` 和 `character` 默认图未修改。
+
+已验证：本地 `/health` 200；本地 `/static/tavo.assets/narrator.png?asset_v=20260603-narrator-art-v30` 返回 200 `image/png`；公网同 URL 经系统网络返回 200 `image/png`；本地/公网 `tavo.js?v=2028881938` 均返回 loader `20260603-narrator-art-v48`，manifest 均返回 runtime `20260603-narrator-art-v30`。公网裸 `/static/tavo.assets/narrator.png` 如果短时间仍是 Cloudflare 旧 404 缓存，不作为本轮失败判定。真实 Tavo 正则刷新到 v1938 后，旁白段播放器 cover 和系统后台 MediaSession artwork 应使用新图。
 
 ## BUG-038 live 后台状态、歌词和指标修正（2026-06-03 15:24 +08:00）
 

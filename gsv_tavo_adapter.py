@@ -226,13 +226,17 @@ def _static_file_response(name: str) -> Response:
         ".css": "text/css",
         ".html": "text/html",
         ".json": "application/json",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
     }
     suffix = Path(raw_name).suffix.lower()
     media_type = media_types.get(suffix)
     if not media_type:
         raise HTTPException(status_code=404, detail="Not Found")
     path = _safe_static_path(raw_name, set(media_types.keys()))
-    headers = {"Cache-Control": "no-store, max-age=0"} if suffix in {".js", ".css", ".html", ".json"} else None
+    headers = {"Cache-Control": "no-store, max-age=0"} if suffix in {".js", ".css", ".html", ".json"} else {"Cache-Control": "public, max-age=86400"}
     return FileResponse(path, media_type=media_type, headers=headers)
 
 

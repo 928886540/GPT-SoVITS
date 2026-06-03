@@ -214,6 +214,14 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - `/tts_dialogue_job_status/<cache_key>` 返回的 `metrics` 必须包含 `performance_mode`、`sample_steps`、`batch_size`、`sample_rate`、`segments_done`、`segments_total`、`source_segments_total`；旧 cache 也应能从 metadata.request 补齐这些字段。
 - Whisper 质量检查：旧 cache `7230be132b08365af4db14ece6a13a8f2183c1bd` 的报告在 `reports/whisper_cache_7230be132b08365af4db14ece6a13a8f2183c1bd_20260603/`；新同类生成应确认相邻同角色/同声腔短对白不再被拆成 1 秒左右小段。
 
+## 旁白 artwork 回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881938`，loader 版本 `20260603-narrator-art-v48`，runtime `20260603-narrator-art-v30`。
+- `/static/tavo.assets/narrator.png?asset_v=20260603-narrator-art-v30` 本地和公网都必须返回 200，图片尺寸应为 1024x1024 PNG；公网裸 `/static/tavo.assets/narrator.png` 短时间可能命中 Cloudflare 旧 404 缓存，不作为失败判定。
+- 播放到 `role="旁白"` 的 segment 时，播放器左上角 cover 应显示新的开书/声波图。
+- 系统后台/锁屏 MediaSession artwork 对旁白段也应使用同一张图。
+- `用户` 和普通角色的默认 avatar 不应改变：用户仍走 `userAvatarUrl || DEFAULT_AVATARS.user`，角色仍走 `avatarUrl || DEFAULT_AVATARS.character`。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。
