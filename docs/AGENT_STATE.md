@@ -1,6 +1,6 @@
 # Agent State
 
-更新时间：2026-06-03 08:10 +08:00
+更新时间：2026-06-03 08:29 +08:00
 
 ## 当前目标
 
@@ -8,31 +8,36 @@
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
 
-## BUG-035 Tavo 切画面/桌面后音频生命周期修复（2026-06-03 08:10 +08:00）
+## BUG-035 Tavo 切画面/桌面和流式首段等待音频生命周期修复（2026-06-03 08:29 +08:00）
 
 用户反馈：v1930 首次播放可用，但切 Tavo 其他画面/桌面后恢复行为不一致；点播放继续时会叠出另一条音频；随后出现 `音频通道未放行` 后，切任何卡片都继续失败。
 
 已改：
 
-- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881931`。
-- Loader 版本 `20260603-audio-lifecycle-v41`，runtime parts/manifest `20260603-audio-lifecycle-v23`。
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881932`。
+- Loader 版本 `20260603-audio-keepalive-v42`，runtime parts/manifest `20260603-audio-keepalive-v24`。
 - `10_tts_jobs_audio_stream.js`：AudioContext 非 running 时关闭旧 ctx、清 loader 预热 ctx，下次用户手势强制新建 ctx。
+- `10_tts_jobs_audio_stream.js`：新增 runtime 低音量 keepalive，用户手势解锁后维持到真实音频进入 playing。
 - `40_playback_cache.js`：`audio_suspended` 时记录断点并停止旧 stream/source/controller，不再让旧播放流悬挂。
+- `40_playback_cache.js`：`replace/new-generation` 不提前关 keepalive，避免等待 LLM/首段 PCM 期间 ctx 再次 suspended。
 - `42_saved_playback_cache.js`：saved Web Audio 已排程但 ctx 未 running 时停掉 source 并重置 ctx。
 - `62_dialog_audio_events.js`：监听 `visibilitychange/pagehide/pageshow`；切走时显式暂停当前音频并保存断点，回来只提示点播放继续，避免宿主自动恢复和手动续播重叠。
+- `static/tavo.js`：懒加载入口也在用户手势里启动预热 keepalive，覆盖 runtime 尚未加载完成的首点播放路径。
 
 已验证：
 
 - `node --check static\tavo.js`
 - `node --check static\tavo.runtime.js`
-- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260603-audio-lifecycle-v23`
+- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260603-audio-keepalive-v24`
 - `python -m py_compile gsv_tavo_adapter.py`
+- 本地 adapter `/static/tavo.js?v=2028881932` 返回 `audio-keepalive-v42`；manifest 返回 `audio-keepalive-v24`。
 
 待真实 Tavo 回归：
 
-1. 刷新真实 Tavo 正则到 `v=2028881931`，重渲染消息。
-2. live 播放时切 Tavo 其他页面/桌面，返回后应显示 `已暂停，点播放继续`；点播放只续播同一条，不叠第二路。
-3. 触发一次 `音频通道未放行` 后，再点播放应创建新 AudioContext；不能让所有历史卡片永久失败。
+1. 刷新真实 Tavo 正则到 `v=2028881932`，重渲染消息。
+2. 新建流式播放时控制台应先出现 `AudioContext keepalive started`，首段真实音频开始后再出现 keepalive stopped；不应在等待首段期间报 `音频通道未放行`。
+3. live 播放时切 Tavo 其他页面/桌面，返回后应显示 `已暂停，点播放继续`；点播放只续播同一条，不叠第二路。
+4. 触发一次 `音频通道未放行` 后，再点播放应创建新 AudioContext；不能让所有历史卡片永久失败。
 
 ## BUG-034 删除到空后计数残留和无声假播放修复（2026-06-03 07:46 +08:00）
 

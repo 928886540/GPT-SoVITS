@@ -6,7 +6,7 @@
   var TRACKS_KEY_PREFIX = "sovits_tracks_";
   var LEGACY_PRODUCT_KEY = "index" + "tts";
   var LEGACY_TRACKS_KEY_PREFIXES = [LEGACY_PRODUCT_KEY + "_tracks_"];
-  var LOADER_VERSION = "20260603-audio-lifecycle-v41";
+  var LOADER_VERSION = "20260603-audio-keepalive-v42";
   var TAP_GUARD_KEY = "__gptsovits_tavo_tap_guard_until";
   var PICKER_TRIGGER_SELECTOR = '[data-role="default-voice-btn"],.idx-role-row .idx-voice-btn,.idx-picker-item,.idx-picker-apply';
 
@@ -86,11 +86,37 @@
     installGlobalTapGuard();
     try { window[TAP_GUARD_KEY] = Date.now() + Math.max(800, Number(ms || 0) || 0); } catch (_) {}
   }
+  function startPreprimedAudioKeepalive(ctx) {
+    if (!ctx) return;
+    try {
+      if (window.__gptsovits_tavo_preprimed_keepalive_source) return;
+      var rate = ctx.sampleRate || 44100;
+      var frames = Math.max(1, Math.floor(rate * 0.5));
+      var buf = ctx.createBuffer(1, frames, rate);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < data.length; i++) data[i] = 0.00001;
+      var gain = ctx.createGain ? ctx.createGain() : null;
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      if (gain) {
+        gain.gain.value = 0.00001;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+      } else {
+        src.connect(ctx.destination);
+      }
+      src.start(0);
+      window.__gptsovits_tavo_preprimed_keepalive_source = src;
+      window.__gptsovits_tavo_preprimed_keepalive_gain = gain;
+    } catch (_) {}
+  }
   function primeRuntimeAudioContext() {
     try {
       var ctx = window.__gptsovits_tavo_preprimed_audio_context;
       if (ctx) {
         try { if (ctx.state === "suspended") ctx.resume(); } catch (_) {}
+        startPreprimedAudioKeepalive(ctx);
         return ctx;
       }
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -108,6 +134,7 @@
         src.start(0);
       } catch (_) {}
       window.__gptsovits_tavo_preprimed_audio_context = ctx;
+      startPreprimedAudioKeepalive(ctx);
       return ctx;
     } catch (_) { return null; }
   }

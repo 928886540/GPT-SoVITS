@@ -180,6 +180,7 @@
     $all(panel, '.idx-mode').forEach(function (b) { b.addEventListener('click', async function () { readFields(); cfg.mode = b.dataset.mode; syncUI(); await saveConfig(cfg, characterId); }); });
     on(audio, 'play', function () {
       var t = currentTrack();
+      try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("element play"); } catch (_) {}
       if (t) { t.pausedByHost = false; setTrackPlaybackState(t, "playing"); }
       setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t));
       // 系统媒体面板基础信息(后台/锁屏可见,可控制播放/前后 10 秒)
@@ -235,7 +236,7 @@
         setStatus("正在播放：" + trackPlaybackLabel(t));
       }
     });
-    on(audio, 'playing', function () { var t = currentTrack(); if (t) { t.pausedByHost = false; setTrackPlaybackState(t, "playing"); } setError(""); setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t)); });
+    on(audio, 'playing', function () { var t = currentTrack(); try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("element playing"); } catch (_) {} if (t) { t.pausedByHost = false; setTrackPlaybackState(t, "playing"); } setError(""); setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t)); });
     on(audio, 'pause', function () { var t = currentTrack(); if (t && !audio.ended) setTrackPlaybackState(t, "paused"); setPlayState("idle"); if (audio.currentTime > 0 && !audio.ended) setStatus("已暂停"); stopSubtitle(); });
     on(audio, 'ended', function () {
       var t = currentTrack();

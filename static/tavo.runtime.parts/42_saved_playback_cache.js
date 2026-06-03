@@ -236,6 +236,7 @@
             debugLog("⚠️ 保存音频已排程但 AudioContext 未运行: " + String((ctx && ctx.state) || "unknown"), "#fc9");
             return;
           }
+          try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("saved playing"); } catch (_) {}
           track.pausedByHost = false;
           track.webAudioPlaying = true;
           setTrackPlaybackState(track, "playing");

@@ -21,17 +21,19 @@ Notes:
 
 ## BUG-035: Tavo 切画面/桌面后 Web Audio 恢复重复播放且音频通道卡死
 
-Status: patched in v2028881931, needs real Tavo regression
+Status: patched in v2028881932, needs real Tavo regression
 
 Repro: 用户 2026-06-03 真实 Tavo v2028881930 反馈：第一次更新正则后可以播放；切到别的画面会暂停，回去又继续播放；切桌面后回去没有继续播放，需要点播放按钮。点播放后确实继续播了，但又有一条新的在播放。随后再次点流式播放提示 `音频通道未放行`，之后切任何一条都变成 `音频通道未放行`。
 
 Evidence: v1930 对 `AudioContext.state !== "running"` 做了硬校验，但旧 `PRIMED_CTX` 没有在失败后销毁/重建；一次 suspended/interrupted/closed 状态会污染后续所有 track。`playTrackViaWebAudio()` 会开启新的 Web Audio stream，但旧的 suspended source/controller 如果没有在页面隐藏或 audio_suspended 时完整 stop/close，回到前台或再次点击播放时可能和新连接重叠。当前 runtime 也没有显式处理 Tavo AR WebView 的 `visibilitychange/pagehide/pageshow`，只依赖宿主自动暂停/恢复，行为不稳定。
 
-Hypothesis: Tavo/系统切走会挂起 Web Audio；有的切换会被宿主自动恢复，有的必须用户手势。当前代码没有把“宿主挂起”转成确定的 paused 状态，也没有在通道失败时重置 AudioContext，导致重复连接和后续卡片全部继承坏 ctx。
+Regression evidence: 用户 2026-06-03 继续反馈：v1931 下流式播放仍提示 `音频通道未放行`。这说明只重建坏 ctx 不够；生成链路从用户点击到首段 PCM 到达之间有 LLM/后端等待，Tavo/iOS 可能在等待期间再次挂起 AudioContext，真正 `schedulePcm()` 时已经脱离用户手势，`resume()` 被拒。
 
-Fix: `10_tts_jobs_audio_stream.js` 新增 `resetPrimedAudioContext()` 和 `audioContextBlockedError()`：`AudioContext` 被系统/Tavo 挂起、关闭或进入非 running 状态后，会关闭旧 ctx、清掉 loader 预热 ctx，并让下一次用户手势强制创建新 ctx。`40_playback_cache.js` 在 `audio_suspended` 状态里不再只改文案，而是记录断点、停止旧 stream/source/controller、清进度 timer、重置 ctx。`42_saved_playback_cache.js` 的 saved Web Audio 也在未 running 时停掉已排程 source 并重置 ctx。`62_dialog_audio_events.js` 监听 `visibilitychange/pagehide/pageshow`：切走时把当前播放显式转成 paused 并保存断点，回来只提示点播放继续，不让宿主自动恢复和新播放流重叠。
+Hypothesis: Tavo/系统切走会挂起 Web Audio；有的切换会被宿主自动恢复，有的必须用户手势。当前代码没有把“宿主挂起”转成确定的 paused 状态，也没有在通道失败时重置 AudioContext，导致重复连接和后续卡片全部继承坏 ctx。v1931 后剩余断点是：用户手势只播放了极短静音，不能覆盖从点击到首段真实音频之间的长等待，需要在手势里启动低音量 keepalive，并在首段真实音频进入 playing 后停止。
 
-Guard: 切到别的 Tavo 画面或桌面时，当前 live/saved Web Audio 只能进入一个 paused 状态并保存断点；返回前台不能自动开第二路音频。用户点播放只能从断点继续同一 track。出现 `音频通道未放行` 后，下一次用户手势必须创建新 AudioContext，不能让所有卡片永久失败。
+Fix: `10_tts_jobs_audio_stream.js` 新增 `resetPrimedAudioContext()` 和 `audioContextBlockedError()`：`AudioContext` 被系统/Tavo 挂起、关闭或进入非 running 状态后，会关闭旧 ctx、清掉 loader 预热 ctx，并让下一次用户手势强制创建新 ctx。`40_playback_cache.js` 在 `audio_suspended` 状态里不再只改文案，而是记录断点、停止旧 stream/source/controller、清进度 timer、重置 ctx。`42_saved_playback_cache.js` 的 saved Web Audio 也在未 running 时停掉已排程 source 并重置 ctx。`62_dialog_audio_events.js` 监听 `visibilitychange/pagehide/pageshow`：切走时把当前播放显式转成 paused 并保存断点，回来只提示点播放继续，不让宿主自动恢复和新播放流重叠。v1932 继续补 `static/tavo.js` 和 runtime 双层低音量 keepalive：懒加载入口在用户手势里启动预热 keepalive，runtime 接管后继续保持到 live/saved/element audio 真正进入 playing，再停止；`stopWebAudioPlayback("replace"/"new-generation")` 不再提前关 keepalive，避免等待 LLM/首段 PCM 期间 ctx 又掉回 suspended。
+
+Guard: 切到别的 Tavo 画面或桌面时，当前 live/saved Web Audio 只能进入一个 paused 状态并保存断点；返回前台不能自动开第二路音频。用户点播放只能从断点继续同一 track。出现 `音频通道未放行` 后，下一次用户手势必须创建新 AudioContext，不能让所有卡片永久失败。流式生成从点击到首段 PCM 的等待期间，控制台应出现 `AudioContext keepalive started`，到 `Web Audio 播放时钟已启动` 后出现 keepalive stopped。
 
 ## BUG-034: 删除全部历史后计数残留且播放进度走但无声
 

@@ -1,6 +1,9 @@
 // GPT-SoVITS Tavo runtime part: 40_playback_cache.js // Source: static/tavo.runtime.js lines 2601-3600 before physical split. // Role: saved/live playback, cache hydration, seek and delete // This fragment is concatenated by static/tavo.runtime.js; it is not a standalone script. 
     function stopWebAudioPlayback(reason) {
       webAudioPlayToken++;
+      if (reason !== "replace" && reason !== "new-generation") {
+        try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive(reason || "stopWebAudio"); } catch (_) {}
+      }
       var activeTrack = currentTrack();
       if (activeTrack && webAudioController && typeof webAudioController.getTimeSec === "function") {
         try { activeTrack.lastWebAudioSec = Math.max(0, Number(webAudioController.getTimeSec()) || 0); } catch (_) {}
@@ -147,6 +150,7 @@
               showTrackNotice(track, "音频通道未放行", "点播放继续，不会从头开始");
             } else if (state === "playing") {
               stopWaitTimer();
+              try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("live playing"); } catch (_) {}
               track.pausedByHost = false;
               track.webAudioPlaying = true;
               setTrackPlaybackState(track, "playing");

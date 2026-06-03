@@ -179,8 +179,66 @@
   var PRIMED_CTX = null;
   var PRIMED_UNLOCK_SOURCE = null;
   var FORCE_NEW_AUDIO_CONTEXT = false;
+  var AUDIO_KEEPALIVE_SOURCE = null;
+  var AUDIO_KEEPALIVE_GAIN = null;
+  function stopAudioKeepalive(reason) {
+    try {
+      if (window.__gptsovits_tavo_preprimed_keepalive_source) window.__gptsovits_tavo_preprimed_keepalive_source.stop(0);
+    } catch (_) {}
+    try {
+      if (window.__gptsovits_tavo_preprimed_keepalive_source) window.__gptsovits_tavo_preprimed_keepalive_source.disconnect();
+    } catch (_) {}
+    try {
+      if (window.__gptsovits_tavo_preprimed_keepalive_gain) window.__gptsovits_tavo_preprimed_keepalive_gain.disconnect();
+    } catch (_) {}
+    try {
+      window.__gptsovits_tavo_preprimed_keepalive_source = null;
+      window.__gptsovits_tavo_preprimed_keepalive_gain = null;
+    } catch (_) {}
+    try {
+      if (AUDIO_KEEPALIVE_SOURCE) AUDIO_KEEPALIVE_SOURCE.stop(0);
+    } catch (_) {}
+    try {
+      if (AUDIO_KEEPALIVE_SOURCE) AUDIO_KEEPALIVE_SOURCE.disconnect();
+    } catch (_) {}
+    try {
+      if (AUDIO_KEEPALIVE_GAIN) AUDIO_KEEPALIVE_GAIN.disconnect();
+    } catch (_) {}
+    AUDIO_KEEPALIVE_SOURCE = null;
+    AUDIO_KEEPALIVE_GAIN = null;
+    try { debugLog("🔇 AudioContext keepalive stopped: " + (reason || ""), "#9ff"); } catch (_) {}
+  }
+  function startAudioKeepalive(ctx, reason) {
+    if (!ctx || AUDIO_KEEPALIVE_SOURCE) return;
+    try {
+      var rate = ctx.sampleRate || 44100;
+      var frames = Math.max(1, Math.floor(rate * 0.5));
+      var b = ctx.createBuffer(1, frames, rate);
+      var ch = b.getChannelData(0);
+      for (var i = 0; i < ch.length; i++) ch[i] = 0.00001;
+      var gain = ctx.createGain ? ctx.createGain() : null;
+      var s = ctx.createBufferSource();
+      s.buffer = b;
+      s.loop = true;
+      if (gain) {
+        gain.gain.value = 0.00001;
+        s.connect(gain);
+        gain.connect(ctx.destination);
+      } else {
+        s.connect(ctx.destination);
+      }
+      s.start(0);
+      AUDIO_KEEPALIVE_SOURCE = s;
+      AUDIO_KEEPALIVE_GAIN = gain;
+      debugLog("🔇 AudioContext keepalive started: " + (reason || ""), "#9ff");
+    } catch (e) {
+      try { debugLog("⚠️ AudioContext keepalive 启动失败: " + errorMessage(e, "keepalive 启动失败"), "#fc9"); } catch (_) {}
+      stopAudioKeepalive("start failed");
+    }
+  }
   function resetPrimedAudioContext(reason) {
     FORCE_NEW_AUDIO_CONTEXT = true;
+    stopAudioKeepalive(reason || "reset");
     try {
       if (PRIMED_UNLOCK_SOURCE) PRIMED_UNLOCK_SOURCE.stop(0);
     } catch (_) {}
@@ -220,6 +278,7 @@
     }
     if (PRIMED_CTX) {
       try { if (PRIMED_CTX.state === "suspended") PRIMED_CTX.resume(); } catch (_) {}
+      startAudioKeepalive(PRIMED_CTX, "prime existing");
       return PRIMED_CTX;
     }
     FORCE_NEW_AUDIO_CONTEXT = false;
@@ -240,6 +299,7 @@
         s.onended = function () { if (PRIMED_UNLOCK_SOURCE === s) PRIMED_UNLOCK_SOURCE = null; };
       } catch (_) {}
       PRIMED_CTX = ctx;
+      startAudioKeepalive(ctx, "prime new");
       return ctx;
     } catch (_) { return null; }
   }

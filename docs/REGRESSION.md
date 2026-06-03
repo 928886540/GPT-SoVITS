@@ -175,7 +175,8 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 ## BUG-035 Tavo 切画面/桌面音频生命周期回归
 
-- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881931`，loader 版本 `20260603-audio-lifecycle-v41`，runtime `20260603-audio-lifecycle-v23`。
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881932`，loader 版本 `20260603-audio-keepalive-v42`，runtime `20260603-audio-keepalive-v24`。
+- 新建流式播放时，从用户点击到首段 PCM 到达之前，控制台应出现 `AudioContext keepalive started`；首段真实音频进入 playing 后应出现 keepalive stopped。等待首段期间不能直接报 `音频通道未放行`。
 - live 播放过程中切到 Tavo 其他页面或系统桌面，当前 Web Audio 必须转成 paused 并保存断点；返回后不应自动叠出第二路音频。
 - 返回后点播放只能续播当前 track；播放器右上角页码和当前卡片不能新增一条“假新音频”。
 - 触发 `音频通道未放行` 后，下一次用户点击播放/生成必须创建新的 AudioContext；不能切任何一条都继续提示未放行。
