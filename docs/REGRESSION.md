@@ -173,6 +173,14 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 - 删除到空后点播放会新建 live 生成，这是允许的；但只有 `AudioContext.state === "running"` 后才允许显示 playing 和推进进度。未放行时必须显示 `音频通道未放行`，不能出现进度走但无声。
 - saved 历史音频 Web Audio 复播同样要验证：解码成功但 AudioContext 未 running 时不能显示正在播放。
 
+## BUG-035 Tavo 切画面/桌面音频生命周期回归
+
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881931`，loader 版本 `20260603-audio-lifecycle-v41`，runtime `20260603-audio-lifecycle-v23`。
+- live 播放过程中切到 Tavo 其他页面或系统桌面，当前 Web Audio 必须转成 paused 并保存断点；返回后不应自动叠出第二路音频。
+- 返回后点播放只能续播当前 track；播放器右上角页码和当前卡片不能新增一条“假新音频”。
+- 触发 `音频通道未放行` 后，下一次用户点击播放/生成必须创建新的 AudioContext；不能切任何一条都继续提示未放行。
+- saved 历史音频也要覆盖同样流程：切走暂停、回来点播放继续，不能重复播放、不能进度假走。
+
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。
 - 普通模式设置页必须能配置默认音色、旁白音色、对白音色；生成时记录实际使用的 voice，并确保 cache key 区分正文、模式、音色和推理参数。

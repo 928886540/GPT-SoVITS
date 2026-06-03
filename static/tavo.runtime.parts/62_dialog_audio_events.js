@@ -106,6 +106,50 @@
         return true;
       } catch (_) { return false; }
     }
+    function pauseActiveForHostSuspend(reason) {
+      var t = currentTrack();
+      if (!t) return;
+      var touched = false;
+      if (t.webAudioPlaying || webAudioController) {
+        try {
+          if (webAudioController && typeof webAudioController.getTimeSec === "function") {
+            t.lastWebAudioSec = Math.max(0, Number(webAudioController.getTimeSec()) || 0);
+          }
+        } catch (_) {}
+        stopWebAudioPlayback("silent");
+        try { if (typeof resetPrimedAudioContext === "function") resetPrimedAudioContext(reason || "host suspend"); } catch (_) {}
+        touched = true;
+      } else if (elementAudioBelongsToTrack(t) && audio && !audio.paused && !audio.ended) {
+        try { t.lastElementSec = Math.max(0, elementPlaybackTimeSec(t)); } catch (_) {}
+        try { audio.pause(); } catch (_) {}
+        touched = true;
+      }
+      if (!touched) return;
+      t.pausedByHost = true;
+      t.pausedByUser = true;
+      setTrackPlaybackState(t, "paused");
+      setPlayState("idle");
+      setStatus("已暂停，点播放继续");
+      showTrackNotice(t, "已暂停", "Tavo/系统切走后音频通道会暂停，点播放从当前位置继续");
+      if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function () {});
+      debugLog("⏸ host suspend pause: " + (reason || "visibility") + " @" + formatTime(trackResumeSec(t)), "#fc9");
+    }
+    function markVisiblePausedNotice() {
+      var t = currentTrack();
+      if (!t || !t.pausedByHost) return;
+      setTrackPlaybackState(t, "paused");
+      setPlayState("idle");
+      setStatus("已暂停，点播放继续");
+      showTrackNotice(t, "已暂停", "点播放从当前位置继续");
+    }
+    try {
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) pauseActiveForHostSuspend("visibility hidden");
+        else markVisiblePausedNotice();
+      });
+      window.addEventListener("pagehide", function () { pauseActiveForHostSuspend("pagehide"); });
+      window.addEventListener("pageshow", function () { markVisiblePausedNotice(); });
+    } catch (_) {}
     on(play, 'pointerdown', function () { primeAudioContext(); });
     on(add, 'pointerdown', function () { primeAudioContext(); });
     on(play, 'touchstart', function () { primeAudioContext(); });
@@ -136,7 +180,7 @@
     $all(panel, '.idx-mode').forEach(function (b) { b.addEventListener('click', async function () { readFields(); cfg.mode = b.dataset.mode; syncUI(); await saveConfig(cfg, characterId); }); });
     on(audio, 'play', function () {
       var t = currentTrack();
-      if (t) setTrackPlaybackState(t, "playing");
+      if (t) { t.pausedByHost = false; setTrackPlaybackState(t, "playing"); }
       setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t));
       // 系统媒体面板基础信息(后台/锁屏可见,可控制播放/前后 10 秒)
       try { updateMediaSession(lastSpeakerRole, ""); } catch (_) {}
@@ -191,7 +235,7 @@
         setStatus("正在播放：" + trackPlaybackLabel(t));
       }
     });
-    on(audio, 'playing', function () { var t = currentTrack(); if (t) setTrackPlaybackState(t, "playing"); setError(""); setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t)); });
+    on(audio, 'playing', function () { var t = currentTrack(); if (t) { t.pausedByHost = false; setTrackPlaybackState(t, "playing"); } setError(""); setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t)); });
     on(audio, 'pause', function () { var t = currentTrack(); if (t && !audio.ended) setTrackPlaybackState(t, "paused"); setPlayState("idle"); if (audio.currentTime > 0 && !audio.ended) setStatus("已暂停"); stopSubtitle(); });
     on(audio, 'ended', function () {
       var t = currentTrack();

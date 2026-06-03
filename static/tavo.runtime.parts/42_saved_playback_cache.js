@@ -134,7 +134,7 @@
       try { if (ctx.state === "suspended") await ctx.resume(); }
       catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
       if (String(ctx.state || "running") !== "running") {
-        throw new Error("[step:resume] AudioContext state=" + String(ctx.state || "unknown") + "，音频通道未放行");
+        throw (typeof audioContextBlockedError === "function" ? audioContextBlockedError("resume", ctx) : new Error("[step:resume] AudioContext state=" + String(ctx.state || "unknown") + "，音频通道未放行"));
       }
       setStatus(url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…");
       showTrackNotice(track, url === track.offlineUrl ? "读取本机缓存…" : "读取已保存音频…", label || "首次读取后拖动进度不会重新请求音频");
@@ -172,7 +172,7 @@
         try { if (ctx.state === "suspended") await ctx.resume(); }
         catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
         if (!ctx || String(ctx.state || "running") !== "running") {
-          throw new Error("[step:resume] AudioContext state=" + String((ctx && ctx.state) || "unknown") + "，音频通道未放行");
+          throw (typeof audioContextBlockedError === "function" ? audioContextBlockedError("resume", ctx) : new Error("[step:resume] AudioContext state=" + String((ctx && ctx.state) || "unknown") + "，音频通道未放行"));
         }
         var source = ctx.createBufferSource();
         source.buffer = audioBuf;
@@ -221,6 +221,11 @@
         setTimeout(function () {
           if (stopped || token !== webAudioPlayToken) return;
           if (!ctx || String(ctx.state || "running") !== "running") {
+            stopped = true;
+            try { source.stop(0); } catch (_) {}
+            try { source.disconnect(); } catch (_) {}
+            try { if (gain) gain.disconnect(); } catch (_) {}
+            try { if (typeof resetPrimedAudioContext === "function") resetPrimedAudioContext("saved scheduled not running"); } catch (_) {}
             markWebAudioStopped(track);
             webAudioController = null;
             clearWebAudioProgressTimer();
@@ -231,6 +236,7 @@
             debugLog("⚠️ 保存音频已排程但 AudioContext 未运行: " + String((ctx && ctx.state) || "unknown"), "#fc9");
             return;
           }
+          track.pausedByHost = false;
           track.webAudioPlaying = true;
           setTrackPlaybackState(track, "playing");
           setPlayState("playing");

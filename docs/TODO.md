@@ -3,7 +3,7 @@
 ## P0
 
 - 重开 Codex 后第一步：读 `AGENTS.md`、`README.md`、`docs/AGENT_STATE.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/BUGS.md`、`docs/TODO.md`、`docs/REGRESSION.md`，再跑 `git status --short`。不要回退当前未提交 runtime 拆分成果。
-- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881930`，loader `20260603-delete-audio-v40`，runtime parts/manifest `20260603-delete-audio-v22`。优先回归 BUG-034：删除所有历史后计数必须立即变 `历史音频 0 条` 且重进不回灌旧 4 条；live/saved Web Audio 未真正 `running` 时不能进入 playing/推进进度，必须提示 `音频通道未放行`。同时继续覆盖 BUG-033：上一条/下一条只切卡、设置页覆盖播放器位置、saved 播放失败显示具体阶段、live 歌词不假同步。
+- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881931`，loader `20260603-audio-lifecycle-v41`，runtime parts/manifest `20260603-audio-lifecycle-v23`。优先回归 BUG-035：切 Tavo 其他页面/桌面时当前音频显式暂停并保存断点，返回后点播放只续播同一条，不叠第二路；一次 `音频通道未放行` 后下次用户手势必须重建 AudioContext。继续覆盖 BUG-034：删除所有历史后计数必须立即变 `历史音频 0 条` 且重进不回灌旧 4 条。
 - BUG-029 已确认并修复：本机代理 `127.0.0.1:7897` 会把 adapter 到官方 `127.0.0.1:9881` 的调用伪装成空 body 502。adapter 已绕过代理；官方 9881 通过任务计划 `GPT-SoVITS Official API 9881` 常驻。真实 Tavo 复测前先确认 `curl.exe --noproxy "*"` 打 `http://127.0.0.1:9881/docs` 返回 200。
 - 先做真实 Tavo/雷电回归：当前正则已 bump 到 `v=2028881923`，入口为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881923`，需要在 Tavo 正则里刷新版本号，再确认 AR 动态 runtime loader、manifest、21 个 parts、CSS skin、播放器、设置页、音色选择器、懒加载首点播放和音符新建音频都加载/交互正常。
 - 把 README 拆分后的 `docs/` 作为后续唯一活跃状态入口维护。

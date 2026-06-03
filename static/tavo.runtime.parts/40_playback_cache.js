@@ -125,13 +125,29 @@
               showTrackNotice(track, "音频已排队", "即将开始出声");
             } else if (state === "audio_suspended") {
               track.pausedByUser = true;
-              track.lastWebAudioSec = trackResumeSec(track);
+              try {
+                if (webAudioController && typeof webAudioController.getTimeSec === "function") {
+                  track.lastWebAudioSec = Math.max(0, Number(webAudioController.getTimeSec()) || 0);
+                } else {
+                  track.lastWebAudioSec = trackResumeSec(track);
+                }
+              } catch (_) {
+                track.lastWebAudioSec = trackResumeSec(track);
+              }
+              try {
+                if (webAudioController && typeof webAudioController.stop === "function") webAudioController.stop("audio suspended");
+              } catch (_) {}
+              webAudioController = null;
+              markWebAudioStopped(track);
+              clearWebAudioProgressTimer();
+              try { if (typeof resetPrimedAudioContext === "function") resetPrimedAudioContext("audio_suspended"); } catch (_) {}
               setTrackPlaybackState(track, "paused");
               setPlayState("idle");
               setStatus("音频通道未放行，点播放继续");
               showTrackNotice(track, "音频通道未放行", "点播放继续，不会从头开始");
             } else if (state === "playing") {
               stopWaitTimer();
+              track.pausedByHost = false;
               track.webAudioPlaying = true;
               setTrackPlaybackState(track, "playing");
               setPlayState("playing");
@@ -166,6 +182,7 @@
                 }
               }
             } else if (state === "resumed") {
+              track.pausedByHost = false;
               setTrackPlaybackState(track, "playing");
               setPlayState("playing");
               setStatus("正在播放：" + trackPlaybackLabel(track));

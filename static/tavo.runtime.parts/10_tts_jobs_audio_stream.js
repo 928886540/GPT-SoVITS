@@ -178,17 +178,51 @@
   // 之后才创建的 ctx 会停在 suspended，永远不出声。
   var PRIMED_CTX = null;
   var PRIMED_UNLOCK_SOURCE = null;
+  var FORCE_NEW_AUDIO_CONTEXT = false;
+  function resetPrimedAudioContext(reason) {
+    FORCE_NEW_AUDIO_CONTEXT = true;
+    try {
+      if (PRIMED_UNLOCK_SOURCE) PRIMED_UNLOCK_SOURCE.stop(0);
+    } catch (_) {}
+    PRIMED_UNLOCK_SOURCE = null;
+    var old = PRIMED_CTX;
+    PRIMED_CTX = null;
+    try { window.__gptsovits_tavo_preprimed_audio_context = null; } catch (_) {}
+    try {
+      if (old && old.state !== "closed" && typeof old.close === "function") {
+        var p = old.close();
+        if (p && typeof p.catch === "function") p.catch(function () {});
+      }
+    } catch (_) {}
+    try { debugLog("⚠️ AudioContext 已重置: " + (reason || "unknown"), "#fc9"); } catch (_) {}
+  }
+  function audioContextBlockedError(step, ctx) {
+    var state = "unknown";
+    try { state = String((ctx && ctx.state) || "unknown"); } catch (_) {}
+    resetPrimedAudioContext(step + ":" + state);
+    return new Error("[step:" + step + "] AudioContext state=" + state + "，音频通道未放行");
+  }
   function primeAudioContext() {
-    if (!PRIMED_CTX) {
+    if (!PRIMED_CTX && !FORCE_NEW_AUDIO_CONTEXT) {
       try {
         var pre = window.__gptsovits_tavo_preprimed_audio_context;
         if (pre && typeof pre.createBufferSource === "function") PRIMED_CTX = pre;
       } catch (_) {}
     }
     if (PRIMED_CTX) {
+      try {
+        if (FORCE_NEW_AUDIO_CONTEXT || PRIMED_CTX.state === "closed" || PRIMED_CTX.state === "interrupted") {
+          resetPrimedAudioContext("prime stale " + String(PRIMED_CTX.state || "unknown"));
+        }
+      } catch (_) {
+        resetPrimedAudioContext("prime state read failed");
+      }
+    }
+    if (PRIMED_CTX) {
       try { if (PRIMED_CTX.state === "suspended") PRIMED_CTX.resume(); } catch (_) {}
       return PRIMED_CTX;
     }
+    FORCE_NEW_AUDIO_CONTEXT = false;
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     try {
@@ -224,10 +258,11 @@
     // 优先复用 user-gesture 里 prime 出来的 ctx；没有再 new 一个（桌面/file://
     // 这种没经过 gesture 的场景也能跑）。
     var ctx = PRIMED_CTX || new AC();
+    PRIMED_CTX = ctx;
     try { if (ctx.state === "suspended") await ctx.resume(); }
     catch (e) { throw new Error("[step:resume] " + errorMessage(e, "AudioContext resume 失败")); }
     if (String(ctx.state || "running") !== "running") {
-      throw new Error("[step:resume] AudioContext state=" + String(ctx.state || "unknown") + "，音频通道未放行");
+      throw audioContextBlockedError("resume", ctx);
     }
     var output = ctx.createGain ? ctx.createGain() : null;
     if (output) {
@@ -452,7 +487,7 @@
         throw new Error("[step:" + step + ".resume] " + errorMessage(e, "AudioContext resume 失败"));
       }
       if (String(ctx.state || "running") !== "running") {
-        throw new Error("[step:" + step + ".resume] AudioContext state=" + String(ctx.state || "unknown") + "，音频通道未放行");
+        throw audioContextBlockedError(step + ".resume", ctx);
       }
     }
 
