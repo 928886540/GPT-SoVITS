@@ -442,20 +442,16 @@
       if (state === "failed") return false;
       return state === "live" || state === "pending" || !!(track.pendingBlob || track.streaming || track.backgroundOnly || track.cachePollStarted);
     }
-    async function confirmInterruptLiveTrack(actionLabel) {
-      actionLabel = actionLabel || "切换历史音频";
-      try {
-        if (window.tavo && tavo.utils && typeof tavo.utils.select === "function") {
-          var choice = await tavo.utils.select([
-            { value: "keep", label: "留在当前", description: "继续当前流式播放" },
-            { value: "interrupt", label: "中断并切换", description: "停止并删除本次未完成的流式任务" }
-          ], actionLabel + " 会中断当前流式播放", "keep");
-          return choice === "interrupt";
-        }
-      } catch (e) {
-        debugLog("⚠️ 流式中断确认弹窗失败: " + errorMessage(e, "确认弹窗失败"), "#fc9");
-      }
-      return typeof window.confirm === "function" ? window.confirm(actionLabel + " 会中断并删除当前未完成的流式任务，确认继续？") : false;
+    function isFinishedLiveTrack(track) {
+      if (!track || isSavedTrack(track) || track.deleted) return false;
+      return !!(track.streamPlaybackFinished || track.playbackState === "ended");
+    }
+    function blockLiveNavigation(track, actionLabel) {
+      if (!track) return false;
+      setStatus("流式播放中，不能切换历史");
+      showTrackNotice(track, "流式播放中", "请等待音频保存完成，或点退出流式中止本次任务");
+      debugLog("⛔ " + (actionLabel || "切换历史音频") + " 被阻止：当前 live 未完成 cacheKey=" + (track.cacheKey || ""), "#fc9");
+      return true;
     }
     async function cancelLiveTrack(track, reason) {
       if (!isCancelableLiveTrack(track)) return false;
@@ -500,7 +496,39 @@
       updateTrackButtons();
       if (reason) debugLog("🛑 live 流式已中止: " + reason, "#fc9");
     }
-    async function cancelCurrentLiveTrackForNavigation(delta, actionLabel) {
+    async function exitCurrentLiveTrack(reason) {
+      var track = currentTrack();
+      if (isSavedTrack(track)) {
+        await selectTrack(currentTrackIndex, false, { metadataOnly: true, reason: "live-saved" });
+        return true;
+      }
+      if (!isCancelableLiveTrack(track)) return false;
+      if (isFinishedLiveTrack(track)) {
+        if (track.cacheKey) {
+          requestLiveBackgroundCache(track, reason || "live finished");
+          pollCacheUpgrade(track, "live finished");
+          if (await refreshTrackFromStatus(track, "live finished")) {
+            await selectTrack(currentTrackIndex, false, { metadataOnly: true, reason: "live-saved" });
+            return true;
+          }
+        }
+        setStatus("播放已结束，等待进入历史");
+        showTrackNotice(track, "播放已结束", "正在等待后端落盘；完成后会变成历史音频");
+        updateTrackButtons();
+        return true;
+      }
+      setStatus("正在退出流式…");
+      showTrackNotice(track, "正在退出流式…", "本次未完成流式任务会被删除");
+      await cancelLiveTrack(track, reason || "live exit");
+      if (!generatedTracks.length) {
+        showEmptyAfterLiveCancel(reason || "live exit");
+        return true;
+      }
+      var nextIndex = Math.max(0, Math.min(currentTrackIndex, generatedTracks.length - 1));
+      await selectTrack(nextIndex, false, { metadataOnly: true, reason: "live-exit" });
+      return true;
+    }
+    async function selectHistoryTrackForNavigation(delta, actionLabel) {
       await ensureTracksLoaded();
       if (currentTrackIndex < 0) return;
       var fromIndex = currentTrackIndex;
@@ -511,35 +539,20 @@
         await selectTrack(targetIndex, false, { metadataOnly: true, reason: "navigation" });
         return;
       }
-      if (!await confirmInterruptLiveTrack(actionLabel)) {
-        setStatus("继续当前流式播放");
-        showTrackNotice(track, "继续当前流式播放", "未切换历史音频");
-        return;
-      }
-      await cancelLiveTrack(track, "navigation");
-      if (!generatedTracks.length) {
-        showEmptyAfterLiveCancel("navigation");
-        return;
-      }
-      var nextIndex = delta > 0 ? fromIndex : targetIndex;
-      nextIndex = Math.max(0, Math.min(nextIndex, generatedTracks.length - 1));
-      await selectTrack(nextIndex, false, { metadataOnly: true, reason: "navigation" });
+      blockLiveNavigation(track, actionLabel);
     }
-    function cancelCurrentLiveTrackForHostLeave(reason) {
+    function keepCurrentLiveTrackForHostBackground(reason) {
       var track = currentTrack();
       if (!isCancelableLiveTrack(track)) return false;
-      cancelLiveTrack(track, reason || "host leave").then(function () {
-        if (!generatedTracks.length) {
-          showEmptyAfterLiveCancel(reason || "host leave");
-          return;
-        }
-        var nextIndex = Math.max(0, Math.min(currentTrackIndex, generatedTracks.length - 1));
-        selectTrack(nextIndex, false, { metadataOnly: true, reason: "live-cancel" }).catch(function (e) {
-          debugLog("⚠️ live 中止后切历史失败: " + errorMessage(e, "切换历史失败"), "#fc9");
-        });
-      }).catch(function (e) {
-        debugLog("❌ live 中止失败: " + errorMessage(e, "live 中止失败"), "#f99");
-      });
+      track.pausedByHost = false;
+      track.playSavedWhenReady = false;
+      if (track.cacheKey) {
+        requestLiveBackgroundCache(track, "host background");
+        pollCacheUpgrade(track, "live background");
+      }
+      setStatus("流式后台继续");
+      showTrackNotice(track, "流式后台继续", "前端不主动删除；完成后会保存为历史音频");
+      debugLog("🎧 host background: 保留 live，不主动删除 reason=" + (reason || "host background") + (track.cacheKey ? " cacheKey=" + track.cacheKey : ""), "#9ff");
       return true;
     }
     async function clearCurrentTrack() {

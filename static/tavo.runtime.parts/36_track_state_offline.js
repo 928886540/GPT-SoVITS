@@ -300,7 +300,11 @@
         if (script && script.src && /[?&]webAudioSaved=0\b/.test(script.src)) return false;
         if (script && script.src && /[?&]webAudioSaved=1\b/.test(script.src)) return true;
       } catch (_) {}
-      return isMobileUA();
+      // Saved/history audio should prefer the native <audio> path so Tavo/WebView
+      // has the best chance to keep playback alive while the AR page is backgrounded.
+      // If the element path is unsupported, audio error/reject handlers flip
+      // elementAudioUnsupported and fall back to Web Audio.
+      return false;
     }
     function shouldUseElementForSavedTrack(track) {
       return isSavedTrack(track);

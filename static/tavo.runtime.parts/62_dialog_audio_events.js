@@ -83,12 +83,9 @@
       try {
         var t = currentTrack();
         if (t && t.webAudioPlaying && isCancelableLiveTrack(t)) {
-          setStatus("正在中止流式…");
-          showTrackNotice(t, "正在中止流式…", "未完成的流式任务会被删除，完成后请重新生成");
-          cancelLiveTrack(t, "user stop").then(function () {
-            if (!generatedTracks.length) showEmptyAfterLiveCancel("user stop");
-            else selectTrack(Math.max(0, Math.min(currentTrackIndex, generatedTracks.length - 1)), false, { metadataOnly: true, reason: "live-cancel" }).catch(function () {});
-          }).catch(function (e) { setError(errorMessage(e, "流式中止失败")); });
+          setStatus("流式播放中，不能暂停");
+          showTrackNotice(t, "流式播放中", "请等待音频保存完成；需要中止时点退出流式");
+          debugLog("⛔ live 播放按钮暂停被阻止：保留流式任务 cacheKey=" + (t.cacheKey || ""), "#fc9");
           return true;
         }
         if (t && t.webAudioPlaying) {
@@ -119,9 +116,7 @@
       var t = currentTrack();
       if (!t) return;
       if (isCancelableLiveTrack(t)) {
-        setStatus("流式已中止");
-        showTrackNotice(t, "流式已中止", "离开当前 AR 渲染时不恢复未完成流式任务");
-        cancelCurrentLiveTrackForHostLeave(reason || "host suspend");
+        keepCurrentLiveTrackForHostBackground(reason || "host suspend");
         return;
       }
       if (isSavedTrack(t)) {
@@ -151,10 +146,13 @@
     on(play, 'click', function () { primeAudioContext(); if (tryResumeOrPauseInGesture()) return; generate(false).catch(function (e) { setError(errorMessage(e, "播放失败")); }); });
     on(add, 'click', function () { primeAudioContext(); generate(true).catch(function (e) { setError(errorMessage(e, "生成失败")); }); });
     on(prev, 'click', function () {
-      cancelCurrentLiveTrackForNavigation(-1, "上一条历史音频").catch(function (e) { setError(errorMessage(e, "上一条历史音频切换失败")); });
+      selectHistoryTrackForNavigation(-1, "上一条历史音频").catch(function (e) { setError(errorMessage(e, "上一条历史音频切换失败")); });
     });
     on(next, 'click', function () {
-      cancelCurrentLiveTrackForNavigation(1, "下一条历史音频").catch(function (e) { setError(errorMessage(e, "下一条历史音频切换失败")); });
+      selectHistoryTrackForNavigation(1, "下一条历史音频").catch(function (e) { setError(errorMessage(e, "下一条历史音频切换失败")); });
+    });
+    on(liveExit, 'click', function () {
+      exitCurrentLiveTrack("live exit").catch(function (e) { setError(errorMessage(e, "退出流式失败")); });
     });
     on(del, 'click', function () { clearCurrentTrack().catch(function (e) { setError(errorMessage(e, "删除历史音频失败")); }); });
     on(first(panel, '[data-role="save"]'), 'click', async function () { readFields(); await saveConfig(cfg, characterId); syncUI(); closeDialog(panel); setStatus("设置已保存"); });

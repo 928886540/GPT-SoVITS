@@ -557,6 +557,15 @@ async def get_dialogue_job_audio(cache_key: str):
     return FileResponse(path, media_type="audio/wav", headers={"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"})
 
 
+@APP.post("/tts_dialogue_stream_job/{cache_key}/background")
+async def request_dialogue_job_background(cache_key: str) -> dict[str, Any]:
+    _ensure_worker_started()
+    state, position = _request_background_cache_job(cache_key)
+    if state == "missing":
+        raise HTTPException(status_code=404, detail="job not found or stream context expired")
+    return {"cache_key": cache_key, "state": state, "queue_position": position}
+
+
 @APP.get("/tts_dialogue_job_status/{cache_key}")
 async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
     path = snapshot_cache.get_cached_audio(cache_key)
@@ -672,6 +681,21 @@ def _enqueue_cache_job_locked(cache_key: str) -> int:
     JOBS[cache_key] = {**job, "state": "queued", "queue_position": position, "queued_at": time.time()}
     JOB_QUEUE.put((cache_key, payload, profiles))
     return position
+
+
+def _request_background_cache_job(cache_key: str) -> tuple[str, int]:
+    with JOBS_LOCK:
+        job = JOBS.get(cache_key)
+        if not job:
+            return "missing", 0
+        state = str(job.get("state") or "")
+        if state in {"done", "deleted"}:
+            return state, 0
+        JOBS[cache_key] = {**job, "background_requested": True, "background_requested_at": time.time()}
+        if state in {"deferred_stream"}:
+            position = _enqueue_cache_job_locked(cache_key)
+            return str(JOBS.get(cache_key, {}).get("state") or "queued"), position
+        return str(JOBS.get(cache_key, {}).get("state") or state), _queue_position(cache_key)
 
 
 def _bypass_cache_request_id(value: Any) -> str:
@@ -945,12 +969,16 @@ def _stream_dialogue_to_cache(
     offset_frames = 0
     total_bytes = 0
     started = time.perf_counter()
+    finished = False
+    stream_failed = False
 
     with JOBS_LOCK:
         current = JOBS.get(cache_key, {})
         JOBS[cache_key] = {**current, "state": "running", "started_at": time.time(), "queue_position": 0}
 
     def fail_stream(exc: Exception, segment_index: Optional[int] = None, segment: Optional[dict[str, Any]] = None) -> None:
+        nonlocal stream_failed
+        stream_failed = True
         role = str((segment or {}).get("role") or "").strip()
         text = str((segment or {}).get("text") or "").strip()
         error_text = str(exc)
@@ -1099,12 +1127,40 @@ def _stream_dialogue_to_cache(
             "metrics": metadata["metrics"],
             "finished_at": time.time(),
         }
+        finished = True
         with JOBS_LOCK:
             if JOBS.get(cache_key, {}).get("state") != "deleted":
                 JOBS[cache_key] = {"state": "done", "cached": True, "cache_key": cache_key, **result}
     except Exception as exc:
         fail_stream(exc)
         return
+    finally:
+        if not finished and not stream_failed:
+            with JOBS_LOCK:
+                current = JOBS.get(cache_key, {})
+                state = str(current.get("state") or "")
+                if state in {"done", "deleted", "queued"}:
+                    pass
+                elif current.get("background_requested"):
+                    JOBS[cache_key] = {
+                        **current,
+                        "state": "deferred_stream",
+                        "stream_closed_at": time.time(),
+                        "queue_position": 0,
+                    }
+                    position = _enqueue_cache_job_locked(cache_key)
+                    print(
+                        "[gsv_adapter] dialogue_stream_background_queued "
+                        + json.dumps({"cache_key": cache_key, "queue_position": position}, ensure_ascii=True, separators=(",", ":")),
+                        flush=True,
+                    )
+                elif state == "running":
+                    JOBS[cache_key] = {
+                        **current,
+                        "state": "deferred_stream",
+                        "stream_closed_at": time.time(),
+                        "queue_position": 0,
+                    }
 
 
 def _normalize_segments(raw_segments: list[dict[str, Any]]) -> list[dict[str, Any]]:

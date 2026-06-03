@@ -4,12 +4,9 @@
     function pauseLiveTrack(track) {
       if (!track) return;
       if (isCancelableLiveTrack(track)) {
-        setStatus("正在中止流式…");
-        showTrackNotice(track, "正在中止流式…", "未完成的流式任务会被删除，完成后请重新生成");
-        cancelLiveTrack(track, "user pause").then(function () {
-          if (!generatedTracks.length) showEmptyAfterLiveCancel("user pause");
-          else selectTrack(Math.max(0, Math.min(currentTrackIndex, generatedTracks.length - 1)), false, { metadataOnly: true, reason: "live-cancel" }).catch(function () {});
-        }).catch(function (e) { setError(errorMessage(e, "流式中止失败")); });
+        setStatus("流式播放中，不能暂停");
+        showTrackNotice(track, "流式播放中", "请等待音频保存完成；需要中止时点退出流式");
+        debugLog("⛔ live 暂停被阻止：保留流式任务 cacheKey=" + (track.cacheKey || ""), "#fc9");
         return;
       }
       track.pausedByUser = true;

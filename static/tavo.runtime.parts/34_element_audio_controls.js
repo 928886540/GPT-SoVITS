@@ -288,10 +288,22 @@
     function setPlayState(state) { if (play) { play.dataset.state = state; play.innerHTML = state === "loading" ? loadingIcon() : playIcon(state); play.disabled = false; } if (cover) cover.dataset.playing = state === "playing" ? "1" : "0"; }
     function updateTrackButtons() {
       var track = currentTrack();
+      var liveActive = !!(track && isCancelableLiveTrack(track));
+      try {
+        var card = first(root, ".idx-card") || root;
+        if (card) {
+          if (liveActive) card.setAttribute("data-live-active", "1");
+          else card.removeAttribute("data-live-active");
+        }
+      } catch (_) {}
       if (prev) prev.disabled = currentTrackIndex <= 0;
       if (next) next.disabled = currentTrackIndex < 0 || currentTrackIndex >= generatedTracks.length - 1;
       var canSeekTrack = !!(track && (trackPlayableUrl(track) || track.webAudioPlaying || track.cacheKey));
       if (del) del.disabled = currentTrackIndex < 0 || !track;
+      if (liveExit) {
+        liveExit.disabled = !liveActive;
+        liveExit.textContent = isFinishedLiveTrack(track) ? "进入历史" : "退出流式";
+      }
       updateTrackCounter();
     }
     function clearWebAudioProgressTimer() {

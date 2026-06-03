@@ -177,20 +177,23 @@ rg -n "GSV_TAVO_LLM_API_KEY\\s*=\\s*['\\\"][^<]" README.md docs static *.py
 
 - 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881932`，loader 版本 `20260603-audio-keepalive-v42`，runtime `20260603-audio-keepalive-v24`。
 - 新建流式播放时，从用户点击到首段 PCM 到达之前，控制台应出现 `AudioContext keepalive started`；首段真实音频进入 playing 后应出现 keepalive stopped。等待首段期间不能直接报 `音频通道未放行`。
-- v1933 后 live 播放过程中切到 Tavo 其他页面或系统桌面，不再恢复流式；必须删除未完成任务，不能自动叠出第二路音频。
-- v1933 后返回当前消息时，未完成 live 不能恢复成历史卡片；播放器右上角页码和当前卡片不能新增一条“假新音频”。
+- v1934 后 live 播放过程中切到 Tavo 其他页面或系统桌面，前端不能主动删除任务；如果 WebAudio 被宿主挂起，应请求后台合成并等待 saved/history，不自动叠出第二路音频。
+- v1934 后返回当前消息时，未完成 live 仍是特殊临时卡片，不能恢复成历史卡片；只有 saved track 才能进入历史条数。
 - 触发 `音频通道未放行` 后，下一次用户点击播放/生成必须创建新的 AudioContext；不能切任何一条都继续提示未放行。
 - saved 历史音频按 BUG-036 新策略验证：前端不主动暂停，允许 Tavo/系统后台策略决定是否继续；如果宿主自行暂停，回来点播放继续，不能重复播放、不能进度假走。
 
 ## BUG-036 live/history 后台与切卡策略回归
 
-- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881933`，loader 版本 `20260603-live-history-policy-v43`，runtime `20260603-live-history-policy-v25`。
+- 真实 Tavo 正则脚本来源必须是 `https://sovits.928886540.xyz/static/tavo.js?v=2028881934`，loader 版本 `20260603-live-background-v44`，runtime `20260603-live-background-v26`。
 - saved/history 音频播放时切 Tavo 页面或系统后台，前端不能主动调用 pause/reset；如果宿主允许后台播放，应继续出声。
 - 如果宿主自行暂停 saved/history，返回后点播放应继续当前 saved track，不能新建 live、不能叠第二路。
-- live/pending 流式播放时点上一条/下一条，必须先弹出“会中断当前流式播放”的确认；取消后保持当前 live，确认后删除当前 live 卡片和服务端任务/cache，再切到目标历史。
-- live/pending 在 `visibilitychange/pagehide`、用户暂停、`audio_suspended`、首段 90 秒超时、连续缓冲或网络流中断时，必须中止并删除，不显示“点播放继续流式”。
+- live/pending 流式播放时普通控制按钮必须隐藏，只显示 `退出流式`；上一条/下一条/播放/新增/删除不能被点击到。
+- live/pending 在 `visibilitychange/pagehide`、用户暂停、`audio_suspended`、首段 90 秒超时、连续缓冲或网络流中断时，前端不能主动删除；应保留 live 卡片、请求后台合成并轮询保存状态。
+- live 未完成时点 `退出流式` 必须删除当前 live 卡片和服务端任务/cache，且不写入历史。
+- live 已播放结束或 job status done 后点按钮应进入/等待 saved history，不能删除。
 - 未完成 live 不能写入 `sovits_tracks_<messageId>`；关闭/重进消息后，懒加载卡片和完整播放器只显示已 saved 的历史条数。
 - 只有 job status done 或 saved track 才能保存进历史；成功落盘后仍能按 saved/history 规则播放、seek、显示历史条数。
+- 如果流式响应被宿主关闭且前端已请求后台合成，adapter 日志应出现 `dialogue_stream_background_queued`，状态最终必须进入 done/failed，不能长期 stuck running。
 
 - 前端主模式文案应显示“普通模式”和“智能模式”，不再把产品入口叫“单音色 / 多音色”。
 - 普通模式生成前必须使用 JS 清洗后的正文，验证脚本标签、隐藏块、markdown 噪声、emoji/符号被剔除，但正文对白和旁白不被误删。

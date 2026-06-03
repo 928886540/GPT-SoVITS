@@ -25,6 +25,7 @@
     var next = first(root, '[data-role="next"]');
     var add = first(root, '[data-role="add"]');
     var del = first(root, '[data-role="delete"]');
+    var liveExit = first(root, '[data-role="live-exit"]');
     var status = first(root, '[data-role="status"]', '.idx-status');
     var title = first(root, '[data-role="title"]', '.idx-name');
     var cover = first(root, '[data-role="cover"]', '.idx-cover');

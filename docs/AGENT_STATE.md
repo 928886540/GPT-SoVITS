@@ -1,6 +1,6 @@
 # Agent State
 
-更新时间：2026-06-03 11:09 +08:00
+更新时间：2026-06-03 12:43 +08:00
 
 ## 当前目标
 
@@ -8,36 +8,46 @@
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
 
-## BUG-036 live/history 后台与切卡策略修正（2026-06-03 11:09 +08:00）
+## BUG-036 live 特殊卡片与历史普通卡片策略修正（2026-06-03 12:43 +08:00）
 
-用户纠正：不能把历史音频和 live 流式都做成“切走就暂停/恢复”。历史音频应该尽量允许 Tavo/系统后台播放；live 流式则不做跨卡、跨页面、重进消息恢复，未完成就删除，只有成功落盘后才进入历史。
+用户最终确认的产品规则：
+
+- live 流式是特殊临时卡片；历史音频是普通卡片。
+- live 未完成时，点 `退出流式` 才删除本次 live、服务端 job/cache 和卡片。
+- live 如果已经播放结束或后端已落盘，不能删除；应等待/进入历史音频。
+- live 播放中隐藏普通控制按钮，只保留 `退出流式`，避免上一条/下一条/播放/新增/删除互相打架。
+- saved/history 播放尽量交给 `<audio>` 和 Tavo/系统后台策略；前端不因 `visibilitychange/pagehide` 主动 pause/reset/stop。
 
 已改：
 
-- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881933`。
-- Loader 版本 `20260603-live-history-policy-v43`，runtime parts/manifest `20260603-live-history-policy-v25`。
-- `static/tavo.js` / `05_message_text_config.js`：懒加载计数和 `saveTracksForMessage()` 只认 saved 历史；pending/live/failed 不再写入或显示为历史音频。
-- `44_track_history_cache.js`：新增 live 中止删除 helper；上一条/下一条如果当前是 live/pending，先用 Tavo select 确认，确认后停止播放、删除服务端任务/cache、移除卡片，再切目标历史。
-- `62_dialog_audio_events.js`：`visibilitychange/pagehide` 不再主动暂停 saved/history；当前是 live/pending 时直接中止删除，不再提示恢复。
-- `40_playback_cache.js` / `58_live_pause_helper.js`：live 的用户暂停、音频通道挂起、首段超时、连续缓冲、网络流中断都改为中止删除，不再写“点播放继续”。
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881934`。
+- Loader 版本 `20260603-live-background-v44`，runtime parts/manifest `20260603-live-background-v26`。
+- `static/tavo.js` / `05_message_text_config.js`：懒加载计数和 `saveTracksForMessage()` 只认 saved 历史；pending/live/failed 不写入历史。
+- `25_ui_templates.js` / `30_player_shell.js` / `34_element_audio_controls.js` / CSS：live active 时普通控制按钮隐藏，只显示 `退出流式`；播放结束但未转 saved 时按钮文案为 `进入历史`。
+- `44_track_history_cache.js`：上一条/下一条在 live 未完成时只阻止并提示，不再弹确认后删除；`exitCurrentLiveTrack()` 才执行“未完成删除、已结束进历史”的边界。
+- `62_dialog_audio_events.js` / `58_live_pause_helper.js`：live 播放按钮暂停被阻止，切后台/控制台不删除；点退出才删除。
+- `40_playback_cache.js`：首段等待超时、音频通道挂起、连续缓冲、网络流中断都保留 live，继续轮询保存状态，并请求 adapter 后台合成兜底。
+- `gsv_tavo_adapter.py`：新增 `POST /tts_dialogue_stream_job/{cache_key}/background`；如果流式响应被宿主关闭且前端已请求后台合成，adapter 会把任务转入后台队列继续落盘。
 
 已验证：
 
 - `node --check static\tavo.js`
 - `node --check static\tavo.runtime.js`
-- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260603-live-history-policy-v25`
+- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260603-live-background-v26`
 - `python -m py_compile gsv_tavo_adapter.py`
-- `git diff --check`
+- `git diff --check` 通过，仅 LF/CRLF 工作区提示
 - key 扫描无命中
-- 本地 adapter `/health` 200；`/static/tavo.js?v=2028881933` 返回 `live-history-policy-v43`；manifest 返回 `live-history-policy-v25`。
+- 本地 adapter `/health` 200；`/static/tavo.js?v=2028881934` 返回 `live-background-v44`；manifest 返回 `live-background-v26`；CSS 返回 200。
+- `POST /tts_dialogue_stream_job/not-a-real-key/background` 返回 404，说明新路由已加载。
+- 公网 `https://sovits.928886540.xyz` 经当前 shell 系统代理返回 health 200，loader/manifest 版本正确，`/background` 假 key 返回 404；`curl.exe --noproxy "*"` 直连公网仍 TLS reset，不作为真实 Tavo 判定依据。
 
 待真实 Tavo 回归：
 
-1. 正则刷新到 `v=2028881933` 并重渲染消息。
-2. saved/history 播放时切 Tavo 页面或系统后台，前端不应主动 pause/reset；如果宿主允许后台播放应继续，若宿主自行暂停，回来点播放再继续。
-3. live 流式播放时点上一条/下一条，必须先提示会中断；确认后当前 live 卡片被删除并切到目标历史，取消则继续当前 live。
-4. live 流式未完成时切页面/桌面、音频通道挂起、首段超时或网络中断，必须删除未完成任务，不保存成历史。
-5. 只有 `/tts_dialogue_job_status` done / saved track 才会写入 `sovits_tracks_<messageId>`；重进消息不能恢复未完成 live。
+1. 正则刷新到 `v=2028881934` 并重渲染消息。
+2. saved/history 播放时切 Tavo 页面、控制台日志页或系统后台，前端不应主动 pause/reset/stop；如果宿主允许后台播放应继续出声。
+3. live 播放中只显示 `退出流式`；上一条/下一条/播放/新增/删除按钮不可见。
+4. live 未完成点 `退出流式`：删除本次 live 和服务端/cache，不保存成历史。
+5. live 播放结束或 job done 后：转为 saved/history 普通卡片，不删除；重进消息只显示 saved 历史条数。
 
 ## BUG-035 Tavo 切画面/桌面和流式首段等待音频生命周期修复（2026-06-03 08:29 +08:00）
 

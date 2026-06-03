@@ -55,6 +55,43 @@
         if (track) track.lastWebAudioSec = sec;
       }, 250);
     }
+    function requestLiveBackgroundCache(track, label) {
+      if (!track || !track.cacheKey || track.backgroundCacheRequested) return;
+      track.backgroundCacheRequested = true;
+      try {
+        var url = cleanBase(cfg.apiBase) + "/tts_dialogue_stream_job/" + encodeURIComponent(track.cacheKey) + "/background";
+        adapterFetch(url, { method: "POST", keepalive: true }).then(function (res) {
+          if (!res || !res.ok) {
+            debugLog("⚠️ " + (label || "live background") + " 后台合成请求失败 HTTP " + (res && res.status), "#fc9");
+            track.backgroundCacheRequested = false;
+            return;
+          }
+          return res.json().then(function (j) {
+            debugLog("📦 " + (label || "live background") + " 已请求后台合成: state=" + ((j && j.state) || "?") + " queue=" + ((j && j.queue_position) || 0), "#9ff");
+          }).catch(function () {});
+        }).catch(function (e) {
+          track.backgroundCacheRequested = false;
+          debugLog("⚠️ " + (label || "live background") + " 后台合成请求失败: " + errorMessage(e, "请求失败"), "#fc9");
+        });
+      } catch (_) {
+        track.backgroundCacheRequested = false;
+      }
+    }
+    function keepLiveTrackForCache(track, title, detail, label) {
+      if (!track || track.deleted || isSavedTrack(track)) return;
+      track.playSavedWhenReady = false;
+      track.backgroundOnly = false;
+      track.allowStreamPlay = false;
+      if (track.cacheKey) {
+        requestLiveBackgroundCache(track, label || "live background");
+        try { pollCacheUpgrade(track, label || "live background"); } catch (_) {}
+      }
+      setTrackPlaybackState(track, "idle");
+      setPlayState("idle");
+      setStatus(title || "流式后台继续保存");
+      showTrackNotice(track, title || "流式后台继续保存", detail || "不删除任务；保存完成后会成为历史音频");
+      debugLog("🎧 保留 live 等待保存: " + (label || "live") + (track.cacheKey ? " cacheKey=" + track.cacheKey : ""), "#9ff");
+    }
     async function playTrackViaWebAudio(track, url, opts) {
       opts = opts || {};
       if (!track || !url) return false;
@@ -85,20 +122,12 @@
         if (token !== webAudioPlayToken) { stopWaitTimer(); return; }
         if (track.webAudioPlaying) return;
         var sec = Math.max(1, Math.floor((Date.now() - waitStartedAt) / 1000));
-        if (sec >= 90) {
+        if (sec >= 90 && !firstAudioTimedOut) {
           firstAudioTimedOut = true;
-          setTrackStreamHealth(track, "interrupted");
-          setTrackPlaybackState(track, "error");
-          setPlayState("idle");
-          setStatus("首段音频超时");
-          setError("90 秒内没有收到可播放音频，已中止并删除这次流式任务。请点 + 重新生成。");
-          showTrackNotice(track, "首段音频超时", "已中止并删除这次未完成流式任务");
-          if (webAudioController && typeof webAudioController.stop === "function") {
-            try { webAudioController.stop("first audio timeout"); } catch (_) {}
-          }
-          try { cancelLiveTrack(track, "first audio timeout").catch(function () {}); } catch (_) {}
-          stopWaitTimer();
-          return;
+          setTrackStreamHealth(track, "stalled");
+          setStatus("等待首段音频超过 90s…");
+          showTrackNotice(track, "等待首段音频超过 90s…", "弱网或后端较慢，继续等待，不删除任务");
+          debugLog("⚠️ 首段音频等待超过 90s，继续保留 live cacheKey=" + (track.cacheKey || ""), "#fc9");
         }
         setStatus("等待首段音频 " + sec + "s…");
         showTrackNotice(track, "等待首段音频 " + sec + "s…", opts.waitDetail || "弱网或后端合成较慢");
@@ -137,24 +166,15 @@
               } catch (_) {
                 track.lastWebAudioSec = trackResumeSec(track);
               }
-              try {
-                if (webAudioController && typeof webAudioController.stop === "function") webAudioController.stop("audio suspended");
-              } catch (_) {}
-              webAudioController = null;
               markWebAudioStopped(track);
               clearWebAudioProgressTimer();
-              try { if (typeof resetPrimedAudioContext === "function") resetPrimedAudioContext("audio_suspended"); } catch (_) {}
-              setTrackStreamHealth(track, "interrupted");
-              setTrackPlaybackState(track, "error");
-              setPlayState("idle");
-              setStatus("音频通道未放行，已中止流式");
-              setError("音频通道未放行，本次未完成流式已中止。请点 + 重新生成。");
-              showTrackNotice(track, "音频通道未放行", "已中止并删除这次未完成流式任务");
-              try { cancelLiveTrack(track, "audio_suspended").catch(function () {}); } catch (_) {}
+              setTrackStreamHealth(track, "stalled");
+              keepLiveTrackForCache(track, "音频通道暂停，后台继续保存", "Tavo/系统可能暂停了 WebAudio；不删除任务，保存完成后进入历史", "audio_suspended");
             } else if (state === "playing") {
               stopWaitTimer();
               try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("live playing"); } catch (_) {}
               track.pausedByHost = false;
+              track.streamPlaybackFinished = false;
               track.webAudioPlaying = true;
               setTrackPlaybackState(track, "playing");
               setPlayState("playing");
@@ -182,13 +202,7 @@
                 streamTooSlowFallback = true;
                 track.playSavedWhenReady = false;
                 setTrackStreamHealth(track, "interrupted");
-                setStatus("实时生成跟不上，已中止流式");
-                showTrackNotice(track, "实时生成跟不上", "已中止并删除这次未完成流式任务");
-                debugLog("⚠️ Web Audio 连续缓冲，删除未完成 live cacheKey=" + track.cacheKey, "#fc9");
-                if (webAudioController && typeof webAudioController.stop === "function") {
-                  try { webAudioController.stop("stream too slow"); } catch (_) {}
-                }
-                try { cancelLiveTrack(track, "stream too slow").catch(function () {}); } catch (_) {}
+                keepLiveTrackForCache(track, "实时播放缓冲，后台继续保存", "不删除任务；保存完成后可从历史音频播放", "stream too slow");
               }
             } else if (state === "resumed") {
               track.pausedByHost = false;
@@ -202,11 +216,7 @@
               webAudioController = null;
               clearWebAudioProgressTimer();
               stopSubtitle();
-              setTrackPlaybackState(track, "error");
-              setPlayState("idle");
-              setStatus("流式中断，已删除");
-              showTrackNotice(track, "流式中断", "已中止并删除这次未完成流式任务");
-              try { cancelLiveTrack(track, "stream interrupted").catch(function () {}); } catch (_) {}
+              keepLiveTrackForCache(track, "流式连接中断，等待保存", "不删除任务；如果后端完成，会自动成为历史音频", "stream interrupted");
             } else if (state === "stopped") {
               stopWaitTimer();
               markWebAudioStopped(track);
@@ -217,6 +227,7 @@
               markWebAudioStopped(track);
               webAudioController = null;
               clearWebAudioProgressTimer();
+              track.streamPlaybackFinished = true;
               setTrackPlaybackState(track, "ended");
               setPlayState("idle");
               stopSubtitle();
@@ -245,16 +256,12 @@
         stopSubtitle();
         if (streamTooSlowFallback) {
           setTrackStreamHealth(track, "stalled");
-          setTrackPlaybackState(track, "error");
-          setPlayState("idle");
-          setStatus("实时生成跟不上，已中止流式");
+          keepLiveTrackForCache(track, "实时播放缓冲，后台继续保存", "不删除任务；保存完成后可从历史音频播放", "stream too slow");
           return false;
         }
         if (firstAudioTimedOut) {
-          setTrackStreamHealth(track, "interrupted");
-          setTrackPlaybackState(track, "error");
-          setPlayState("idle");
-          setStatus("首段音频超时");
+          setTrackStreamHealth(track, "stalled");
+          keepLiveTrackForCache(track, "首段音频等待较久", "不删除任务；继续等待保存结果", "first audio slow");
           return false;
         }
         if ((e && e.name === "AbortError") || /播放已停止|停止播放/i.test(msg)) {
@@ -264,13 +271,14 @@
         }
         if (isNetworkStreamError(e) && track.cacheKey) {
           setTrackStreamHealth(track, "interrupted");
-          setTrackPlaybackState(track, "error");
-          setPlayState("idle");
-          setStatus("流式中断，已删除");
-          setError("网络中断，本次未完成流式已中止并删除。请点 + 重新生成。");
-          showTrackNotice(track, "流式中断", "已中止并删除这次未完成流式任务");
-          try { await cancelLiveTrack(track, "network stream error"); } catch (_) {}
-          debugLog("⚠️ Web Audio 连接中断，删除未完成流式: " + msg, "#fc9");
+          keepLiveTrackForCache(track, "流式连接中断，等待保存", "不删除任务；如果后端完成，会自动成为历史音频", "network stream error");
+          debugLog("⚠️ Web Audio 连接中断，保留 live 等待保存: " + msg, "#fc9");
+          return false;
+        }
+        if (track.cacheKey && /AudioContext|resume|schedulePcm|音频通道/i.test(msg)) {
+          setTrackStreamHealth(track, "stalled");
+          keepLiveTrackForCache(track, "音频通道暂停，后台继续保存", "不删除任务；保存完成后会成为历史音频", "audio context suspended");
+          debugLog("⚠️ Web Audio 通道暂停，保留 live 等待保存: " + msg, "#fc9");
           return false;
         }
         var friendly = friendlyPlaybackError(e);
