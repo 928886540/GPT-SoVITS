@@ -2,6 +2,8 @@
 
 ## P0
 
+- **【最新】后台播放崩溃问题排查中**（BUG-057，2026-06-04）：流式播放切后台就断、历史音频拖进度条中断并崩溃、后台播放界面提示"不支持audio播放"。已完成方案A：删除WebAudio fallback + 详细错误日志（v=2028881953）。下一步：根据真实 Tavo 控制台错误日志，确定是单audio架构问题还是其他根因，再决定是否需要方案B（多audio架构重构）。
+- **【已完成】流式播放歌词同步**（BUG-056，2026-06-04）：后端实时更新 segments_meta，前端使用精确时间轴（exactTiming=true），歌词和头像完美同步。
 - 重开 Codex 后第一步：读 `AGENTS.md`、`README.md`、`docs/AGENT_STATE.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/BUGS.md`、`docs/TODO.md`、`docs/REGRESSION.md`，再跑 `git status --short`。不要回退当前未提交 runtime 拆分成果。
 - 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881940`，loader `20260604-live-buffer-v57`，runtime parts/manifest `20260604-live-buffer-v40`。优先回归 BUG-044：live `POST /tts_dialogue_stream_job` 后 adapter 应立即后台生成并写 live buffer，`GET /tts_dialogue_stream_job/<cache>` 只消费 buffer；Tavo 断开/首播失败不能停止后台生成。saved/history 仍优先 `<audio>`，继续验证后台/锁屏播放。
 - BUG-029 已确认并修复：本机代理 `127.0.0.1:7897` 会把 adapter 到官方 `127.0.0.1:9881` 的调用伪装成空 body 502。adapter 已绕过代理；官方 9881 通过任务计划 `GPT-SoVITS Official API 9881` 常驻。真实 Tavo 复测前先确认 `curl.exe --noproxy "*"` 打 `http://127.0.0.1:9881/docs` 返回 200。

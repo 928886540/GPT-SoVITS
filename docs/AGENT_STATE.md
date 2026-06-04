@@ -8,6 +8,46 @@
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
 
+## BUG-057 audio播放错误提示和后台播放问题（2026-06-04）
+
+用户反馈多个严重的后台播放问题：
+1. 流式播放切后台（桌面/屏保）就断
+2. 历史音频拖进度条就中断并崩溃
+3. 后台播放界面提示"不支持audio播放"
+4. 播放模式变成"不冲突的播放"而不是占用系统播放器
+5. 音频和系统播放器不同步
+
+用户正确指出：有时候能后台播放，说明audio是支持的，问题出在代码逻辑，而不是"不支持audio"。
+
+已改（方案A，v=2028881953）：
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881953`
+- 添加 `getReadablePlayError()` 精确识别错误类型（NotAllowedError/NotSupportedError/Network/AbortError）
+- 删除所有 WebAudio fallback 逻辑（WebAudio 不支持系统后台播放）
+- 所有 audio 错误打印到 `console.error()`，包含详细状态：audio元素（readyState/networkState/error/src）和track状态（cacheKey/url/state）
+- `recoverLiveTrackViaWebAudio` 改为诊断函数，不再 fallback
+
+待真实 Tavo 回归：
+1. 刷新正则到 v=2028881953
+2. 测试后台播放，如果失败，查看控制台 `🔴 [audio.play失败]` 日志
+3. 根据真实错误原因决定：
+   - 如果是单audio架构导致的状态混乱 → 方案B（多audio架构重构）
+   - 如果是其他明确原因 → 针对性修复
+
+## BUG-056 流式播放歌词同步（2026-06-04）
+
+用户反馈：流式播放时有声音、有进度条，但没有歌词；落盘后才有歌词；歌词和头像不同步。
+
+已改（v=2028881950）：
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881950`（歌词同步最终版）
+- 后端 `gsv_tavo_adapter.py`：每处理完一个segment立即更新 `JOBS[cache_key]["segments_meta"]` 和 `sample_rate`
+- 前端实时拿到精确的 start_s 和 duration_s，timeline 用精确时间生成（exactTiming=true）
+- 歌词和头像完美同步
+
+已验证：
+- 前端控制台出现 `🎤 startSubtitle: segments_count=17`
+- 前端控制台出现 `🎵 timeline生成: count=33, exactTiming=true`
+- 歌词随播放进度实时高亮，和音频/头像完全同步
+
 ## BUG-044 live buffer 架构改造（2026-06-04）
 
 用户对比旧 IndexTTS 后确认：旧链路主要是 GPU 忙但流式稳；当前 GPT-SoVITS live 首播时灵时不灵，可能无限等待、歌词/状态在走但无声，而 saved/history 文件播放正常。结论是 live 生成和 Tavo 播放连接耦合过紧，需要按 IndexTTS 的后台 buffer 架构改。

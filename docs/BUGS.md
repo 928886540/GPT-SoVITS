@@ -1032,3 +1032,89 @@ Notes:
 - 这是一个架构性改进：从"流式结束后才有歌词"变成"边流式边生成歌词"
 - 深拷贝 segments_meta 避免多线程竞争条件
 - 同时更新 sample_rate，让前端能计算精确的时间轴
+
+## BUG-056: 流式播放时没有歌词，歌词和头像不同步
+
+Status: FIXED (2026-06-04)
+
+Repro: 流式播放时进度条在走，有声音，但没有歌词。落盘后才有歌词。即使有歌词，歌词和头像也不同步，因为用的是估算时间而不是精确时间轴。
+
+Root cause: 
+1. 流式播放时，`_stream_dialogue_to_cache` 只在函数结束后才保存 segments_meta 到 JOBS
+2. 流式播放过程中，JOBS[cache_key]["segments_meta"] 一直是空的
+3. 前端轮询 job_status 拿到的 segments_meta_count=0，没有歌词
+4. 即使落盘后有 segments_meta，但前端已经用估算时间生成了 timeline (exactTiming=false)，导致不同步
+
+Fix:
+修改 gsv_tavo_adapter.py 第1340行后，每处理完一个 segment 就立即更新 JOBS：
+```python
+# 实时更新JOBS的segments_meta，让流式播放时也能拿到歌词时间轴
+with JOBS_LOCK:
+    current = JOBS.get(cache_key, {})
+    if current.get("state") not in {"deleted", "done"}:
+        JOBS[cache_key] = {
+            **current,
+            "segments_meta": list(segments_meta),
+            "sample_rate": sample_rate,
+        }
+```
+
+这样：
+1. 流式播放时，每生成一个 segment，前端立即能拿到 segments_meta
+2. segments_meta 包含精确的 start_s 和 duration_s
+3. timeline 用精确时间生成 (exactTiming=true)
+4. 歌词和头像完美同步
+
+Guard:
+1. 流式播放时，前端控制台应该看到 `🎤 startSubtitle: segments_count>0`
+2. 前端控制台应该看到 `🎵 timeline生成: exactTiming=true`
+3. 歌词应该随播放进度实时高亮，和音频/头像完全同步
+
+Notes:
+- 这是一个架构性改进：从"流式结束后才有歌词"变成"边流式边生成歌词"
+- 深拷贝 segments_meta 避免多线程竞争条件
+- 同时更新 sample_rate，让前端能计算精确的时间轴
+
+## BUG-057: audio播放错误提示不准确，自动fallback导致后台播放失败
+
+Status: PARTIALLY FIXED (2026-06-04), 后台播放问题仍在排查
+
+Repro: 用户反馈：
+1. 流式播放切后台就断
+2. 历史音频拖进度条就中断并崩溃
+3. 后台播放界面提示"不支持audio播放"
+4. 播放模式变成"不冲突的播放"而不是占用系统播放器
+5. 音频和系统播放器不同步
+
+Root cause (部分确认):
+1. audio.play() 失败后，错误提示"不支持audio播放"不准确，实际错误可能是 NotAllowedError/Network/AbortError 等
+2. 自动 fallback 到 WebAudio，但 WebAudio 不支持系统后台播放（不占用MediaSession）
+3. 错误信息没有打印到 console，难以调试真实原因
+4. 有时候能后台播放，说明 audio 是支持的，问题出在代码逻辑
+
+Fix (v=2028881953):
+1. 添加 `getReadablePlayError()` 函数，精确识别错误类型：
+   - `NotAllowedError` → "浏览器阻止了自动播放，请点播放按钮手动开始"
+   - `NotSupportedError` → "音频格式不支持: ..."
+   - `AbortError` → "播放被中断"
+   - Network 错误 → "网络错误，无法加载音频"
+2. 删除所有 WebAudio fallback 逻辑，改为提示用户重试
+3. 所有 audio 错误打印到 `console.error()`，包含详细状态：
+   - audio 元素状态：readyState, networkState, error, src
+   - track 状态：cacheKey, url, state
+4. `recoverLiveTrackViaWebAudio` 改为诊断函数，不再 fallback
+
+Guard:
+1. audio.play() 失败时，控制台应该有 `🔴 [audio.play失败]` 日志，包含详细错误信息
+2. 不再出现"当前 WebView 不支持 audio 元素播放，改用 Web Audio"提示
+3. 用户看到的错误提示是准确的（NotAllowedError/Network 等），而不是瞎说"不支持"
+
+Notes:
+- 这只是第一步（方案A）：让错误信息透明，不要 fallback 误导
+- 后台播放问题的根本原因还需要进一步排查，可能是：
+  - 全局单 audio 元素共享导致状态混乱
+  - Tavo WebView 的后台播放策略限制
+  - MediaSession API 没有正确注册
+  - audio 元素的 src 被频繁切换导致播放中断
+- 如果控制台日志显示明确的错误原因，可能需要方案B（多 audio 架构）或其他针对性修复
+
