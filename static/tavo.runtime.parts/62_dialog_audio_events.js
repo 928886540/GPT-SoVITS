@@ -257,7 +257,7 @@
       var detail = "";
       try {
         if (audio.error) detail = " code=" + audio.error.code + (audio.error.message ? " message=" + audio.error.message : "");
-      } catch (_)
+      } catch (_) {}
       if (active && isSavedTrack(active)) {
         console.error("🔴 [audio error] 历史音频播放失败", detail, {
           src: audio.currentSrc || audio.src,
