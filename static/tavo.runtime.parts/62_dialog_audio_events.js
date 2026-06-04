@@ -257,19 +257,21 @@
       var detail = "";
       try {
         if (audio.error) detail = " code=" + audio.error.code + (audio.error.message ? " message=" + audio.error.message : "");
-      } catch (_) {}
+      } catch (_)
       if (active && isSavedTrack(active)) {
-        active.elementAudioUnsupported = true;
-        var savedResumeSec = trackResumeSec(active);
-        debugLog("⚠️ audio 元素播放保存音频失败，改用 Web Audio" + detail, "#fc9");
-        clearElementAudioSrc();
-        playSavedTrack(active, savedResumeSec, {
-          label: "audio error fallback",
-          noticeTitle: "切换播放通道…",
-          noticeDetail: "当前 WebView 不支持 audio 元素播放，改用 Web Audio"
-        }).catch(function (e) {
-          debugLog("❌ audio fallback Web Audio 失败: " + errorMessage(e, "Web Audio fallback 失败"), "#f99");
+        console.error("🔴 [audio error] 历史音频播放失败", detail, {
+          src: audio.currentSrc || audio.src,
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+          error: audio.error
         });
+        debugLog("🔴 audio 元素播放保存音频失败" + detail, "#f99");
+
+        // 不再fallback到WebAudio，提示用户重试
+        setTrackPlaybackState(active, "error");
+        setPlayState("idle");
+        setStatus("播放失败: audio元素错误");
+        setError("历史音频播放失败。" + detail + " 请点播放重试。");
         return;
       }
       if (recoverLiveTrackViaWebAudio(active, "audio 元素播放实时音频失败", detail)) return;

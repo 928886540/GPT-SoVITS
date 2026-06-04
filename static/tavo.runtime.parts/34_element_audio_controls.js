@@ -127,10 +127,17 @@
     }
     function startElementAudioFrom(track, startSec) {
       if (!track || !trackPlayableUrl(track)) return false;
+
+      // 为track创建或获取独立的audio元素
+      var audio = getOrCreateAudioForTrack(track);
       if (!audio) {
-        debugLog("⚠️ audio 元素不存在，无法使用 element audio 播放", "#fc9");
+        debugLog("⚠️ 无法创建audio元素", "#fc9");
         return false;
       }
+
+      // 暂停其他所有audio元素
+      pauseOtherAudioElements(track);
+
       stopWebAudioPlayback("switch");
       var url = trackPlayableUrl(track);
       var sourceKind = isSavedTrack(track) ? "saved" : (url === track.streamUrl ? "stream" : "audio");
@@ -183,53 +190,69 @@
       var msg = err && err.message ? String(err.message) : String(err || "");
       return name === "NotSupportedError" || /not supported/i.test(msg);
     }
+    function getReadablePlayError(err) {
+      if (!err) return "未知错误";
+      var name = err.name || "";
+      var msg = err.message || String(err);
+
+      if (name === "NotAllowedError") {
+        return "浏览器阻止了自动播放，请点播放按钮手动开始";
+      }
+      if (name === "NotSupportedError") {
+        return "音频格式不支持: " + msg;
+      }
+      if (name === "AbortError") {
+        return "播放被中断";
+      }
+      if (/network/i.test(msg)) {
+        return "网络错误，无法加载音频";
+      }
+      return name + (msg ? ": " + msg : "");
+    }
     function recoverLiveTrackViaWebAudio(track, label, detail) {
+      // 不再fallback到WebAudio，改为诊断问题
       if (!track || !isLiveTrack(track) || !(track.cacheKey || liveStreamUrlForTrack(track))) return false;
-      var resumeSec = trackResumeSec(track);
-      track.elementAudioUnsupported = true;
-      track.forceWebAudioLive = true;
-      var liveUrl = liveStreamUrlForTrack(track);
-      clearElementAudioSrc();
-      debugLog("⚠️ " + (label || "audio 元素播放实时音频失败") + "，改用 Web Audio" + (detail || ""), "#fc9");
-      if (liveUrl) {
-        playLiveTrack(track, liveUrl, {
-          noticeTitle: "切换播放通道…",
-          noticeDetail: "当前 WebView 不支持 audio 元素播放，改用 Web Audio",
-          waitDetail: "等待后端返回音频",
-          startOffsetSec: resumeSec
-        }).catch(function (e) {
-          debugLog("❌ live audio fallback Web Audio 失败: " + errorMessage(e, "Web Audio fallback 失败"), "#f99");
-        });
-        return true;
-      }
-      if (track.cacheKey) {
-        pollCacheUpgrade(track, "audio error live fallback");
-        return true;
-      }
+
+      console.error("🔴 [流式播放失败]", label, detail);
+      console.error("🔴 [流式播放失败] track状态:", {
+        cacheKey: track.cacheKey,
+        streamUrl: track.streamUrl,
+        url: track.url,
+        state: track.state,
+        elementAudioUnsupported: track.elementAudioUnsupported
+      });
+
+      // 不再fallback！返回false，让上层处理
+      debugLog("🔴 " + (label || "流式播放失败") + detail, "#f99");
+      setStatus("流式播放失败: " + detail + "，请点播放重试或等待落盘");
       return false;
     }
     function handleAudioPlayReject(label, err, fallbackStatus) {
       if (err && err.name === "AbortError") return;
+
+      var readableError = getReadablePlayError(err);
+      console.error("🔴 [audio.play失败]", label, readableError, err);
+      debugLog("🔴 " + label + " audio.play() 失败: " + readableError, "#f99");
+
+      // 不再fallback到WebAudio，而是重试或提示用户手动播放
       if (isUnsupportedPlayError(err)) {
-        debugLog("⚠️ " + label + " audio.play() 不支持: " + (err && err.message ? err.message : err), "#fc9");
         var active = currentTrack();
-        if (active && isSavedTrack(active)) {
-          active.elementAudioUnsupported = true;
-          playSavedTrack(active, trackResumeSec(active), {
-            label: "play unsupported fallback",
-            noticeTitle: "切换播放通道…",
-            noticeDetail: "当前 WebView 不支持 audio.play()，改用 Web Audio"
-          }).catch(function (e) {
-            debugLog("❌ audio.play fallback 失败: " + errorMessage(e, "audio.play fallback 失败"), "#f99");
-          });
-          return;
-        }
-        if (recoverLiveTrackViaWebAudio(active, label + " audio.play() 不支持", ": " + (err && err.message ? err.message : err))) return;
-        setStatus(fallbackStatus || "当前 WebView 不支持 audio 直播，等待 Web Audio/请点播放");
+        console.warn("⚠️ [audio不支持] 当前错误:", err.name, err.message);
+        console.warn("⚠️ [audio不支持] audio元素状态:", audio ? {
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+          error: audio.error,
+          src: audio.src
+        } : "audio元素不存在");
+
+        // 不再fallback！改为提示用户
+        setStatus("audio播放失败: " + readableError + "，请重试或检查浏览器设置");
+        showTrackNotice(active, "播放失败", readableError);
         return;
       }
-      debugLog("❌ " + label + " audio.play() reject: " + err, "#f99");
-      setStatus(fallbackStatus || "请点播放继续");
+
+      debugLog("❌ " + label + " audio.play() reject: " + readableError, "#f99");
+      setStatus(fallbackStatus || "播放失败: " + readableError + "，请点播放重试");
     }
     function readableServerJobError(error) {
       var raw = String(error || "").trim();
