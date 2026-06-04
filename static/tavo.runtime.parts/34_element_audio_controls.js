@@ -127,17 +127,10 @@
     }
     function startElementAudioFrom(track, startSec) {
       if (!track || !trackPlayableUrl(track)) return false;
-
-      // 为track创建或获取独立的audio元素
-      var audio = getOrCreateAudioForTrack(track);
       if (!audio) {
-        debugLog("⚠️ 无法创建audio元素", "#fc9");
+        debugLog("⚠️ audio 元素不存在，无法使用 element audio 播放", "#fc9");
         return false;
       }
-
-      // 暂停其他所有audio元素
-      pauseOtherAudioElements(track);
-
       stopWebAudioPlayback("switch");
       var url = trackPlayableUrl(track);
       var sourceKind = isSavedTrack(track) ? "saved" : (url === track.streamUrl ? "stream" : "audio");
