@@ -1,0 +1,15 @@
+{
+  "request_id": "audio-quality-test-001",
+  "segments": [
+    {"index": 0, "role": "旁白", "text": "清晨的阳光透过窗帘缝隙，在地毯上划出一道细长的光斑。", "style": "neutral"},
+    {"index": 1, "role": "BoBo", "text": "看出来就看出来呗。反正今天下午还有个闭门会……你忘了昨晚答应老公的事了？", "style": "tease_soft"},
+    {"index": 2, "role": "小葱", "text": "什么事？我怎么不记得了？", "style": "neutral"},
+    {"index": 3, "role": "旁白", "text": "床头柜上的手机突然震动起来，是公司企划部群里发来的早安打卡提醒。", "style": "neutral"}
+  ],
+  "llm_info": {"provider": "test", "model": "test", "key_hash": "test"},
+  "voice_profiles": {
+    "旁白": {"name": "女声/冰山美人", "style_alpha": null},
+    "BoBo": {"name": "女声/成熟姐姐", "style_alpha": 0.4},
+    "小葱": {"name": "女声/高圆圆", "style_alpha": null}
+  }
+}

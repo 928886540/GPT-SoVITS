@@ -157,6 +157,7 @@ class DialogueStreamRequest(BaseModel):
     top_p: float = 1.0
     top_k: int = 15
     temperature: float = 1.0
+    repetition_penalty: float = 1.35
     speed_factor: float = 1.0
     streaming_mode: int | bool = 2
     performance_mode: str = "balanced"
@@ -169,6 +170,57 @@ class DialogueStreamRequest(BaseModel):
     request_id: str = ""
     # 音质参数（前端 generationQualityOverrides 传过来）
     super_sampling: Optional[bool] = None
+
+
+def _apply_quality_preset(request: DialogueStreamRequest) -> None:
+    """根据performance_mode档位，设置最优音质参数组合"""
+    mode = request.performance_mode.lower()
+
+    # 快速档：速度优先，音质降低
+    if mode == "fast":
+        if request.sample_steps is None:
+            request.sample_steps = 16
+        if request.batch_size is None:
+            request.batch_size = 20
+        # 快速档不改采样参数，保持默认
+
+    # 平衡档：质量和速度平衡
+    elif mode == "balanced":
+        if request.sample_steps is None:
+            request.sample_steps = 32
+        if request.batch_size is None:
+            request.batch_size = 10
+        # 调整采样参数：降低随机性，提高稳定性
+        request.top_k = 10
+        request.top_p = 0.9
+        request.temperature = 0.8
+        request.repetition_penalty = 1.15
+
+    # 表现力档：音质优先，稍慢
+    elif mode == "expressive":
+        if request.sample_steps is None:
+            request.sample_steps = 48
+        if request.batch_size is None:
+            request.batch_size = 5
+        # 更激进的采样参数优化
+        request.top_k = 8
+        request.top_p = 0.85
+        request.temperature = 0.7
+        request.repetition_penalty = 1.1
+
+    # 极限档：最高音质，最慢
+    elif mode == "ultra":
+        if request.sample_steps is None:
+            request.sample_steps = 64
+        if request.batch_size is None:
+            request.batch_size = 2
+        # 最保守的采样参数
+        request.top_k = 5
+        request.top_p = 0.8
+        request.temperature = 0.6
+        request.repetition_penalty = 1.05
+        if request.super_sampling is None:
+            request.super_sampling = True
 
 
 class SingleStreamRequest(BaseModel):
@@ -483,6 +535,10 @@ async def delete_single_cache(text: str = "", ref_audio_path: str = "") -> dict[
 async def create_dialogue_job(http_request: Request) -> dict[str, Any]:
     request = await _parse_request_model(http_request, DialogueStreamRequest)
     _ensure_worker_started()
+
+    # 应用档位预设参数
+    _apply_quality_preset(request)
+
     payload = request.model_dump(exclude={"bypass_cache", "request_id"})
     if request.bypass_cache:
         payload["request_id"] = _bypass_cache_request_id(request.request_id)
