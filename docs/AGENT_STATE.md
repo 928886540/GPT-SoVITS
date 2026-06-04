@@ -1,12 +1,34 @@
 # Agent State
 
-更新时间：2026-06-03 18:52 +08:00
+更新时间：2026-06-04
 
 ## 当前目标
 
 把 GPT-SoVITS 官方能力整理成本地可分发产品链路：本地模型、本地 adapter、本地 Tavo 注入脚本、本地训练/验证工具和可复现报告。
 
 当前主线是官方 GPT-SoVITS。Genie-TTS 已验证为后续轻量运行时候选，但现在不继续深挖。
+
+## BUG-044 live buffer 架构改造（2026-06-04）
+
+用户对比旧 IndexTTS 后确认：旧链路主要是 GPU 忙但流式稳；当前 GPT-SoVITS live 首播时灵时不灵，可能无限等待、歌词/状态在走但无声，而 saved/history 文件播放正常。结论是 live 生成和 Tavo 播放连接耦合过紧，需要按 IndexTTS 的后台 buffer 架构改。
+
+已改：
+
+- 正则入口升到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881940`。
+- Loader 版本 `20260604-live-buffer-v57`，runtime parts/manifest `20260604-live-buffer-v40`。
+- `gsv_tavo_adapter.py`：新增 `LIVE_BUFFERS` / `_LiveBufferJob`，live `POST /tts_dialogue_stream_job` 会立即启动后台线程消费官方 GPT-SoVITS stream 并写入内存 WAV buffer；`GET /tts_dialogue_stream_job/<cache_key>` 只读 buffer，返回 `X-GPT-SoVITS-Live-Buffer: HIT`，Tavo GET 断开不再停止后台生成。
+- `gsv_tavo_adapter.py`：live buffer 完成后仍保存 `/cache_audio/<cache_key>`；删除 live 会标记 `deleted`、唤醒并关闭 buffer，阻止继续生成。
+- `36_track_state_offline.js`：live 默认走 WebAudio 消费服务端 buffer，避免在 Tavo/iOS 上反复探测不稳定的 chunked WAV `<audio>`；saved/history 仍优先 `<audio>`，保留系统后台/锁屏播放能力。
+- `docs/BUGS.md`、`docs/TODO.md`、`docs/REGRESSION.md` 已记录 BUG-044 和 v1940 回归项。
+
+已验证：
+
+- `python -m py_compile gsv_tavo_adapter.py`
+- `node --check static\tavo.js`
+- `node --check static\tavo.runtime.js`
+- manifest 21 parts 拓扑拼接后 `new Function(src)` 通过，runtimeVersion=`20260604-live-buffer-v40`
+
+待真实 Tavo 回归：刷新正则到 `v=2028881940` 并重渲染消息。确认 POST 后不 GET 也会后台生成；GET live 返回 `X-GPT-SoVITS-Live-Buffer: HIT`；切控制台/首播失败/断开 GET 不停止后台生成；saved/history 仍可后台播放。
 
 ## BUG-039 live 音频通道 interrupted 不再当暂停（2026-06-03 18:52 +08:00）
 

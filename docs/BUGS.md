@@ -19,6 +19,275 @@ Notes:
 - 根因未确认时写 `Status: open, investigating`，把截图/日志/复现现象和假设分开写。
 - 改 bug 前先读本文件，避免同一个问题反复改、重复编号或丢掉已知上下文。
 
+## BUG-049: live 流式播放时只显示退出按钮，无法应对蓝牙断开
+
+Status: fixed locally, needs real Tavo regression
+
+Repro: 用户 2026-06-04 反馈：流式播放时只有一个退出按钮可能不够，因为蓝牙断开、耳机拔出等场景会导致音频中断，需要能手动点播放按钮恢复音频。
+
+Root cause: `tavo.ui.skin.default.css` 第27行的规则 `.idx-card[data-live-active='1'] .idx-controls .idx-ctrl{display:none!important}` 会把所有控制按钮（包括播放按钮）都隐藏，只显示退出流式按钮。同时 `62_dialog_audio_events.js` 的 `tryResumeOrPauseInGesture()` 会在 live track 正在播放时阻止播放按钮的暂停/恢复操作。这导致蓝牙断开、耳机拔出或系统音频会话被抢占后，用户无法手动恢复播放。
+
+Fix: CSS 规则改为 `.idx-card[data-live-active='1'] .idx-controls .idx-ctrl:not(.idx-ctrl-main){display:none!important}`，只隐藏上一条/下一条/新增/删除按钮，保留播放按钮（`.idx-ctrl-main`）。同时修改 `tryResumeOrPauseInGesture()` 逻辑：live track 正在 Web Audio 播放时允许暂停，暂停后显示"已暂停流式播放，点播放从当前位置继续；需要中止时点退出流式"；用户可以点播放按钮继续流式播放，也可以点退出流式按钮彻底停止。
+
+Guard: 真实 Tavo 回归时，live 流式播放中应同时显示播放按钮和退出流式按钮；点播放按钮可以暂停/恢复流式播放；点退出流式按钮才删除 live job。蓝牙断开或耳机拔出后，点播放按钮应能恢复音频。
+
+Notes: 这个改动同时解决了 BUG-047 的部分场景：用户可以在流式播放中断后手动恢复，而不是只能退出。但系统层面的后台播放限制（iOS WebAudio 后台挂起）仍需要进一步排查。
+
+## BUG-048: 歌词校准可能导致首播失败或卡顿
+
+Status: fixed by BUG-046, needs real Tavo regression
+
+Repro: 用户 2026-06-04 反馈：首播出来后歌词一直显示"校准中"；同时怀疑之前首播失败/无声/长时间等待就是歌词校准引发的。BUG-044 改造后首播有声音了，但歌词校准仍未正常完成。
+
+Root cause: 和 BUG-046 完全相同：`52_voice_subtitle_media.js` 第336-368行的歌词校准轮询没有超时机制，无限轮询 `/tts_dialogue_job_status` 增加了网络开销。在 live 首播期间，歌词校准轮询和 `pollCacheUpgrade()` 同时请求同一个接口（虽然目的不同），可能影响首播性能或导致用户感知卡顿。
+
+Fix: BUG-046 的修复（最大轮询次数40次/60秒 + 最大时长90秒）已经解决了这个问题。歌词校准不会再无限轮询，最多60秒后自动停止，减少了网络开销，不会阻塞首播音频推进。
+
+Guard: 真实 Tavo 回归时，首播音频出声后，歌词应在60秒内完成校准并显示；不能一直卡在"校准中"。控制台应无频繁的 `/tts_dialogue_job_status` 请求（歌词校准 1.5s 间隔 + pollCacheUpgrade 1s 间隔，最多各60秒）。
+
+Notes: BUG-048 是 BUG-046 的一个表现症状，两者共享同一个根因和修复。如果首播仍有失败/无声/长时间等待，需要进一步排查 BUG-044（live buffer 架构）和 BUG-047（切后台断开）。
+
+## BUG-047: 切后台后流式播放断开
+
+Status: open, investigating
+
+Repro: 用户 2026-06-04 反馈：流式播放时切后台，音频就断了。用户明确要求流式播放也应该能后台播放，不能因为切后台就停止。
+
+Evidence: 待真实 Tavo 日志确认。BUG-036 v1934 改成 saved/history 不主动暂停，live 也不因 `visibilitychange/pagehide` 删除；但可能 WebAudio 在后台仍被系统挂起，或者 live buffer 架构下前端消费被后台策略中断。
+
+Root cause: investigating
+
+Hypothesis: 可能是以下之一：
+1. WebAudio 在后台被 iOS/Tavo 系统挂起，`schedulePcm()` 停止推进
+2. `<audio>` 元素在后台播放策略下被宿主暂停
+3. fetch reader 在后台被系统关闭
+4. 前端仍有 `visibilitychange/pagehide` 监听主动停止播放
+5. live buffer 架构的 GET 请求在后台被 Tavo 网络策略中断
+
+Fix: pending
+
+Guard: live/saved/history 播放时切后台或切 Tavo 其他页面，只要宿主允许后台播放，音频应继续出声；前端不能因页面可见性主动停止。如果系统真的不允许后台播放（如 iOS 锁屏），应保留断点并在回前台时提示恢复，而不是直接删除或转成 failed。
+
+Notes: 先检查 `62_dialog_audio_events.js` 是否仍监听 `visibilitychange/pagehide`；再检查 WebAudio `schedulePcm()` 和 `<audio>` 元素在后台的行为；最后确认 live buffer GET 是否在后台被网络层中断。
+
+## BUG-046: 首播后歌词一直校准
+
+Status: fixed locally, needs real Tavo regression
+
+Repro: 用户 2026-06-04 反馈：ai8 多音色首播后歌词一直在校准，可能影响性能。
+
+Root cause: `52_voice_subtitle_media.js` 第336-368行，`showSubtitle()` 启动的歌词校准轮询（每1.5秒请求 `/tts_dialogue_job_status`）没有最大轮询次数限制和超时机制，只有在后端返回 `state=done/failed` 时才停止。如果后端 job 状态一直是 `processing` 或其他中间状态（如 live buffer 架构下的 job 没有正确标记为 done），轮询会无限继续，持续发送网络请求，可能影响首播性能和用户体验。
+
+Fix: 添加最大轮询次数（40次，60秒）和最大轮询时长（90秒）限制。轮询计数和计时从 `setInterval` 启动时开始，超过任一限制时主动停止轮询并输出 debug 日志。保留原有的 `state=done/failed` 停止逻辑作为正常结束路径。
+
+Guard: 真实 Tavo 回归时，ai8 多音色首播后歌词校准应在60秒内停止（正常情况下 job done 会更早停止）；超时停止时控制台应输出 `⚠️ 歌词校准轮询超时停止 (count=..., elapsed=...s, cacheKey=...)` 日志；歌词显示和同步功能不受影响（已校准的 segments_meta 已应用）。
+
+Notes: 这个修复同时缓解了 BUG-048（歌词校准影响首播）的网络开销问题。如果超时停止频繁发生，说明后端 job 状态管理有问题（live buffer 架构下 job done 标记缺失），需要进一步排查后端 `/tts_dialogue_job_status` 接口和 live buffer 完成后的状态更新逻辑。
+
+## BUG-045: 快照卡片历史条数显示0
+
+Status: fixed locally, needs real Tavo regression
+
+Repro: 用户 2026-06-04 反馈：快照卡片没显示历史条数，显示的是0条。但实际应该有历史音频。
+
+Root cause: `44_track_history_cache.js` 的 `pollCacheUpgrade()` 函数第264行，当 live track 完成并转为 saved 状态时，调用 `saveTracksForMessage()` 将历史写入 `tavo.set`，但没有同步更新 `knownHistoryCount` 变量。`knownHistoryCount` 用于在懒加载卡片和播放器 UI 显示历史条数（如"历史音频 3 条"），如果它没有在 live → saved 转换时更新，快照卡片和计数器会一直显示旧值（通常是0）。
+
+Fix: 在 `pollCacheUpgrade()` 的 `state=done` 分支，`saveTracksForMessage()` 之前添加 `knownHistoryCount = persistableHistoryTracks(generatedTracks).length;` 和 `updateTrackButtons(); updateTrackCounter();`，确保历史条数和 UI 计数器立即同步更新。这样 live track 转 saved 后，卡片计数器会从"0条"立即变成"1条"或更多。
+
+Guard: 真实 Tavo 回归时，ai8 多音色 live 流式播放完成后，快照卡片右上角的历史条数应立即从"0条"更新为"1条"（或更多，如果有多条历史）；懒加载卡片和播放器状态栏也应显示正确的历史条数；刷新页面后历史条数应保持一致（因为 `tavo.set` 已写入）。
+
+Notes: 这个修复同时确保了 `deleteTrack()` 和 `cancelLiveTrack()` 的 `knownHistoryCount` 更新逻辑一致（第496行和第567行已经有这个更新，但 `pollCacheUpgrade` done 分支漏了）。懒加载卡片的历史条数在初始化时从 `localHistoryCountForMessage()` 读取，这个函数读取的是 `tavo.set` 存储的数据，所以只要 `pollCacheUpgrade()` done 时调用了 `saveTracksForMessage()` 写入存储，下次进入消息时懒加载卡片就能显示正确的历史条数。如果用户反馈的是**当前会话**懒加载卡片的历史条数不更新，那需要在 `pollCacheUpgrade()` done 分支后，主动更新懒加载卡片的 DOM（目前懒加载卡片初始化后不会再更新）。
+
+## BUG-050: 播放完成后点播放按钮，音频在末尾跳一下然后结束
+
+Status: fixed locally, needs real Tavo regression
+
+Status: open, investigating
+
+Repro: 用户 2026-06-04 反馈：流式播放时切到后台（如切换到另一个 Tavo 对话、iOS 回桌面等），音频可能断开。
+
+Root cause: investigating
+
+Hypothesis: 可能是以下之一：
+1. WebAudio 在后台被 iOS/Tavo 系统挂起，`schedulePcm()` 停止推进
+2. `<audio>` 元素在后台播放策略下被宿主暂停
+3. fetch reader 在后台被系统关闭
+4. 前端仍有 `visibilitychange/pagehide` 监听主动停止播放
+5. live buffer 架构的 GET 请求在后台被 Tavo 网络策略中断
+
+Fix: pending（BUG-049 已支持手动恢复播放，部分缓解了这个问题）
+
+Guard: live/saved/history 播放时切后台或切 Tavo 其他页面，只要宿主允许后台播放，音频应继续出声；前端不能因页面可见性主动停止。如果系统真的不允许后台播放（如 iOS 锁屏），应保留断点并在回前台时提示恢复，而不是直接删除或转成 failed。
+
+Notes: 先检查 `62_dialog_audio_events.js` 是否仍监听 `visibilitychange/pagehide`；再检查 WebAudio `schedulePcm()` 和 `<audio>` 元素在后台的行为；最后确认 live buffer GET 是否在后台被网络层中断。BUG-049 已允许用户在蓝牙断开或音频中断后点播放按钮手动恢复，作为临时解决方案。
+
+## BUG-044: live 流式架构绑定 Tavo 连接导致首播时灵时不灵
+
+Status: patched locally in `v=2028881940` / loader `20260604-live-buffer-v57` / runtime `20260604-live-buffer-v40`, needs real Tavo/iOS regression
+
+Repro: 用户 2026-06-04 对比旧 IndexTTS 经验后确认：GPT-SoVITS live 首播时灵时不灵，可能一直等待首段、歌词/状态在走但没有声音；已保存文件播放正常。旧 IndexTTS 主要问题是 GPU 忙、生成慢，但流式播放本身很少出现首播无限等待或无声假播放。
+
+Evidence: 旧 `D:\apiWorkSpace\index-tts2-vLLM` 的流式链路是 `POST /tts_dialogue_stream_job` 立即启动后台推理任务，后台把 PCM 写入 `LIVE_JOBS[cache_key].pcm`，`GET /tts_dialogue_stream_job/{cache_key}` 只是从内存 buffer tail-poll 读取；客户端断开不影响后台生成。当前 GPT-SoVITS 链路里，`POST /tts_dialogue_stream_job` 对 live 只写 `deferred_stream`，真正 `GET /tts_dialogue_stream_job/{cache_key}` 才进入 `_stream_dialogue_to_cache()` 并同步拉官方 GPT-SoVITS 上游 stream；Tavo/iOS 音频权限、HTTP reader、前端 `<audio>` 探测和官方上游首包被绑在同一次首播连接里。
+
+Root cause: live 生成和 Tavo 播放连接耦合过紧。只要 Tavo AR/iOS 在等待首包期间把 AudioContext 置为 `interrupted/suspended`、`<audio>` live 探测失败、fetch reader 断开，或者官方上游首包慢，首播就会表现为无声、长时间等待或转后台保存。已保存音频正常，说明文件播放链路没有根本问题。
+
+Fix: 把 GPT-SoVITS live 改成 IndexTTS 式后台生产/前端消费架构：`POST` 创建 live job 后立即启动后台线程生成，adapter 从官方 GPT-SoVITS 拉流并写入内存 WAV buffer；`GET /tts_dialogue_stream_job/{cache_key}` 只读取 buffer，客户端断开不影响生成；完成后继续落盘 `/cache_audio/{key}`。前端 live 首播默认使用 WebAudio 消费 buffer，减少 `<audio>` live 探测带来的失败时序；saved/history 仍优先 `<audio>`，保留系统后台/锁屏播放能力。
+
+Guard: 真实 Tavo/iOS 回归时，POST 后即使不立刻 GET，`/tts_dialogue_job_status/<cache_key>` 也应从 `running`/`queued` 推进并最终 `done` 或 `failed`；GET 中途断开不应停止后台生成；再次 GET 同 cache key 应从 buffer 头部或指定 `start_s` 继续读；首播失败不能造成“歌词在走但无声”长期卡住，最终 saved/history 文件仍可播放。
+
+## BUG-043: iOS 首播一直失败（等很久或无声音）
+
+Status: experimental fix in loader v56 / runtime v38 + backend abort check, needs real iOS Tavo regression
+
+Repro: 用户 2026-06-03 真实 iOS Tavo 反馈：首次点播放经常失败，要么一直等待到落盘才播（30+ 秒），要么播放器显示在播但没有声音。需要反复切后台、重启 Tavo 才能偶尔成功。体验极差。
+
+Evidence: iOS WebView 对音频权限管控极严格。AudioContext 必须在用户手势里创建和 resume，且手势栈会在第一个 `await` 后失效。当前流程：用户点播放 → 同步创建 AudioContext + keepalive → await saveConfig/parseWithLlm/fetch → 等待首段 PCM（之前 5秒，v37 改为 1秒）→ schedulePcm() → 如果 AudioContext 已经 interrupted，等待恢复最多 45 秒 → 超时或恢复后播放。
+
+Root cause: **等待首段 PCM 的时间仍然太长！** 即使改为 1 秒，iOS 系统仍可能判定 AudioContext "长时间没有真实音频播放"而进入 `interrupted` 状态。触发条件包括：
+1. 页面失去焦点（切控制台日志、通知栏下拉）
+2. 等待时间超过系统阈值（不同 iOS 版本不同，可能 < 1秒）
+3. keepalive 的静音循环不算"真实音频"
+4. 系统音频会话被抢占
+
+一旦进入 `interrupted`，`ensureAudioContextRunning()` 会尝试 resume，但必须等待新的用户交互才能恢复 → 用户切后台再切回来触发手势 → 恢复成功。这解释了"切后台就能播"的现象。
+
+Fix attempts:
+- v37: 降低首段缓冲从 5秒 到 1秒 → 改善但不够
+- v38: **激进降低到 0.2 秒** → 牺牲流畅度（可能轻微卡顿），换取极速启动
+- Backend: 在 `gsv_tavo_adapter.py` 的 dialogue 生成循环里增加 deleted 检查，避免退出流式后 GPU 继续跑
+
+Technical details v38:
+```javascript
+// 之前 v35-v37
+var startBufferBytes = Math.floor(bytesPerSec * 5.00);  // 5秒
+var startBufferBytes = Math.floor(bytesPerSec * 1.00);  // 1秒
+
+// v38 激进方案
+var flushBytes = Math.floor(bytesPerSec * 0.15);       // 0.15秒
+var startBufferBytes = Math.floor(bytesPerSec * 0.20); // 0.2秒
+```
+
+48kHz 单声道 16bit = 96000 bytes/s，0.2秒 = 19200 bytes ≈ 19KB。RTF 0.5 的情况下，理论上首段到达时间 < 1秒，加上 0.2秒缓冲，总等待 < 1.5秒。
+
+Guard: 真实 iOS Tavo 正则刷新到 v56 后测试：
+1. 首次点播放应在 < 2秒内出声（之前要等 30+秒）
+2. 不切后台/控制台的情况下也能正常播放
+3. 可能出现轻微卡顿/buffering（可接受的副作用）
+4. 退出流式后 GPU 应立即停止（不再疯狂跑）
+
+日志应显示：
+```
+Web Audio 播放时钟已启动
+AudioContext keepalive stopped: live playing
+```
+不应出现长时间 `state=interrupted` 或 `schedulePcm waiting AudioContext`。
+
+Risks: 0.2秒缓冲极小，网络抖动或后端生成间隔 > 200ms 会导致 underrun（播放中断缓冲）。但考虑到局域网环境 + RTF 0.5，理论上每个 chunk 到达间隔 < 200ms，风险可控。如仍失败，考虑：
+1. 完全取消首段缓冲，收到第一个 chunk 就播（最激进）
+2. 检测 iOS 版本/Tavo 版本，针对性调整策略
+3. 放弃 WebAudio 流式，改用 fetch 全部音频后 Blob URL + audio 元素（失去流式能力）
+
+Notes: iOS 音频播放是已知的跨平台开发难题。Safari/WebView 的音频策略比 Android 严格 10 倍。本次修复是在保持流式能力的前提下，尽可能缩短启动延迟。如用户仍反馈失败，需要收集具体 iOS 版本、Tavo 版本、网络环境、日志等信息进一步诊断。
+
+## BUG-042: 退出流式后状态未清理导致重播失败和等待时长异常
+
+Status: fixed in loader v54 / runtime v36, needs real Tavo regression
+
+Repro: 用户 2026-06-03 真实 Tavo 反馈：退出流式后立即再发起流式播放，出现以下问题：1) 卡在"等待首段音频"很久（之前秒播的能力失效了）；2) 等待时间显示有2个不同的秒数在跳，说明有2个定时器同时运行；3) 大退 Tavo 重进后，第一次播放又回到等很久才出声的状态；4) 落盘后新音频播不了，但历史音频能播。
+
+Evidence: 代码已确认。`44_track_history_cache.js` 的 `cancelLiveTrack()` 调用 `stopWebAudioPlayback("switch")` 停止播放。但在 `40_playback_cache.js` 的 `stopWebAudioPlayback()` 里，`reason="switch"` 时**不会停止 keepalive**：
+
+```javascript
+if (reason !== "replace" && reason !== "new-generation") {
+  try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive(reason || "stopWebAudio"); } catch (_) {}
+}
+```
+
+Root cause: 退出流式时使用 `reason="switch"`，这个 reason 被设计为"切换播放而非完全停止"，所以不停 keepalive。这导致：
+1. **keepalive 仍在运行** → AudioContext 和静音循环 buffer 一直播放
+2. **下次生成时，旧的 keepalive 和新的冲突** → 2个定时器同时跑
+3. **AudioContext 状态不干净** → 可能导致新播放器启动失败或等待很久
+4. **BUG-041 修复后的秒播能力失效** → 又回到等待 interrupted 恢复的老问题
+
+用户观察到"等待时间有2个秒数在跳"证明了旧的定时器（可能是 keepalive 或 progress timer）没有被清理，和新生成的定时器同时更新 UI。
+
+Fix: v54/v36 修改 `cancelLiveTrack()` 调用 `stopWebAudioPlayback("cancel")` 而不是 `"switch"`。`"cancel"` reason 会触发 keepalive 停止，确保完全清理播放状态，为下次生成提供干净的环境。
+
+Guard: 真实 Tavo 正则刷新到 v54 后，测试流程：
+1. 点播放 → 应秒播（< 10秒出声）
+2. 点"退出流式"
+3. 立即再点播放 → 应仍然秒播，不应卡在"等待首段"
+4. 等待时间显示应该只有1个秒数在跳，不应有2个
+5. 大退 Tavo 重进后，第一次播放应该仍然秒播
+
+日志应显示：退出流式时出现 `AudioContext keepalive stopped: cancel`，而不是保持运行。
+
+Notes: 这是 BUG-041 keepalive 保持机制的补充修复。keepalive 在播放期间保持手势有效是对的，但退出流式时必须完全清理，否则会影响下次生成。`"switch"` reason 适用于切换曲目但仍在播放状态，而退出流式是完全停止，应该用更强的清理策略。
+
+## BUG-041: live 流式播放 keepalive 过早停止导致 AudioContext 无手势 interrupted
+
+Status: fixed in loader v53 / runtime v35, needs real Tavo regression
+
+Repro: 用户 2026-06-03 真实 Tavo 反馈 live 流式播放时：第一次点播放经常无声，需要反复切后台再切回来才能播放；等待时间过长（30+ 秒）；切控制台日志页查看日志后，播放就失败。
+
+Evidence: 代码已确认。用户日志显示：
+```
+AudioContext keepalive stopped: switch
+AudioContext keepalive stopped: element play
+live track 使用 audio 元素流式
+stalled @ 0.00 count=1
+element audio.play() 不支持
+[wa] AudioContext state=running
+宿主音频通道中断，等待恢复...
+[wa] schedulePcm waiting AudioContext, state=interrupted
+[wa] schedulePcm resume AudioContext -> running  <-- 用户切回来后才恢复
+Web Audio 播放时钟已启动
+```
+
+Root cause: `62_dialog_audio_events.js` 在 `<audio>` 元素的 `play` 事件里立刻调用 `stopAudioKeepalive("element play")`。当 live 流式首路径尝试 `<audio>` 元素播放时：
+1. `audio.play()` 触发 `play` 事件 → **keepalive 立刻停止**
+2. `<audio>` 播放失败（Tavo AR 不支持流式 WAV）
+3. fallback 到 WebAudio → **keepalive 已经没了，用户手势栈耗尽**
+4. WebAudio 启动时 AudioContext 进入 `suspended`/`interrupted`，等待用户交互才能恢复
+5. 用户切后台再切回来，触发新的用户手势 → AudioContext `resume()` 成功 → 开始播放
+
+这解释了所有现象：
+- **首次点播放无声**：keepalive 停得太早，WebAudio 没有手势
+- **切后台再回来能播**：新的用户交互恢复了 AudioContext
+- **等待 30+ 秒**：`ensureAudioContextRunning()` 的 45 秒超时
+- **切控制台日志就失败**：任何页面切换都可能触发 AudioContext 中断
+
+Fix: v53/v35 移除 `<audio>` 元素 `play` 事件里的 `stopAudioKeepalive()` 调用。keepalive 现在只在真正播放成功时停止（`playing` 事件），或者 WebAudio 开始播放时停止。这样 `<audio>` 失败 fallback WebAudio 时，keepalive 仍在运行，保持用户手势有效。
+
+Guard: 真实 Tavo 正则刷新到 v53 后，live 流式首次点播放应能立即出声（5 秒内），不需要切后台/切控制台。日志应显示：
+```
+AudioContext keepalive started: prime new
+live track 使用 audio 元素流式
+element audio.play() 不支持
+改用 Web Audio
+[wa] AudioContext state=running
+[wa] WAV header parsed
+Web Audio 播放时钟已启动
+AudioContext keepalive stopped: live playing  <-- 真正开始播放时才停
+```
+不应出现 `keepalive stopped: element play` 或长时间 `state=interrupted` 等待。
+
+Notes: 这是 BUG-035 keepalive 机制的完善。之前 keepalive 在 element audio 尝试时就停了，导致 fallback 路径失去手势保护。真实流式播放的首段缓冲是 5 秒，RTF 0.5 理论上应该 < 10 秒就能出声，绝不应该等 30+ 秒。
+
+Status: fixed in loader v52 / runtime v34, needs real Tavo regression
+
+Repro: 用户 2026-06-03 真实 Tavo 反馈流式播放时报错：`[gptsovits] ⚠️ element audio.play() 不支持: The operation is not supported.`，流式播放失败。
+
+Evidence: 代码已确认。BUG-039 的修复（v1939）把 live 默认播放路径改回 `<audio>` 元素，只有在 `<audio>` 不支持时才 fallback WebAudio。首次报错 `element audio.play() 不支持` 后，BUG-040 v50/v32 误判为"Tavo AR 的 `<audio>` 根本不支持流式"，强制 live 走 WebAudio。但 v50 部署后，用户反馈 live 流式仍无声，日志显示 `[wa] AudioContext state=running` 但 `resume AudioContext failed: Failed to start the audio device`，AudioContext 反复 `interrupted` -> `resume` 失败 -> `interrupted`，无限循环直到超时。同时用户确认**历史音频可以正常播放**，且历史音频走的是 `<audio>` 元素（日志 `audio metadata loaded` + `AudioContext keepalive stopped: element playing`）。v51/v33 回退后，用户反馈仍然报 `element audio.play() 不支持` 且立即 fallback WebAudio，说明不是播放路径选择问题，而是 `audio` 元素本身不存在或不可用。
+
+Root cause: **`startElementAudioFrom()` 没有检查 `audio` 元素是否存在就直接访问 `audio.src`**。`audio` 变量在 `mountFull()` 里通过 `first(root, '[data-role="audio"]', 'audio')` 赋值，如果 DOM 中没有找到该元素或者 `mountFull()` 还没执行完，`audio` 就是 `null`/`undefined`，访问 `audio.src` 或 `audio.play()` 会抛异常。真实 Tavo AR WebView 可能在某些情况下没有成功创建 `<audio>` 元素，或者 runtime 在 `mountFull()` 完成前就尝试播放。
+
+Fix: v52/v34 在 `startElementAudioFrom()` 开头增加 `audio` 元素存在性检查：如果 `!audio`，打印 `audio 元素不存在` 日志并返回 `false`，避免访问 `null.src` 抛异常。同时保留 v51/v33 的 `<audio>` 优先策略和 WebAudio resume 失败快速 bailout。
+
+Guard: 真实 Tavo 正则刷新到 v52 后，如果 live 流式仍报错，日志应明确显示 `audio 元素不存在` 或其他具体原因，不应是泛化的 `element audio.play() 不支持`。如果 `audio` 元素存在且 `<audio>` 播放成功，应正常出声并落盘；如果 `audio` 元素不存在，应快速 fallback WebAudio 并出现 `改用 Web Audio` 日志。
+
+Notes: 需要确认真实 Tavo AR WebView 是否能成功创建 `<audio data-role="audio">` 元素，以及 `mountFull()` 的执行时机。如果 Tavo 根本不支持 `<audio>` 元素，应直接默认走 WebAudio；如果支持但 WebAudio 设备不可用，需要排查系统音频权限/占用问题。
+
 ## BUG-039: live WebAudio interrupted 被提示成前端暂停
 
 Status: patched locally in v2028881939, needs real Tavo regression
@@ -551,3 +820,215 @@ Root cause: confirmed. `ensureTracksLoaded(selectRestored=true)` 重进消息时
 Fix: `selectTrack(index, autoplay, { metadataOnly: true })` 新增 metadata-only 分支；重进消息只恢复历史条目、计数、断点和提示，不请求 `/cache_audio`、不请求 job status、不补写 IndexedDB。点击播放后才进入真实 `读取已保存音频/读取本机缓存`。`playSavedTrack()` 改为先 hydrate 已有 IndexedDB，再校验/播放在线保存音频；离线副本保存延后并降级为“不影响在线播放”的日志。新增 `errorMessage()`，TTS job、播放、历史读取和事件 catch 不再把空异常显示成 `Error`。
 
 Guard: 重进同一条 Tavo 消息时，懒加载卡片/完整播放器应显示 `历史音频 N 条` 和“点播放读取历史音频”，不得在未点击播放时显示 `读取已保存音频`。点击播放才允许进入“读取已保存音频/读取本机缓存”状态；IndexedDB 补写失败只能作为离线缓存提示，不能阻断在线音频播放，也不能显示成泛化 `Error`。
+
+## BUG-050: 播放完成后点播放按钮，音频在末尾跳一下然后结束
+
+Status: fixed locally, needs real Tavo regression
+
+Repro: 用户 2026-06-04 反馈：播放完成后点播放按钮，音频不是从头播放，而是在末尾跳一下然后结束。
+
+Root cause: `62_dialog_audio_events.js` 第112行的 `tryResumeOrPauseInGesture()` 函数，当检测到 `audio.ended` 为 `true` 时，直接 `return false` 跳过播放逻辑，导致播放按钮点击后无法重新播放。正确的行为应该是：当 `audio.ended` 时，重置 `currentTime` 到0并重新调用 `play()`。
+
+Fix: 修改 `tryResumeOrPauseInGesture()` 第111-120行逻辑：分离 `audio.ended` 判断，当 `ended` 为 `true` 时，执行 `audio.currentTime = 0; audio.play();` 从头播放；只有当 `!(audio.currentSrc || audio.src)` 时才 `return false`。
+
+Guard: 真实 Tavo 回归时，播放完成后（audio ended 事件触发，状态显示"播放完成"），点播放按钮应从0秒重新播放，而不是在末尾跳动或无响应。
+
+Notes: 这是一个常见的 HTML5 audio ended 状态处理问题。修复后的逻辑：`!src` → return false（无音频源）；`ended` → 重置并播放；`paused` → 播放；`!paused` → 暂停。
+
+## BUG-051: 流式播放时歌词卡顿，头像跑得快但歌词不显示
+
+Status: fixed locally, needs real Tavo regression
+
+Repro: 用户 2026-06-04 反馈：流式播放时歌词很卡，头像和进度条在走但歌词不显示或显示很慢。
+
+Root cause: `52_voice_subtitle_media.js` 第272-313行的 `rebuild()` 函数每次都通过 `subBox.innerHTML = renderSubtitleRowsHtml(...)` 全量重建歌词DOM。在流式播放时，后台轮询每1.5秒拿到新的 `segments_meta`，即使 `lastMetaSignature` 判断内容没变，只要长度增加（新增segment），就会触发全量 rebuild，销毁所有旧DOM节点并创建新的，导致卡顿和闪烁。
+
+Fix: 添加 `lastRenderedCount` 变量记录上次渲染的 timeline 长度。`rebuild()` 时只有当 `timeline.length !== lastRenderedCount` 时才调用 `renderSubtitleRows()` 重新渲染DOM，避免相同长度时的无意义重建。这样在流式播放中，只有新增segment时才会重建DOM，时间戳校准（signature变化但长度不变）不会触发DOM操作。
+
+Guard: 真实 Tavo 回归时，流式播放中歌词应实时显示，不卡顿；头像/进度条/歌词高亮应同步；新增segment时歌词区平滑增加新行，不应整个区域闪烁重建。
+
+Notes: 这个修复减少了流式播放中的DOM操作频率。如果仍有卡顿，可能需要进一步优化为增量插入DOM（只append新segment对应的行），而不是长度变化时仍然全量重建。
+
+## BUG-052: 流式播放切后台断开，无缓存重连不顺畅
+
+Status: investigating, 涉及浏览器后台策略和系统限制
+
+Repro: 用户 2026-06-04 反馈两个问题：
+1. 流式播放时切控制台日志或切桌面，音频就断开
+2. 流式播放没有缓存，每次重连都要重新连接后端，很不顺畅
+
+Root cause (切后台断开): 
+- `10_tts_jobs_audio_stream.js` 的 `streamWavViaWebAudio()` 使用 fetch ReadableStream + Web Audio API 播放
+- 切后台时可能触发：
+  1. AudioContext 被系统挂起为 `suspended` 状态（已有恢复逻辑，但需要 `schedulePcm()` 被调用才触发）
+  2. fetch reader 被浏览器后台策略关闭或暂停
+  3. iOS/Android WebView 后台网络请求被限制
+- BUG-049 已允许用户手动恢复，但不是根本解决方案
+
+Root cause (无缓存重连): 
+- 当前 live stream 架构是实时消费：fetch → reader.read() → schedulePcm() → 播放，**没有客户端缓存**
+- 已播放的 PCM 数据立即丢弃，没有保留在内存
+- 断线重连时只能从头重新 fetch，或者依赖后端的 `startOffsetSec` 参数跳过已播放部分
+- 用户体验不顺畅：每次蓝牙断开、耳机拔出、切后台恢复，都要重新连接后端
+
+Fix (切后台): 需要深入排查：
+1. 添加 Page Visibility API 监听，切后台时主动保存断点并暂停
+2. 回前台时检测 AudioContext 和 reader 状态，自动恢复或提示用户点播放
+3. 或改为使用 `<audio>` 元素播放 live stream（系统原生支持后台播放，但可能遇到 Content-Length 未知报错）
+
+Fix (缓存重连): 需要实现客户端缓存机制：
+1. 在 `streamWavViaWebAudio()` 中，已播放的 PCM 数据保留在内存（环形buffer或滑动窗口）
+2. 断线重连时，先从缓存播放已有部分，同时继续 fetch 新数据
+3. 或将 live stream 数据实时写入 IndexedDB，断线后可以完全离线播放已缓存部分
+4. 需要权衡内存占用（长音频的PCM数据量大）
+
+Guard: 流式播放切后台应保持播放或保留断点；回前台时应自动恢复或提示用户恢复；断线重连时应从上次位置续播，不需要重新连接后端或重新播放已播放部分。
+
+Notes: 这是两个相关但独立的问题。切后台断开属于系统限制，可能需要妥协方案（提示用户保持前台或使用后台播放通知）；缓存重连是架构问题，需要重构 live stream 消费逻辑。优先级：先实现断点恢复（保存 `scheduledAudioSec` 并在重连时从该位置开始），再考虑完整的客户端缓存。
+
+## BUG-053: 音质参数未传递到后端，导致极限档质量差
+
+Status: fixed locally, needs backend restart
+
+Repro: 用户 2026-06-04 反馈极限档音质很差：声音闷、音量大小不一、丢字、突然被抽气。检查后发现即使前端提升了音质参数（diffusion_steps、prompt_audio_seconds、segment_tokens、first_tokens），音质仍然很差。
+
+Root cause: 前端 `generationQualityOverrides()` 函数生成的音质参数（`prompt_audio_seconds`、`segment_tokens`、`first_tokens`）通过 `Object.assign` 合并到请求body中发送给后端，但后端 `DialogueStreamRequest` 和 `SingleStreamRequest` 模型中**根本没有定义这些字段**，导致后端接收不到，也不会传递给官方GPT-SoVITS API。结果就是：前端设置的音质档位参数全部丢失，实际推理时使用的是默认值。
+
+具体来说：
+- `prompt_audio_seconds`: 参考音频长度，影响音色稳定性和表现力（极限档18s vs 默认值可能只有3-6s）
+- `segment_tokens`: 每段token数，影响流畅度和自然度（极限档100 vs 默认值未知）
+- `first_tokens`: 首段token数，影响起播质量（极限档40 vs 默认值未知）
+
+这三个参数是音质的核心，丢失后即使 `diffusion_steps=48` 也无法发挥作用。
+
+Fix: 
+1. 在 `DialogueStreamRequest` 和 `SingleStreamRequest` 模型中添加 `prompt_audio_seconds`、`segment_tokens`、`first_tokens` 字段
+2. 在 `_official_payload_for_segment()` 中使用 `request_or_default()` 处理这三个参数
+3. 在 `_enrich_dialogue_metrics()` 的 metrics 循环中添加这三个字段，以便在落盘日志中能看到它们的实际值
+
+Guard: 后端重启后，前端设置的音质档位参数应正确传递到官方API；落盘日志中应显示 `prompt_audio=18s`、`segment_tokens=100`、`first_tokens=40` 等实际值（极限档）；音质应明显提升，不再出现声音闷、丢字、抽气感等问题。
+
+Notes: 这是一个严重的参数传递bug，导致前端音质设置完全失效。修复后需要重启后端服务才能生效。建议用户测试时观察落盘日志中的 `🔍 详细参数` 行，确认这三个参数是否正确传递。
+
+关于音质问题的其他可能原因：
+- 参考音频质量：如果 `ref_audio_path` 指向的音频本身质量差，会影响整体音质
+- GPT-SoVITS模型本身的限制：某些发音可能本身就容易丢字或不清晰
+- 音量不一致：可能需要后端添加音量归一化处理
+- 抽气感：可能是参考音频中就有气声，或者需要调整 style_alpha 参数
+
+
+## BUG-054: 音质档位参数不正确，官方API不支持某些参数
+
+Status: fixed locally, needs backend restart + frontend reload
+
+Repro: 用户 2026-06-04 反馈音质很差，检查后发现前端 `generationQualityOverrides()` 中传递的 `prompt_audio_seconds`、`segment_tokens`、`first_tokens` 参数**GPT-SoVITS官方API根本不支持**。
+
+Root cause: 
+1. 前端传递了官方API不支持的参数（prompt_audio_seconds、segment_tokens、first_tokens）
+2. 后端也尝试接收并传递这些参数，但官方API会忽略它们
+3. 官方API支持的音质参数只有：`sample_steps`、`batch_size`、`super_sampling`、`top_k/p/temperature`、`repetition_penalty`
+4. `super_sampling` 参数后端写死为 `False`，前端也没有根据档位传递，导致极限档无法开启超采样
+
+根据官方API文档（api_v2.py），支持的参数列表：
+```python
+top_k, top_p, temperature, text_split_method, batch_size, 
+batch_threshold, split_bucket, speed_factor, fragment_interval, 
+seed, parallel_infer, repetition_penalty, sample_steps, super_sampling
+```
+
+Fix:
+1. 前端：删除不支持的参数（prompt_audio_seconds、segment_tokens、first_tokens）
+2. 前端：极限档开启 `super_sampling: true`，提升 `sample_steps` 到50
+3. 后端：`DialogueStreamRequest` 和 `SingleStreamRequest` 添加 `super_sampling` 字段
+4. 后端：payload构建时使用 `request_or_default("super_sampling", ...)` 接收前端参数
+5. 后端：metrics中添加 `super_sampling` 字段
+
+新的档位配置：
+- 极速档：sample_steps=12, batch_size=6, super_sampling=false
+- 标准档：sample_steps=20, batch_size=4, super_sampling=false
+- 质量优先：sample_steps=30, batch_size=4, super_sampling=false
+- 极限档：sample_steps=50, batch_size=2, super_sampling=true ✨
+
+Guard: 重启后端+刷新前端后，极限档生成的音频应在日志中显示 `super_sampling=True`；音质应有提升（超采样会提高音频分辨率）。
+
+Notes: 
+- `super_sampling` 是GPT-SoVITS官方的音质提升开关，但会增加推理时间
+- 如果音质仍然不理想，可能需要：
+  1. 检查参考音频（ref_audio_path）的质量
+  2. 使用辅助参考音频（aux_ref_audio_paths）增加音色稳定性
+  3. 调整 `text_split_method`、`fragment_interval` 等参数
+  4. 考虑使用更高质量的GPT-SoVITS模型
+
+- 关于音质问题的其他可能原因：
+  - 声音闷：可能是参考音频本身闷，或者模型训练数据偏向闷的音色
+  - 音量大小不一：可能需要后端添加音量归一化处理
+  - 丢字/漏字：可能是 `text_split_method` 不合适，或者某些字的发音模型本身不擅长
+  - 抽气感：可能是参考音频中有气声，或者 `aux_ref_audio_paths` 中混入了气声风格
+
+建议下一步实现 Whisper 转录比对，自动检测漏字问题。
+
+## BUG-055: LLM错误提示又臭又长，看不懂
+
+Status: fixed locally, needs frontend reload
+
+Repro: 用户 2026-06-04 反馈LLM解析失败时的错误提示"又臭又长"，"谁他妈知道你在说什么东西"。原提示包含大量技术细节和多行说明，用户看不懂。
+
+Root cause: 错误提示包含过多技术术语和冗长的说明文字，例如："LLM 访问位置: Tavo AR -> GPT-SoVITS adapter /parse_text -> LLM 上游；Tavo 页面 endpoint/model/key 优先，后端 env 只作兜底..."。用户只想知道**到底哪里出错了**，以及**后端返回的原始错误**，而不是一大堆可能原因。
+
+Fix:
+1. 网络错误：直接显示"❌ 网络错误: 无法连接到 {URL}"，后面跟原始错误信息
+2. HTTP错误：显示"❌ 后端返回错误 (HTTP {status})"，**直接显示后端返回的原始错误文本**
+3. JSON解析错误：显示"❌ 后端返回的不是JSON"，**显示原始响应内容**
+
+删除所有"可能原因: 1. xxx 2. xxx"这种瞎猜的提示。如果是后端返回的错误，就直接显示后端说了什么；如果是LLM返回的错误，就显示LLM说了什么。
+
+Guard: 刷新前端后，当LLM解析失败时，错误提示应该简短清晰，直接显示后端/LLM返回的原始错误信息，不要加一堆"可能原因"。
+
+Notes: 
+- 错误提示的目的是告诉用户**到底发生了什么**，而不是猜测可能的原因
+- 如果后端返回了详细错误，就直接显示它，不要用自己编的提示盖住真实错误
+- 用户看到真实错误信息后，能更快定位问题（LLM API key错误、model不存在、网络超时等）
+
+关于用户当前遇到的"空响应"问题：可能是CORS、响应体过大、或Content-Type不对。需要用户提供浏览器Network面板的信息才能定位。
+
+## BUG-056: 流式播放时没有歌词，歌词和头像不同步
+
+Status: FIXED (2026-06-04)
+
+Repro: 流式播放时进度条在走，有声音，但没有歌词。落盘后才有歌词。即使有歌词，歌词和头像也不同步，因为用的是估算时间而不是精确时间轴。
+
+Root cause: 
+1. 流式播放时，`_stream_dialogue_to_cache` 只在函数结束后才保存 segments_meta 到 JOBS
+2. 流式播放过程中，JOBS[cache_key]["segments_meta"] 一直是空的
+3. 前端轮询 job_status 拿到的 segments_meta_count=0，没有歌词
+4. 即使落盘后有 segments_meta，但前端已经用估算时间生成了 timeline (exactTiming=false)，导致不同步
+
+Fix:
+修改 gsv_tavo_adapter.py 第1340行后，每处理完一个 segment 就立即更新 JOBS：
+```python
+# 实时更新JOBS的segments_meta，让流式播放时也能拿到歌词时间轴
+with JOBS_LOCK:
+    current = JOBS.get(cache_key, {})
+    if current.get("state") not in {"deleted", "done"}:
+        JOBS[cache_key] = {
+            **current,
+            "segments_meta": list(segments_meta),  # 深拷贝避免引用问题
+            "sample_rate": sample_rate,
+        }
+```
+
+这样：
+1. 流式播放时，每生成一个 segment，前端立即能拿到 segments_meta
+2. segments_meta 包含精确的 start_s 和 duration_s
+3. timeline 用精确时间生成 (exactTiming=true)
+4. 歌词和头像完美同步
+
+Guard:
+1. 流式播放时，前端控制台应该看到 `🎤 startSubtitle: segments_count>0`
+2. 前端控制台应该看到 `🎵 timeline生成: exactTiming=true`
+3. 歌词应该随播放进度实时高亮，和音频/头像完全同步
+
+Notes:
+- 这是一个架构性改进：从"流式结束后才有歌词"变成"边流式边生成歌词"
+- 深拷贝 segments_meta 避免多线程竞争条件
+- 同时更新 sample_rate，让前端能计算精确的时间轴

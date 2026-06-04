@@ -42,26 +42,24 @@
     setStatus("后端 LLM 分析中…");
     var maxTokens = llmMaxTokensForText(text);
     var parseUrl = cleanBase(cfg.apiBase) + cfg.parseEndpoint;
-    var llmTarget = "LLM 访问位置: Tavo AR -> GPT-SoVITS adapter /parse_text -> LLM 上游；Tavo 页面 endpoint/model/key 优先，后端 env 只作兜底。前端 endpoint=" + (cfg.llmEndpoint || "(空)") + ", model=" + (cfg.llmModel || "(空)");
+    var llmTarget = "LLM配置: endpoint=" + (cfg.llmEndpoint || "未设置") + ", model=" + (cfg.llmModel || "未设置");
     debugLog("🔎 LLM 解析代理: parseUrl=" + parseUrl + ", " + llmTarget, "#ffd479");
     var res;
     try {
       res = await adapterJsonPost(parseUrl, { text: text, endpoint: cfg.llmEndpoint || "", model: cfg.llmModel || "", api_key: cfg.llmApiKey || undefined, system_prompt: prompt, temperature: 0.2, timeout: 90, max_tokens: maxTokens });
     } catch (e) {
-      throw new Error(formatNetworkError("LLM 解析代理 /parse_text", parseUrl, e, [
-        llmTarget,
-        "说明: 这里失败的是 Tavo AR 到 GPT-SoVITS adapter /parse_text 的浏览器请求；adapter 日志通常不会出现对应 POST。先查脚本版本、CORS/preflight、adapter 是否重启和请求 URL。"
-      ]));
+      throw new Error("❌ 无法连接到Adapter\n" + parseUrl + "\n" + (e && e.message ? e.message : String(e)));
     }
-    if (!res.ok) throw new Error(formatHttpError("LLM 解析代理 /parse_text", parseUrl, res, await res.text(), [
-      llmTarget,
-      "说明: /parse_text 已经到达 GPT-SoVITS adapter；这不是 Tavo 到 adapter 的链路断。若响应里有 LLM proxy request failed、upstream、auth、403 或 503，就是 adapter 调用 8317 LLM 上游失败，请查 Tavo 页面 endpoint/model/key 和 provider 权限。"
-    ]));
+    if (!res.ok) {
+      var errText = await res.text();
+      throw new Error("❌ Adapter返回错误 (HTTP " + res.status + ")\n" + parseUrl + "\n" + llmTarget + "\n\nAdapter返回:\n" + errText);
+    }
     var data;
     try {
       data = await res.json();
     } catch (e) {
-      throw new Error("LLM 解析代理 /parse_text 返回的不是合法 JSON。\n请求 URL: " + parseUrl + "\n" + llmTarget + "\n解析错误: " + (e && e.message ? e.message : e));
+      var rawText = await res.text().catch(function() { return "(无法读取响应)"; });
+      throw new Error("❌ Adapter返回的不是JSON\n" + parseUrl + "\n\nAdapter返回:\n" + rawText);
     }
     if (!data || !Array.isArray(data.segments) || !data.segments.length) throw new Error("AI 没有返回可用片段");
     var llmSec = Math.floor((Date.now() - llmStart) / 1000);

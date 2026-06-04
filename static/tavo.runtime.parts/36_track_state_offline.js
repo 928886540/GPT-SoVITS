@@ -291,12 +291,10 @@
         if (script && script.src && /[?&]webAudioLive=0\b/.test(script.src)) return false;
         if (script && script.src && /[?&]webAudioLive=1\b/.test(script.src)) return true;
       } catch (_) {}
-      // Live playback should prefer the native <audio> element first. In Tavo AR,
-      // WebAudio can enter "interrupted" when the user opens console/log pages or
-      // the app backgrounds; the native audio route has a better chance to keep
-      // playing. If the element route is unsupported, handlers flip
-      // elementAudioUnsupported and fall back to WebAudio.
-      return false;
+      // Live now reads from the adapter's server-side buffer. Keep the live path on
+      // WebAudio so Tavo does not repeatedly probe unsupported chunked WAV with
+      // native <audio>. Saved/history files still prefer <audio> for system playback.
+      return true;
     }
     function shouldUseWebAudioForSavedTrack(track) {
       if (!(track && isSavedTrack(track))) return false;

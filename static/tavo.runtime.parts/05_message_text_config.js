@@ -575,12 +575,90 @@
       });
     } catch (_) { return []; }
   }
+  // 音质档位默认参数（根据GPT-SoVITS官方WebUI的范围和默认值）
+  // 官方范围：top_k(1-100, 默认5), top_p(0-1, 默认1), temperature(0-1, 默认1),
+  //          sample_steps([4,8,16,32,64,128], 默认32), batch_size(1-200, 默认20),
+  //          repetition_penalty(0-2, 默认1.35), super_sampling(默认false)
+  var QUALITY_PRESETS = {
+    fast: {
+      label: "极速档",
+      sample_steps: 8,
+      batch_size: 20,
+      top_k: 5,
+      top_p: 1.0,
+      temperature: 1.0,
+      repetition_penalty: 1.35,
+      parallel_infer: true,
+      super_sampling: false,
+    },
+    balanced: {
+      label: "标准档",
+      sample_steps: 32,
+      batch_size: 10,
+      top_k: 10,
+      top_p: 1.0,
+      temperature: 1.0,
+      repetition_penalty: 1.35,
+      parallel_infer: true,
+      super_sampling: false,
+    },
+    quality: {
+      label: "质量优先",
+      sample_steps: 64,
+      batch_size: 5,
+      top_k: 15,
+      top_p: 1.0,
+      temperature: 1.0,
+      repetition_penalty: 1.35,
+      parallel_infer: true,
+      super_sampling: false,
+    },
+    ultra: {
+      label: "极限质量",
+      sample_steps: 128,
+      batch_size: 2,
+      top_k: 20,
+      top_p: 1.0,
+      temperature: 1.0,
+      repetition_penalty: 1.35,
+      parallel_infer: true,
+      super_sampling: true,
+    },
+  };
+
   function generationQualityOverrides(mode) {
     mode = String(mode || "balanced").trim();
-    if (mode === "fast") return { diffusion_steps: 8, sample_steps: 8, batch_size: 8, parallel_infer: true, prompt_audio_seconds: 6, segment_tokens: 40, first_tokens: 10 };
-    if (mode === "balanced") return { diffusion_steps: 16, sample_steps: 16, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 10, segment_tokens: 64, first_tokens: 20 };
-    if (mode === "ultra") return { diffusion_steps: 32, sample_steps: 32, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 14, segment_tokens: 88, first_tokens: 32 };
-    return { diffusion_steps: 24, sample_steps: 24, batch_size: 4, parallel_infer: true, prompt_audio_seconds: 12, segment_tokens: 80, first_tokens: 28 };
+    var preset = QUALITY_PRESETS[mode] || QUALITY_PRESETS.balanced;
+    // 从 Tavo 全局变量读取用户微调的参数（如果有）
+    var customKey = "quality_custom_" + mode;
+    var custom = null;
+    if (typeof tavo !== "undefined" && tavo.get) {
+      try { custom = tavo.get(customKey, "global"); } catch (_) {}
+    }
+    if (custom && typeof custom === "object") {
+      // 合并：用户微调的参数覆盖档位默认值
+      return Object.assign({}, preset, custom);
+    }
+    // 返回档位默认值（深拷贝避免被修改）
+    return Object.assign({}, preset);
+  }
+
+  function saveQualityCustom(mode, params) {
+    var customKey = "quality_custom_" + mode;
+    if (typeof tavo !== "undefined" && tavo.set) {
+      try { tavo.set(customKey, params, "global"); } catch (_) {}
+    }
+  }
+
+  function resetQualityCustom(mode) {
+    var customKey = "quality_custom_" + mode;
+    if (typeof tavo !== "undefined" && tavo.unset) {
+      try { tavo.unset(customKey, "global"); } catch (_) {}
+    }
+  }
+
+  function getQualityPresets() {
+    return QUALITY_PRESETS;
   }
   function stripNullishFields(obj) {
     Object.keys(obj || {}).forEach(function (k) {

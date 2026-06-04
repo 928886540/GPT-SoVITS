@@ -473,10 +473,11 @@
     scheduledAudioSec = skipBytesRemaining > 0 ? startOffsetSec : scheduledAudioSec;
     // 本机/LAN 也可能因为首段内部 chunk 间隔出现 underrun。起播前多攒一点
     // PCM，避免刚显示 playing 就立刻 buffering。
-    var flushBytes = Math.max(8192, Math.floor(bytesPerSec * 0.50));
+    // iOS 首播极其敏感，改为 0.2 秒极速启动，牺牲流畅度换取成功率。
+    var flushBytes = Math.max(8192, Math.floor(bytesPerSec * 0.15));
     flushBytes = flushBytes - (flushBytes % blockAlign);
     if (flushBytes < blockAlign) flushBytes = blockAlign;
-    var startBufferBytes = Math.max(flushBytes, Math.floor(bytesPerSec * 5.00));
+    var startBufferBytes = Math.max(flushBytes, Math.floor(bytesPerSec * 0.20));
     startBufferBytes = startBufferBytes - (startBufferBytes % blockAlign);
     if (startBufferBytes < flushBytes) startBufferBytes = flushBytes;
     var interrupted = false;
@@ -489,6 +490,7 @@
     async function ensureAudioContextRunning(step) {
       var deadline = Date.now() + (step === "schedulePcm" ? 45000 : 12000);
       var notified = false;
+      var resumeFailCount = 0;
       while (!stopped) {
         var state = String(ctx.state || "running");
         if (state === "running") return;
@@ -502,9 +504,19 @@
           if (state === "suspended" || state === "interrupted") {
             await ctx.resume();
             hooks.debug && hooks.debug(step + " resume AudioContext -> " + ctx.state);
+            resumeFailCount = 0;
           }
         } catch (e) {
-          hooks.debug && hooks.debug(step + " resume AudioContext failed: " + errorMessage(e, "resume failed"));
+          resumeFailCount++;
+          var errMsg = errorMessage(e, "resume failed");
+          hooks.debug && hooks.debug(step + " resume AudioContext failed: " + errMsg);
+          // If resume throws "Failed to start the audio device" or similar fatal errors,
+          // the audio device is unavailable (occupied by another app, system locked, etc).
+          // After 3 consecutive resume failures, bail out instead of looping until timeout.
+          if (resumeFailCount >= 3 && (/failed to start|device|占用|不可用/i.test(errMsg) || state === "interrupted")) {
+            hooks.debug && hooks.debug(step + " resume 连续失败 " + resumeFailCount + " 次，音频设备不可用");
+            throw new Error("[step:" + step + ".resume] 音频设备启动失败: " + errMsg);
+          }
         }
         if (String(ctx.state || "running") === "running") {
           hooks.onStateChange && hooks.onStateChange("audio_resumed");

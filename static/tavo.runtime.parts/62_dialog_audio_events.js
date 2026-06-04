@@ -82,10 +82,18 @@
     function tryResumeOrPauseInGesture() {
       try {
         var t = currentTrack();
+        // live track 正在 Web Audio 播放：允许暂停/恢复（应对蓝牙断开、耳机拔出等场景）
         if (t && t.webAudioPlaying && isLiveTrack(t)) {
-          setStatus("流式播放中，仅可退出");
-          showTrackNotice(t, "流式播放中", "请等待音频保存完成；需要中止时点退出流式");
-          debugLog("⛔ live 控制被阻止：保留流式任务 cacheKey=" + (t.cacheKey || ""), "#fc9");
+          t.pausedByUser = true;
+          try {
+            if (webAudioController && typeof webAudioController.getTimeSec === "function") {
+              t.lastWebAudioSec = Math.max(0, Number(webAudioController.getTimeSec()) || 0);
+            }
+          } catch (_) {}
+          stopWebAudioPlayback("pause");
+          setStatus("已暂停流式播放");
+          showTrackNotice(t, "已暂停流式播放", "点播放从当前位置继续；需要中止时点退出流式");
+          debugLog("⏸️ live 流式暂停 cacheKey=" + (t.cacheKey || ""), "#fc9");
           return true;
         }
         if (t && t.webAudioPlaying) {
@@ -101,7 +109,15 @@
           return true;
         }
         if (!t || !elementAudioBelongsToTrack(t)) return false;
-        if (!(audio.currentSrc || audio.src) || audio.ended) return false;
+        if (!(audio.currentSrc || audio.src)) return false;
+        // 播放完成后点播放：重置到开头并重新播放
+        if (audio.ended) {
+          audio.currentTime = 0;
+          setAudioPlaybackRate();
+          var p = audio.play();
+          if (p && typeof p.then === "function") p.catch(function (e) { handleAudioPlayReject("element", e, "请点播放继续"); });
+          return true;
+        }
         if (audio.paused) {
           setAudioPlaybackRate();
           var p = audio.play();
@@ -145,7 +161,9 @@
     $all(panel, '.idx-mode').forEach(function (b) { b.addEventListener('click', async function () { readFields(); cfg.mode = b.dataset.mode; syncUI(); await saveConfig(cfg, characterId); }); });
     on(audio, 'play', function () {
       var t = currentTrack();
-      try { if (typeof stopAudioKeepalive === "function") stopAudioKeepalive("element play"); } catch (_) {}
+      // DO NOT stop keepalive on 'play' event! If element audio fails and we fallback
+      // to WebAudio, keepalive must still be running to maintain user gesture.
+      // Only stop keepalive when element audio actually starts playing (see 'playing' event).
       if (t) { t.pausedByHost = false; setTrackPlaybackState(t, "playing"); }
       setPlayState("playing"); setStatus("正在播放：" + trackPlaybackLabel(t));
       // 系统媒体面板基础信息(后台/锁屏可见,可控制播放/前后 10 秒)

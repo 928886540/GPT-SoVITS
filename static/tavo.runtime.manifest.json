@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "runtimeVersion": "20260603-audio-interrupt-v31",
+  "runtimeVersion": "20260604-live-buffer-v40",
   "mode": "ordered-fragments",
   "skin": {
     "default": "tavo.ui.skin.default.css"

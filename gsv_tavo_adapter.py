@@ -69,8 +69,39 @@ JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
 JOB_QUEUE: queue.Queue[tuple[str, dict[str, Any], dict[str, Optional[dict[str, Any]]]]] = queue.Queue()
 WORKER_STARTED = False
+LIVE_BUFFERS: dict[str, "_LiveBufferJob"] = {}
 MIN_REF_AUDIO_S = 3.0
 MAX_REF_AUDIO_S = 10.0
+
+
+class _LiveBufferJob:
+    def __init__(self, cache_key: str):
+        self.cache_key = cache_key
+        self.data = bytearray()
+        self.condition = threading.Condition()
+        self.finished = False
+        self.error = ""
+        self.created_at = time.time()
+        self.last_append_at = self.created_at
+        self.started = False
+
+    def append(self, chunk: bytes) -> None:
+        if not chunk:
+            return
+        with self.condition:
+            self.data.extend(chunk)
+            self.last_append_at = time.time()
+            self.condition.notify_all()
+
+    def finish(self, error_text: str = "") -> None:
+        with self.condition:
+            self.finished = True
+            self.error = error_text or ""
+            self.condition.notify_all()
+
+    def snapshot_len(self) -> int:
+        with self.condition:
+            return len(self.data)
 
 
 def _is_private_or_local_host(host: str) -> bool:
@@ -136,6 +167,8 @@ class DialogueStreamRequest(BaseModel):
     aux_ref_audio_paths: list[str] = Field(default_factory=list)
     bypass_cache: bool = False
     request_id: str = ""
+    # 音质参数（前端 generationQualityOverrides 传过来）
+    super_sampling: Optional[bool] = None
 
 
 class SingleStreamRequest(BaseModel):
@@ -151,6 +184,8 @@ class SingleStreamRequest(BaseModel):
     batch_size: Optional[int] = None
     parallel_infer: Optional[bool] = None
     text_split_method: Optional[str] = None
+    # 音质参数
+    super_sampling: Optional[bool] = None
     bypass_cache: bool = False
     request_id: str = ""
 
@@ -472,14 +507,17 @@ async def create_dialogue_job(http_request: Request) -> dict[str, Any]:
             "state": "done",
         }
 
+    live_buffer_to_start: Optional[_LiveBufferJob] = None
     with JOBS_LOCK:
         existing = JOBS.get(cache_key)
         if existing and existing.get("state") in {"deferred_stream", "queued", "running"}:
             state = str(existing.get("state"))
             position = _queue_position(cache_key) if state == "queued" else 0
+            if bool(payload.get("streaming_mode")) and cache_key not in LIVE_BUFFERS:
+                live_buffer_to_start = _create_live_buffer_job_locked(cache_key, payload, profiles)
         else:
             prefer_live = bool(payload.get("streaming_mode"))
-            state = "deferred_stream" if prefer_live else "queued"
+            state = "running" if prefer_live else "queued"
             position = 0 if prefer_live else JOB_QUEUE.qsize() + 1
             JOBS[cache_key] = {
                 "state": state,
@@ -489,9 +527,15 @@ async def create_dialogue_job(http_request: Request) -> dict[str, Any]:
                 "profiles": profiles,
                 "queued_at": time.time(),
                 "queue_position": position,
+                "live_buffered": prefer_live,
             }
             if not prefer_live:
                 JOB_QUEUE.put((cache_key, payload, profiles))
+            else:
+                live_buffer_to_start = _create_live_buffer_job_locked(cache_key, payload, profiles)
+
+    if live_buffer_to_start is not None:
+        _start_live_buffer_thread(cache_key, payload, profiles, live_buffer_to_start)
 
     return {
         "cache_key": cache_key,
@@ -520,7 +564,7 @@ async def get_dialogue_job_audio_head(cache_key: str):
 
 
 @APP.get("/tts_dialogue_stream_job/{cache_key}")
-async def get_dialogue_job_audio(cache_key: str):
+async def get_dialogue_job_audio(cache_key: str, start_s: float = 0.0):
     path = snapshot_cache.get_cached_audio(cache_key)
     if path is not None:
         return FileResponse(
@@ -529,12 +573,34 @@ async def get_dialogue_job_audio(cache_key: str):
             headers={"X-GPT-SoVITS-Cache-Key": cache_key, "Cache-Control": "no-store"},
         )
 
+    live_buffer_to_start: Optional[_LiveBufferJob] = None
     with JOBS_LOCK:
         job = dict(JOBS.get(cache_key, {}))
+        live_buffer = LIVE_BUFFERS.get(cache_key)
     payload = job.get("payload")
     profiles = job.get("profiles")
     if not isinstance(payload, dict) or not isinstance(profiles, dict):
         raise HTTPException(status_code=404, detail="job not found or stream context expired")
+
+    prefer_live = bool(payload.get("streaming_mode")) or bool(job.get("live_buffered"))
+    if prefer_live:
+        with JOBS_LOCK:
+            live_buffer = LIVE_BUFFERS.get(cache_key)
+            if live_buffer is None and JOBS.get(cache_key, {}).get("state") not in {"done", "deleted", "failed"}:
+                live_buffer = _create_live_buffer_job_locked(cache_key, payload, profiles)
+                live_buffer_to_start = live_buffer
+        if live_buffer_to_start is not None:
+            _start_live_buffer_thread(cache_key, payload, profiles, live_buffer_to_start)
+        if live_buffer is not None:
+            return StreamingResponse(
+                _stream_live_buffer(live_buffer, start_offset_s=start_s),
+                media_type="audio/wav",
+                headers={
+                    "X-GPT-SoVITS-Cache-Key": cache_key,
+                    "X-GPT-SoVITS-Live-Buffer": "HIT",
+                    "Cache-Control": "no-store",
+                },
+            )
 
     if job.get("state") == "deferred_stream":
         return StreamingResponse(
@@ -593,6 +659,10 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
     sample_rate = job.get("sample_rate") or (metadata or {}).get("sample_rate")
     duration_s = job.get("duration_s") or (metadata or {}).get("duration_s")
     payload = job.get("payload") or (metadata or {}).get("request") or {}
+
+    # 调试日志：打印segments_meta情况
+    print(f"[gsv_adapter] job_status cache_key={cache_key}, state={state}, segments_meta_count={len(segments_meta) if segments_meta else 0}", flush=True)
+
     metrics = _enrich_dialogue_metrics(
         job.get("metrics") or (metadata or {}).get("metrics", {}),
         payload if isinstance(payload, dict) else {},
@@ -619,6 +689,9 @@ async def dialogue_job_status(cache_key: str) -> dict[str, Any]:
 async def delete_dialogue_job(cache_key: str) -> dict[str, bool]:
     with JOBS_LOCK:
         JOBS[cache_key] = {"state": "deleted", "cached": False, "cache_key": cache_key, "deleted_at": time.time()}
+        live_buffer = LIVE_BUFFERS.pop(cache_key, None)
+    if live_buffer is not None:
+        live_buffer.finish("deleted")
     return {"deleted": snapshot_cache.delete_cache(cache_key)}
 
 
@@ -632,6 +705,130 @@ def _ensure_worker_started() -> None:
         thread = threading.Thread(target=_job_worker_loop, name="gsv-tts-worker", daemon=True)
         thread.start()
         WORKER_STARTED = True
+
+
+def _create_live_buffer_job_locked(
+    cache_key: str,
+    payload: dict[str, Any],
+    profiles: dict[str, Optional[dict[str, Any]]],
+) -> _LiveBufferJob:
+    buffer_job = LIVE_BUFFERS.get(cache_key)
+    if buffer_job is not None and buffer_job.finished and snapshot_cache.get_cached_audio(cache_key) is None:
+        buffer_job = None
+    if buffer_job is None:
+        buffer_job = _LiveBufferJob(cache_key)
+        LIVE_BUFFERS[cache_key] = buffer_job
+    current = JOBS.get(cache_key, {})
+    if current.get("state") not in {"deleted", "done", "failed"}:
+        JOBS[cache_key] = {
+            **current,
+            "state": "running",
+            "cached": False,
+            "cache_key": cache_key,
+            "payload": payload,
+            "profiles": profiles,
+            "live_buffered": True,
+            "queue_position": 0,
+            "started_at": current.get("started_at") or time.time(),
+        }
+    return buffer_job
+
+
+def _drop_live_buffer_later(cache_key: str, delay_s: float = 300.0) -> None:
+    def _drop() -> None:
+        time.sleep(delay_s)
+        with JOBS_LOCK:
+            LIVE_BUFFERS.pop(cache_key, None)
+
+    threading.Thread(target=_drop, name=f"gsv-live-buffer-gc-{cache_key[:8]}", daemon=True).start()
+
+
+def _start_live_buffer_thread(
+    cache_key: str,
+    payload: dict[str, Any],
+    profiles: dict[str, Optional[dict[str, Any]]],
+    buffer_job: _LiveBufferJob,
+) -> None:
+    with buffer_job.condition:
+        if buffer_job.started:
+            return
+        buffer_job.started = True
+
+    def _run() -> None:
+        error_text = ""
+        try:
+            for chunk in _stream_dialogue_to_cache(cache_key, payload, profiles):
+                buffer_job.append(chunk)
+        except Exception as exc:
+            error_text = str(exc)
+            with JOBS_LOCK:
+                current = JOBS.get(cache_key, {})
+                if current.get("state") != "deleted":
+                    JOBS[cache_key] = {
+                        **current,
+                        "state": "failed",
+                        "cached": False,
+                        "cache_key": cache_key,
+                        "payload": payload,
+                        "profiles": profiles,
+                        "error": error_text,
+                        "finished_at": time.time(),
+                    }
+        finally:
+            with JOBS_LOCK:
+                current = JOBS.get(cache_key, {})
+                error_text = error_text or str(current.get("error") or "")
+            buffer_job.finish(error_text)
+            _drop_live_buffer_later(cache_key)
+
+    threading.Thread(target=_run, name=f"gsv-live-buffer-{cache_key[:8]}", daemon=True).start()
+
+
+def _stream_live_buffer(buffer_job: _LiveBufferJob, start_offset_s: float = 0.0):
+    try:
+        start_offset_s = max(0.0, float(start_offset_s or 0.0))
+    except (TypeError, ValueError):
+        start_offset_s = 0.0
+    offset = 0
+    header_sent_for_offset = False
+    while True:
+        with buffer_job.condition:
+            while len(buffer_job.data) <= offset and not buffer_job.finished:
+                buffer_job.condition.wait(timeout=0.5)
+            available = len(buffer_job.data)
+            if start_offset_s > 0 and not header_sent_for_offset:
+                while available < 44 and not buffer_job.finished:
+                    buffer_job.condition.wait(timeout=0.5)
+                    available = len(buffer_job.data)
+                if available >= 44:
+                    header = bytes(buffer_job.data[:44])
+                    try:
+                        info = _wav_header_info(header)
+                        block_align = max(int(info.get("channels") or 1) * int(info.get("sample_width") or 2), 2)
+                        skip = int(start_offset_s * int(info.get("sample_rate") or 48000) * block_align)
+                        skip -= skip % block_align
+                        offset = 44 + max(0, skip)
+                    except Exception:
+                        offset = 0
+                    header_sent_for_offset = True
+                    if offset > 0:
+                        chunk = header
+                    else:
+                        chunk = bytes(buffer_job.data[:available])
+                        offset = available
+                elif buffer_job.finished:
+                    return
+                else:
+                    continue
+            elif available > offset:
+                chunk = bytes(buffer_job.data[offset:available])
+                offset = available
+            elif buffer_job.finished:
+                return
+            else:
+                continue
+        if chunk:
+            yield chunk
 
 
 def _job_worker_loop() -> None:
@@ -1041,6 +1238,12 @@ def _stream_dialogue_to_cache(
 
     try:
         for index, segment in enumerate(segments):
+            # Check if job was deleted (user clicked "exit live")
+            with JOBS_LOCK:
+                if JOBS.get(cache_key, {}).get("state") == "deleted":
+                    print(f"[gsv_adapter] dialogue_stream_aborted cache_key={cache_key} segment={index}/{len(segments)}", flush=True)
+                    return  # Stop generating immediately
+
             profile = _profile_for_segment(payload, profiles, segment)
             req_payload = _official_payload_for_segment(segment, profile, payload)
             req_payload["streaming_mode"] = payload.get("streaming_mode") or 2
@@ -1067,7 +1270,16 @@ def _stream_dialogue_to_cache(
                 return _apply_pcm_gain(data[:usable], width, gain_db)
 
             try:
+                chunk_count = 0
                 for chunk in _stream_official_tts(req_payload):
+                    # Check deleted status every 10 chunks to avoid lock overhead
+                    chunk_count += 1
+                    if chunk_count % 10 == 0:
+                        with JOBS_LOCK:
+                            if JOBS.get(cache_key, {}).get("state") == "deleted":
+                                print(f"[gsv_adapter] dialogue_stream_aborted cache_key={cache_key} segment={index} mid-stream", flush=True)
+                                return
+
                     if first_s is None:
                         first_s = time.perf_counter() - segment_started
                     if not saw_header:
@@ -1125,6 +1337,16 @@ def _stream_dialogue_to_cache(
                 }
             )
             offset_frames += frame_count
+
+            # 实时更新JOBS的segments_meta，让流式播放时也能拿到歌词时间轴
+            with JOBS_LOCK:
+                current = JOBS.get(cache_key, {})
+                if current.get("state") not in {"deleted", "done"}:
+                    JOBS[cache_key] = {
+                        **current,
+                        "segments_meta": list(segments_meta),  # 深拷贝避免引用问题
+                        "sample_rate": sample_rate,
+                    }
 
         if sample_rate is None or channels is None or sample_width is None:
             raise ValueError("no audio returned")
@@ -1302,6 +1524,7 @@ def _enrich_dialogue_metrics(
         "top_k",
         "top_p",
         "temperature",
+        "super_sampling",
     ):
         if out.get(key) is None and payload.get(key) is not None:
             out[key] = payload.get(key)
@@ -1402,7 +1625,7 @@ def _official_payload_for_segment(segment: dict[str, Any], profile: dict[str, An
         "parallel_infer": defaults.get("parallel_infer", True) if parallel_infer is None else parallel_infer,
         "repetition_penalty": request_or_default("repetition_penalty", defaults.get("repetition_penalty", 1.35)),
         "sample_steps": request_or_default("sample_steps", defaults.get("sample_steps", 32)),
-        "super_sampling": defaults.get("super_sampling", False),
+        "super_sampling": request_or_default("super_sampling", defaults.get("super_sampling", False)),
         "overlap_length": defaults.get("overlap_length", 2),
         "min_chunk_length": defaults.get("min_chunk_length", 16),
     }
@@ -1592,5 +1815,4 @@ def _write_wav_bytes(pcm: bytes, sample_rate: int, channels: int, sample_width: 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(APP, host="127.0.0.1", port=9880)
-
+    uvicorn.run(APP, host="0.0.0.0", port=9880)

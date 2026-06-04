@@ -21,6 +21,7 @@
         var st = await fetch(cleanBase(cfg.apiBase) + "/tts_dialogue_job_status/" + encodeURIComponent(track.cacheKey), { cache: "no-store" });
         if (!st.ok) return false;
         var j = await st.json();
+        debugLog("🔍 job_status返回: cacheKey=" + track.cacheKey + ", state=" + (j && j.state) + ", segments_meta_count=" + (j && Array.isArray(j.segments_meta) ? j.segments_meta.length : 0), "#ffd479");
         if (j && j.metrics) track.metrics = j.metrics;
         if (j && j.sample_rate) track.sampleRate = j.sample_rate;
         if (j && j.duration_s) track.duration_s = j.duration_s;

@@ -127,6 +127,10 @@
     }
     function startElementAudioFrom(track, startSec) {
       if (!track || !trackPlayableUrl(track)) return false;
+      if (!audio) {
+        debugLog("⚠️ audio 元素不存在，无法使用 element audio 播放", "#fc9");
+        return false;
+      }
       stopWebAudioPlayback("switch");
       var url = trackPlayableUrl(track);
       var sourceKind = isSavedTrack(track) ? "saved" : (url === track.streamUrl ? "stream" : "audio");

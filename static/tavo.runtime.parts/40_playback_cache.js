@@ -14,7 +14,10 @@
       webAudioController = null;
       clearWebAudioProgressTimer();
       markWebAudioStopped(activeTrack);
-      if (activeTrack && reason === "pause") setTrackPlaybackState(activeTrack, "paused");
+      if (activeTrack && reason === "pause") {
+        setTrackPlaybackState(activeTrack, "paused");
+        showTrackNotice(activeTrack, "已暂停", "点击播放键恢复");
+      }
       stopSubtitle();
       if (reason && reason !== "switch" && reason !== "replace" && reason !== "silent") {
         setPlayState("idle");

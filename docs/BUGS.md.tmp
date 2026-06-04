@@ -1,0 +1,53 @@
+## BUG-043: iOS 首播一直失败（等很久或无声音）
+
+Status: experimental fix in loader v56 / runtime v38 + backend abort check, needs real iOS Tavo regression
+
+Repro: 用户 2026-06-03 真实 iOS Tavo 反馈：首次点播放经常失败，要么一直等待到落盘才播（30+ 秒），要么播放器显示在播但没有声音。需要反复切后台、重启 Tavo 才能偶尔成功。体验极差。
+
+Evidence: iOS WebView 对音频权限管控极严格。AudioContext 必须在用户手势里创建和 resume，且手势栈会在第一个 `await` 后失效。当前流程：用户点播放 → 同步创建 AudioContext + keepalive → await saveConfig/parseWithLlm/fetch → 等待首段 PCM（之前 5秒，v37 改为 1秒）→ schedulePcm() → 如果 AudioContext 已经 interrupted，等待恢复最多 45 秒 → 超时或恢复后播放。
+
+Root cause: **等待首段 PCM 的时间仍然太长！** 即使改为 1 秒，iOS 系统仍可能判定 AudioContext "长时间没有真实音频播放"而进入 `interrupted` 状态。触发条件包括：
+1. 页面失去焦点（切控制台日志、通知栏下拉）
+2. 等待时间超过系统阈值（不同 iOS 版本不同，可能 < 1秒）
+3. keepalive 的静音循环不算"真实音频"
+4. 系统音频会话被抢占
+
+一旦进入 `interrupted`，`ensureAudioContextRunning()` 会尝试 resume，但必须等待新的用户交互才能恢复 → 用户切后台再切回来触发手势 → 恢复成功。这解释了"切后台就能播"的现象。
+
+Fix attempts:
+- v37: 降低首段缓冲从 5秒 到 1秒 → 改善但不够
+- v38: **激进降低到 0.2 秒** → 牺牲流畅度（可能轻微卡顿），换取极速启动
+- Backend: 在 `gsv_tavo_adapter.py` 的 dialogue 生成循环里增加 deleted 检查，避免退出流式后 GPU 继续跑
+
+Technical details v38:
+```javascript
+// 之前 v35-v37
+var startBufferBytes = Math.floor(bytesPerSec * 5.00);  // 5秒
+var startBufferBytes = Math.floor(bytesPerSec * 1.00);  // 1秒
+
+// v38 激进方案
+var flushBytes = Math.floor(bytesPerSec * 0.15);       // 0.15秒
+var startBufferBytes = Math.floor(bytesPerSec * 0.20); // 0.2秒
+```
+
+48kHz 单声道 16bit = 96000 bytes/s，0.2秒 = 19200 bytes ≈ 19KB。RTF 0.5 的情况下，理论上首段到达时间 < 1秒，加上 0.2秒缓冲，总等待 < 1.5秒。
+
+Guard: 真实 iOS Tavo 正则刷新到 v56 后测试：
+1. 首次点播放应在 < 2秒内出声（之前要等 30+秒）
+2. 不切后台/控制台的情况下也能正常播放
+3. 可能出现轻微卡顿/buffering（可接受的副作用）
+4. 退出流式后 GPU 应立即停止（不再疯狂跑）
+
+日志应显示：
+```
+Web Audio 播放时钟已启动
+AudioContext keepalive stopped: live playing
+```
+不应出现长时间 `state=interrupted` 或 `schedulePcm waiting AudioContext`。
+
+Risks: 0.2秒缓冲极小，网络抖动或后端生成间隔 > 200ms 会导致 underrun（播放中断缓冲）。但考虑到局域网环境 + RTF 0.5，理论上每个 chunk 到达间隔 < 200ms，风险可控。如仍失败，考虑：
+1. 完全取消首段缓冲，收到第一个 chunk 就播（最激进）
+2. 检测 iOS 版本/Tavo 版本，针对性调整策略
+3. 放弃 WebAudio 流式，改用 fetch 全部音频后 Blob URL + audio 元素（失去流式能力）
+
+Notes: iOS 音频播放是已知的跨平台开发难题。Safari/WebView 的音频策略比 Android 严格 10 倍。本次修复是在保持流式能力的前提下，尽可能缩短启动延迟。如用户仍反馈失败，需要收集具体 iOS 版本、Tavo 版本、网络环境、日志等信息进一步诊断。

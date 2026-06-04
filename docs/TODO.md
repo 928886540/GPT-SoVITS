@@ -3,9 +3,9 @@
 ## P0
 
 - 重开 Codex 后第一步：读 `AGENTS.md`、`README.md`、`docs/AGENT_STATE.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/BUGS.md`、`docs/TODO.md`、`docs/REGRESSION.md`，再跑 `git status --short`。不要回退当前未提交 runtime 拆分成果。
-- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881939`，loader `20260603-audio-interrupt-v49`，runtime parts/manifest `20260603-audio-interrupt-v31`。优先回归 BUG-039：live 首路径应优先 `<audio>` 系统音频通道，切 Tavo 控制台日志页/后台或正常等待首段时不能出现“通道暂停/已暂停”；WebAudio 只作为 audio 元素不支持后的 fallback。继续回归旁白 artwork、BUG-038 歌词/指标/后台保存和 BUG-037 role/voice 映射。
+- 当前最新待真实 Tavo 回归版本：正则 `https://sovits.928886540.xyz/static/tavo.js?v=2028881940`，loader `20260604-live-buffer-v57`，runtime parts/manifest `20260604-live-buffer-v40`。优先回归 BUG-044：live `POST /tts_dialogue_stream_job` 后 adapter 应立即后台生成并写 live buffer，`GET /tts_dialogue_stream_job/<cache>` 只消费 buffer；Tavo 断开/首播失败不能停止后台生成。saved/history 仍优先 `<audio>`，继续验证后台/锁屏播放。
 - BUG-029 已确认并修复：本机代理 `127.0.0.1:7897` 会把 adapter 到官方 `127.0.0.1:9881` 的调用伪装成空 body 502。adapter 已绕过代理；官方 9881 通过任务计划 `GPT-SoVITS Official API 9881` 常驻。真实 Tavo 复测前先确认 `curl.exe --noproxy "*"` 打 `http://127.0.0.1:9881/docs` 返回 200。
-- 先做真实 Tavo/雷电回归：当前正则已 bump 到 `v=2028881939`，入口为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881939`，需要在 Tavo 正则里刷新版本号，再确认 AR 动态 runtime loader、manifest、21 个 parts、CSS skin、播放器、设置页、音色选择器、懒加载首点播放、live 音频首路径、旁白 artwork 和音符新建音频都加载/交互正常。
+- 先做真实 Tavo/雷电回归：当前正则已 bump 到 `v=2028881940`，入口为 `https://sovits.928886540.xyz/static/tavo.js?v=2028881940`，需要在 Tavo 正则里刷新版本号，再确认 AR 动态 runtime loader、manifest、21 个 parts、CSS skin、播放器、设置页、音色选择器、懒加载首点播放、live buffer/WebAudio 消费路径、saved/history 后台播放、旁白 artwork 和音符新建音频都加载/交互正常。
 - 把 README 拆分后的 `docs/` 作为后续唯一活跃状态入口维护。
 - 检查当前未提交 Tavo 代码改动，不要回退用户已有修改。
 - 处理并行工作线冲突：Claude 线负责 `BUG-004/014/015/016` 的设置页、弹层、播放器；Codex 线负责“普通模式/智能模式”、普通模式三音色配置、正文清洗和规则拆段。改同一文件前必须先看 `git status --short` 和 `git diff -- static/tavo.runtime.js`。
@@ -17,7 +17,7 @@
 - 继续收尾 `BUG-018`：真实 Tavo/LDPlayer 已拿到新 key `34f2b685f300e080e4a139f6ea1d83450b5ef67f`，确认失败时状态接口返回 `state=failed` 且日志出现 `[gsv_adapter] dialogue_stream_failed`。根因是 `男声/霸道青年.mp3` 只有约 1.6 秒，低于官方 GPT-SoVITS 参考音频 3-10 秒要求。下一步要更换/重做 `男声/霸道青年` 的 3-10 秒参考音频和逐字稿，或先把 Tavo 用户音色映射改到合法男声音色后复测成功路径。
 - 用真实 Tavo 验证播放器按钮：保留上一条/下一条，移除可见 10 秒 seek UI。
 - 复测局域网手机播放 `audio error code=4` 和 `audio.play() 不支持`。
-- 把真实 Tavo 正则更新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881939`，重启 adapter/Cloudflare Tunnel 后复测：AR 动态 runtime loader、移动端 live 优先走 `<audio>` 系统音频通道、懒加载播放首点能继续播放历史、加载完整播放器不出现裸 HTML 闪屏、旁白 artwork、音符按钮每次创建新音频 cache key、保存音频 seek 不重拉、补角色后 LLM 拆段复用、设置页不再出现 `极致/离线`。
+- 把真实 Tavo 正则更新到 `https://sovits.928886540.xyz/static/tavo.js?v=2028881940`，重启 adapter/Cloudflare Tunnel 后复测：AR 动态 runtime loader、移动端 live 走 WebAudio 消费服务端 live buffer、saved/history 走 `<audio>` 优先、懒加载播放首点能继续播放历史、加载完整播放器不出现裸 HTML 闪屏、旁白 artwork、音符按钮每次创建新音频 cache key、保存音频 seek 不重拉、补角色后 LLM 拆段复用、设置页不再出现 `极致/离线`。
 - 注意 runtime loader 是从入口脚本 `src` 派生同源静态资源 base，不是外网专用；如果真实 Tavo 正则切回 LAN loader，同一套动态 loader 应自动使用 LAN origin，不允许再维护一套外网专用分支。
 - 单独回归 BUG-024 `/parse_text`：新版前端应通过 XHR `text/plain;charset=UTF-8` POST 请求 `/parse_text`；adapter 日志必须出现 `POST /parse_text`。若返回 `LLM parse failed` / `auth_unavailable`，继续查 LLM 配置，不再查 Tavo AR fetch。
 - 回归 BUG-027：正则更新到 `v=2028881924` 后，同一消息已有拆段缓存时，切换/清空 LLM endpoint/model/key 也必须复用拆段，不得请求 `/parse_text`；保存设置后下一次生成必须使用页面当前 LLM 配置。

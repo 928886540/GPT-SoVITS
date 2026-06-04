@@ -261,8 +261,19 @@
                 trackEntry.backgroundOnly = false;
                 attachCacheAudio(trackEntry, { deferElement: trackEntry.webAudioPlaying && !autoplaySaved, autoplay: autoplaySaved });
                 scheduleOfflineAudioSave(trackEntry, label + " offline", 0);
+                knownHistoryCount = persistableHistoryTracks(generatedTracks).length;
                 if (messageId) saveTracksForMessage(messageId, generatedTracks).catch(function(){});
-                debugLog("✅ " + label + " 已落盘，cacheUrl 已写回卡片", "#9f9");
+                updateTrackButtons();
+                updateTrackCounter();
+                // 增强落盘日志：打印详细信息
+                var detailLog = [
+                  "✅ " + label + " 已落盘",
+                  "segments=" + (trackEntry.segments ? trackEntry.segments.length : 0),
+                  "duration=" + (trackEntry.duration_s ? trackEntry.duration_s.toFixed(2) + "s" : "unknown"),
+                  "sampleRate=" + (trackEntry.sampleRate || "unknown"),
+                  "cacheKey=" + (trackEntry.cacheKey || "").slice(0, 12) + "..."
+                ].join(", ");
+                debugLog(detailLog, "#9f9");
                 if (autoplaySaved) setStatus("生成完成，正在播放保存音频");
                 if (trackEntry.stopServerLogWhenReady) {
                   trackEntry.stopServerLogWhenReady = false;
@@ -282,6 +293,23 @@
                   } catch (_) {}
                 }
                 if (metricsLine) debugLog("📊 " + label + " 指标: " + metricsLine, "#9ff");
+                // 打印完整metrics用于调试音质问题
+                if (trackEntry.metrics) {
+                  try {
+                    var metricsDetail = [];
+                    if (trackEntry.metrics.audio_duration_s) metricsDetail.push("audio_duration=" + trackEntry.metrics.audio_duration_s.toFixed(2) + "s");
+                    if (trackEntry.metrics.inference_time_s) metricsDetail.push("inference_time=" + trackEntry.metrics.inference_time_s.toFixed(2) + "s");
+                    if (trackEntry.metrics.realtime_factor) metricsDetail.push("rtf=" + trackEntry.metrics.realtime_factor.toFixed(2));
+                    if (trackEntry.metrics.diffusion_steps) metricsDetail.push("diffusion_steps=" + trackEntry.metrics.diffusion_steps);
+                    if (trackEntry.metrics.sample_steps) metricsDetail.push("sample_steps=" + trackEntry.metrics.sample_steps);
+                    if (trackEntry.metrics.prompt_audio_seconds) metricsDetail.push("prompt_audio=" + trackEntry.metrics.prompt_audio_seconds + "s");
+                    if (trackEntry.metrics.top_k) metricsDetail.push("top_k=" + trackEntry.metrics.top_k);
+                    if (trackEntry.metrics.top_p) metricsDetail.push("top_p=" + trackEntry.metrics.top_p);
+                    if (trackEntry.metrics.temperature) metricsDetail.push("temp=" + trackEntry.metrics.temperature);
+                    if (trackEntry.metrics.performance_mode) metricsDetail.push("mode=" + trackEntry.metrics.performance_mode);
+                    if (metricsDetail.length) debugLog("🔍 详细参数: " + metricsDetail.join(", "), "#9ff");
+                  } catch (_) {}
+                }
                 if (currentTrack() === trackEntry && isElementUsingTrackStream(trackEntry)) {
                   debugLog("✅ 未检测到 stalled/中断，保持当前流式播放，不切到落盘音频", "#9f9");
                 }
@@ -478,7 +506,9 @@
       track.cachePollStarted = false;
       try { stopServerLogPolling(); } catch (_) {}
       try { audio.pause(); } catch (_) {}
-      stopWebAudioPlayback("switch");
+      // Use "cancel" reason instead of "switch" so keepalive is stopped.
+      // This ensures a clean slate for the next generation.
+      stopWebAudioPlayback("cancel");
       clearElementAudioSrc();
       stopSubtitle();
       hideSubtitlePanel();

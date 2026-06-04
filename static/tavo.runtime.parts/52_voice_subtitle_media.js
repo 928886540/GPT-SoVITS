@@ -263,14 +263,17 @@
     function startSubtitle(trackEntry, getTimeSec) {
       stopSubtitle();
       var segs = (trackEntry && trackEntry.segments) || [];
+      debugLog("🎤 startSubtitle: cacheKey=" + (trackEntry && trackEntry.cacheKey) + ", segments_count=" + segs.length, "#ffd479");
       if (!segs.length) { showSubtitleNotice("暂无歌词", "音频可播放，但没有拿到分段字幕"); return; }
       var gap = (Number(cfg.intervalMs || 350) / 1000);
       var timeline = [];
       var lastIdx = -1;
       var lastMetaSignature = "";
+      var lastRenderedCount = 0; // 记录上次渲染的timeline长度
       var exactTiming = false;
       function rebuild(metaList, sampleRate) {
         var t = 0;
+        var oldTimeline = timeline;
         timeline = [];
         var timingSource = (metaList && metaList.length) ? metaList : segs;
         exactTiming = timelineHasExactMeta(timingSource);
@@ -302,7 +305,13 @@
           t = isFinite(exactStart) ? (exactStart + segDur) : (t + segDur + gap);
         }
         if (timeline.length) {
-          renderSubtitleRows(timeline, !metaList, trackEntry, exactTiming);
+          // 优化：只有 timeline 长度变化时才重新渲染DOM，避免流式播放时频繁重建
+          var needFullRender = timeline.length !== lastRenderedCount;
+          debugLog("🎵 timeline生成: count=" + timeline.length + ", needFullRender=" + needFullRender + ", exactTiming=" + exactTiming, "#9f9");
+          if (needFullRender) {
+            renderSubtitleRows(timeline, !metaList, trackEntry, exactTiming);
+            lastRenderedCount = timeline.length;
+          }
           if (!exactTiming && isLiveTrack(trackEntry)) {
             showTrackNotice(trackEntry, "歌词时间轴校准中", "先显示粗略歌词，拿到完整分段时间后自动校准");
           }
@@ -333,9 +342,25 @@
         }
       }, 150);
       // 后台轮询 job_status 拿真实 segments_meta 校准时间轴
+      // 设置最大轮询次数和超时时间，避免无限轮询
       if (trackEntry.cacheKey) {
+        var pollCount = 0;
+        var maxPollCount = 40; // 最多轮询40次 (40 * 1.5s = 60秒)
+        var pollStartTime = Date.now();
+        var maxPollDuration = 90000; // 最多轮询90秒
         state.pollHandle = setInterval(function () {
           if (activeSubtitle !== state) return;
+          pollCount++;
+          var elapsed = Date.now() - pollStartTime;
+          // 超过最大次数或最大时长，停止轮询
+          if (pollCount > maxPollCount || elapsed > maxPollDuration) {
+            if (state.pollHandle) {
+              clearInterval(state.pollHandle);
+              state.pollHandle = null;
+              debugLog("⚠️ 歌词校准轮询超时停止 (count=" + pollCount + ", elapsed=" + Math.round(elapsed/1000) + "s, cacheKey=" + trackEntry.cacheKey + ")", "#fc9");
+            }
+            return;
+          }
           fetch(cleanBase(cfg.apiBase) + "/tts_dialogue_job_status/" + encodeURIComponent(trackEntry.cacheKey))
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
